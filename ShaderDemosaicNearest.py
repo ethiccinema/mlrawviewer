@@ -60,15 +60,15 @@ float green(vec2 coord) {
     vec2 set = floor(gridpos)*2.0;
     vec2 offset = fract(gridpos)*2.0;
     
-    float sample1 = log2(texture2D(rawtex,(set+vec2(1.0,0.0))*rawres.zw).r);
-    float sample2 = log2(texture2D(rawtex,(set+vec2(0.0,1.0))*rawres.zw).r);
+    float sample1 = log2(texture2D(rawtex,(set+vec2(1.0,0.0))*rawres.zw).r-black);
+    float sample2 = log2(texture2D(rawtex,(set+vec2(0.0,1.0))*rawres.zw).r-black);
     return exp2(0.5*(sample1+sample2));
 }
 float blue(vec2 coord) {
     vec2 gridpos = coord*rawres.xy*0.5;
     vec2 set = floor(gridpos)*2.0;
     vec2 offset = fract(gridpos)*2.0;
-    float sample = texture2D(rawtex,(set+vec2(1.0,1.0))*rawres.zw).r;
+    float sample = texture2D(rawtex,(set+vec2(1.0,1.0))*rawres.zw).r-black;
     return sample;
 }
 
