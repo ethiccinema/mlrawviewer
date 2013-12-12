@@ -227,9 +227,13 @@ class MLV:
         raw = None
         while pos<size-8:
             fh.seek(pos)
-            blockType,blockSize = struct.unpack("II",fh.read(8))         
-            blockName = MLV.BlockTypeLookup[blockType]
-            #print blockName,blockSize
+            blockType,blockSize = struct.unpack("II",fh.read(8))        
+            try:
+                blockName = MLV.BlockTypeLookup[blockType]
+                #print blockName,blockSize,pos,size,size-pos
+            except:
+                pass
+                #print "Unknown block type %08x"%blockType
             if blockType==MLV.BlockType.FileHeader:
                 header = self.parseFileHeader(fh,pos,blockSize)
             elif blockType==MLV.BlockType.RawInfo:
