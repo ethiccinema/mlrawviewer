@@ -63,23 +63,33 @@ class Shader(object):
         glUseProgram(self.program)
 
 class Texture:
-    def __init__(self,size,rgbadata=None,hasalpha=True,mono=False,sixteen=False):
+    def __init__(self,size,rgbadata=None,hasalpha=True,mono=False,sixteen=False,mipmap=False,fp=False):
         self.mono = mono
         self.hasalpha = hasalpha
         self.sixteen = sixteen
+        self.fp = fp
         self.id = glGenTextures(1)
         self.width = size[0]
         self.height = size[1]
         glActiveTexture(GL_TEXTURE0)
         glBindTexture(GL_TEXTURE_2D,self.id)
-        if hasalpha:
+        if hasalpha and not fp:
             glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA,self.width,self.height,0,GL_RGBA,GL_UNSIGNED_BYTE,rgbadata)
+        elif hasalpha and fp:
+            glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA32F,self.width,self.height,0,GL_RGBA,GL_FLOAT,None)
+        elif not hasalpha and not mono and fp:
+            glTexImage2D(GL_TEXTURE_2D,0,GL_RGB32F,self.width,self.height,0,GL_RGB,GL_FLOAT,None)
+        elif mono and not sixteen:
+            glTexImage2D(GL_TEXTURE_2D,0,GL_RED,self.width,self.height,0,GL_RED,GL_UNSIGNED_BYTE,rgbadata)
         elif mono and sixteen:
             glTexImage2D(GL_TEXTURE_2D,0,GL_R32F,self.width,self.height,0,GL_RED,GL_UNSIGNED_SHORT,rgbadata)
         elif not mono and sixteen:
             glTexImage2D(GL_TEXTURE_2D,0,GL_RGB32F,self.width,self.height,0,GL_RGB,GL_UNSIGNED_SHORT,rgbadata)
         else:
             glTexImage2D(GL_TEXTURE_2D,0,GL_RGB,self.width,self.height,0,GL_RGB,GL_UNSIGNED_BYTE,rgbadata)
+        if mipmap:
+            glGenerateMipmap(GL_TEXTURE_2D)
+        self.mipmap = mipmap
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST)
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST)
         glBindTexture(GL_TEXTURE_2D,0)
@@ -88,35 +98,81 @@ class Texture:
         glFramebufferTexture2DEXT(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,self.id, 0)
         glBindFramebuffer(GL_FRAMEBUFFER, 0)
 
+    def addmipmap(self):
+        self.mipmap = True
+        self.bindtex()
+        glGenerateMipmap(GL_TEXTURE_2D)
+        
     def update(self,rgbadata=None):
         self.bindtex()
-        if self.hasalpha:
+        if self.hasalpha and not self.fp:
             glTexSubImage2D(GL_TEXTURE_2D,0,0,0,self.width,self.height,GL_RGBA,GL_UNSIGNED_BYTE,rgbadata)
+        elif self.hasalpha and self.fp:
+            glTexSubImage2D(GL_TEXTURE_2D,0,0,0,self.width,self.height,GL_RGBA,GL_FLOAT,rgbadata)
+        elif not self.hasalpha and not self.mono and self.fp:
+            glTexSubImage2D(GL_TEXTURE_2D,0,0,0,self.width,self.height,GL_RGB,GL_FLOAT,rgbadata)
+        elif self.mono and not self.sixteen:
+            glTexSubImage2D(GL_TEXTURE_2D,0,0,0,self.width,self.height,GL_RED,GL_UNSIGNED_BYTE,rgbadata)
         elif self.sixteen and self.mono:
             glTexSubImage2D(GL_TEXTURE_2D,0,0,0,self.width,self.height,GL_RED,GL_UNSIGNED_SHORT,rgbadata)
         elif self.sixteen and not self.mono:
             glTexSubImage2D(GL_TEXTURE_2D,0,0,0,self.width,self.height,GL_RGB,GL_UNSIGNED_SHORT,rgbadata)
         else:
             glTexSubImage2D(GL_TEXTURE_2D,0,0,0,self.width,self.height,GL_RGB,GL_UNSIGNED_BYTE,rgbadata)
+        if self.mipmap:
+            glGenerateMipmap(GL_TEXTURE_2D)
 
     def bindfbo(self):
         glBindFramebuffer(GL_FRAMEBUFFER, self.fbo)
         glViewport(0,0,self.width,self.height)
 
-    def bindtex(self,linear=False):
-        glActiveTexture(GL_TEXTURE0)
+    def bindtex(self,linear=False,texnum=0):
+        glActiveTexture(GL_TEXTURE0+texnum)
         glBindTexture(GL_TEXTURE_2D, self.id)
         if linear:
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+            if not self.mipmap:
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+            else:
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR)
         else:
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST)
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST)
+            if not self.mipmap:
+
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST)
+            else:
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST_MIPMAP_NEAREST)
+                
 
 from datetime import datetime
 def timeInUsec():
     dt = datetime.now()
     return dt.day*3600.0*24.0+dt.hour*3600.0+dt.minute*60.0+dt.second+0.000001*dt.microsecond
+
+class Drawable(object):
+    def __init__(self):
+        pass
+    def render(self,scene):
+        pass
+
+class Scene(object):
+    def __init__(self,size):
+        self.drawables = []
+        self.size = size
+    def setTarget(self):
+        glBindFramebuffer(GL_FRAMEBUFFER, 0)
+        glViewport(0,0,self.size[0],self.size[1])
+    def render(self,frame):
+        self.frame = frame
+        self.prepareToRender()
+        self.setTarget()
+        for d in self.drawables:
+            d.render(self)
+        self.renderComplete()
+    def prepareToRender(self):
+        pass
+    def renderComplete(self):
+        pass
 
 class GLCompute(object):
     def __init__(self,width=640,height=360,**kwds):
@@ -140,11 +196,15 @@ class GLCompute(object):
         self._frames = 0
         self._fps = 25
         self._last = time.time()
+        self.scenes = [] # Render these scenes in order
         super(GLCompute,self).__init__(**kwds)
     def run(self):
         glutMainLoop()
     def windowName(self):
         return "GLCompute"
+    def renderScenes(self):
+        for s in self.scenes:
+            s.render(self._frames)
     def __draw(self):
         self._last = timeInUsec()
         self.onFboDraw()
@@ -154,7 +214,13 @@ class GLCompute(object):
         glViewport(0,0,w,h)
         glClearColor(0.0,0.0,0.0,1)
         glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT)
-        self.onDraw(w,h)
+        try:
+            self.onDraw(w,h)
+        except:
+            import traceback
+            traceback.print_exc()
+            glutLeaveMainLoop()
+            return    
         glutSwapBuffers()
         self._frames+=1
     def onFboDraw(self):
@@ -164,9 +230,11 @@ class GLCompute(object):
     def __idle(self):
         self.onIdle()
         now = timeInUsec()
-        if (now-self._last >= (1.0/self._fps-0.005)):
+        if (now-self._last >= (1.0/self._fps)):
             #print now,self._last,1.0/self._fps
             glutPostRedisplay()
+    def display(self):
+        glutPostRedisplay()
     def onIdle(self):
         pass
     def __close(self):
