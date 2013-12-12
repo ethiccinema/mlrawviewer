@@ -30,7 +30,6 @@ attribute vec4 vertex;
 varying vec2 texcoord;
 uniform float time;
 uniform vec3 colourBalance;
-uniform float black;
 uniform vec4 rawres;
 void main() {
     gl_Position = vertex;
@@ -41,12 +40,11 @@ void main() {
 varying vec2 texcoord;
 uniform float time;
 uniform vec3 colourBalance;
-uniform float black;
 uniform vec4 rawres;
 uniform sampler2D tex;
 
 void main() {
-    vec3 col = colourBalance*texture2D(tex,texcoord).rgb-black;
+    vec3 col = colourBalance*texture2D(tex,texcoord).rgb;
     // Tone map everything into 0-1 range
     gl_FragColor = vec4(vec3(col/(1.0+col)),1.);
 }
@@ -55,7 +53,7 @@ void main() {
     def __init__(self,**kwds):
         myclass = self.__class__
         super(ShaderDisplaySimpleToneMap,self).__init__(myclass.vertex_src,myclass.fragment_src,["time","tex","rawres","colourBalance"],**kwds)
-    def draw(self,texture,balance):
+    def draw(self,width,height,texture,balance):
         self.use()
         vertices = GLCompute.glarray(GLfloat,(-1,-1,0,1,-1,0,-1,1,0,1,1,0))
         glVertexAttribPointer(self.vertex,3,GL_FLOAT,GL_FALSE,0,vertices)
@@ -63,7 +61,9 @@ void main() {
         texture.bindtex(True) # Use linear filter
         glUniform1i(self.uniforms["tex"], 0)
         glUniform3f(self.uniforms["colourBalance"], balance[0], balance[1],balance[2])
-        glUniform4f(self.uniforms["rawres"], texture.width, texture.height, 1.0/float(texture.width),1.0/float(texture.height))
+        w = width
+        h = height
+        glUniform4f(self.uniforms["rawres"], w, h, 1.0/float(w),1.0/float(h))
         glUniform1f(self.uniforms["time"], 0)
         glDrawArrays(GL_TRIANGLE_STRIP, 0, 4)
          
