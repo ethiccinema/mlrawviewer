@@ -1,0 +1,23 @@
+Instructions
+------------
+
+Installation
+------------
+1. You need python 2.7 or later python 2 release, not python 3
+
+2. You need to install pyOpenGL, e.g. on Ubuntu "sudo apt-get install python-opengl"
+
+3. You need to install numpy, e.g. on Ubuntu "sudo apt-get install python-numpy"
+
+4. The playback will be faster if you build the included bitunpack module.
+Do. "python setup.py build".
+Then either link or copy the bitunpack binary from the build sub-directory to the same place as the script
+
+Usage
+-----
+
+-/mlrawviewer.py <path_to_ML_RAW_or_MLV_base_file>
+
+If the Raw file is the first in a numbered set, the other files will be used automatically.
+Playback will happen as fast as possible, not constrained to the recording frame rate.
+
