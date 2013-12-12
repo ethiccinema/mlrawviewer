@@ -104,7 +104,7 @@ class MLRAW:
         self.footer = struct.unpack("4shhiiiiii",footerdata[:8*4])
         self.info = struct.unpack("40i",footerdata[8*4:])
         #print self.footer,self.info
-        self.black = 2030 # self.info[7]-1 # Stored value wrong? 
+        self.black = 2020 # self.info[7]-1 # Stored value wrong? 
         #print self.black
         self.framefiles = []
         for framefilename in allfiles:
@@ -199,24 +199,28 @@ class MLV:
         dirname,allfiles = getRawFileSeries(filename)
         mlvfile = file(filename,'rb')
         self.framepos = {}
-        header,raw = self.parseFile(mlvfile,self.framepos)
+        header,raw,parsedTo,size,ts = self.parseFile(mlvfile,self.framepos)
         self.framecount = header[14]
         self.header = header
         self.raw = raw
-        self.files = [mlvfile]
+        self.ts = ts
+        self.files = [(mlvfile,0,header[14],header,parsedTo, size)]
         for spanfilename in allfiles[1:]:
             fullspanfile = os.path.join(dirname,spanfilename)
             spanfile = file(fullspanfile,'rb')
-            header,raw = self.parseFile(spanfile,self.framepos)
+            header,raw,parsedTo,size,ts = self.parseFile(spanfile,self.framepos)
+            self.files.append((spanfile,self.framecount,header[14],header,parsedTo, size))
             self.framecount += header[14]
-            self.files.append(spanfile)
-        self.preloader = threading.Thread(target=self.preloaderMain) 
-        self.preloaderArgs = Queue.Queue(1)
-        self.preloaderResults = Queue.Queue(1)
-        self.preloader.daemon = True
-        self.preloader.start()
+        self.preloader = None
+    def initPreloader(self):
+        if (self.preloader == None):
+            self.preloader = threading.Thread(target=self.preloaderMain) 
+            self.preloaderArgs = Queue.Queue(1)
+            self.preloaderResults = Queue.Queue(1)
+            self.preloader.daemon = True
+            self.preloader.start()
     def close(self):
-        for fh in self.files:
+        for fh,firstframe,frames,header,parsedTo,size in self.files:
             fh.close()
     def parseFile(self,fh,framepos):
         fh.seek(0,os.SEEK_END)
@@ -225,6 +229,7 @@ class MLV:
         count = 0
         header = None
         raw = None
+        ts = None
         while pos<size-8:
             fh.seek(pos)
             blockType,blockSize = struct.unpack("II",fh.read(8))        
@@ -238,13 +243,18 @@ class MLV:
                 header = self.parseFileHeader(fh,pos,blockSize)
             elif blockType==MLV.BlockType.RawInfo:
                 raw = self.parseRawInfo(fh,pos,blockSize)
+            elif blockType==MLV.BlockType.RealTimeClock:
+                ts = self.parseRtc(fh,pos,blockSize)
             elif blockType==MLV.BlockType.VideoFrame:
                 videoFrameHeader = self.parseVideoFrame(fh,pos,blockSize)
                 framepos[videoFrameHeader[1]] = (fh,pos) 
+                pos += blockSize
+                break # Only get first frame in this file
                 #print videoFrameHeader[1],pos
             count += 1
             pos += blockSize
-        return header, raw
+            count += 1
+        return header, raw, pos, size, ts
     def parseFileHeader(self,fh,pos,size):
         fh.seek(pos+8)
         headerData = fh.read(size-8)
@@ -257,6 +267,12 @@ class MLV:
         raw = struct.unpack("<Q2H40I",rawData[:(8+2*2+40*4)])
         self.black = raw[10]
         return raw
+        #print "RawInfo:",self.raw
+    def parseRtc(self,fh,pos,size):
+        fh.seek(pos+8)
+        rtcData = fh.read(size-8)
+        rtc = struct.unpack("<Q10H8s",rtcData[:(8+10*2+8)])
+        return rtc
         #print "RawInfo:",self.raw
     def parseVideoFrame(self,fh,pos,size):
         fh.seek(pos+8)
@@ -281,6 +297,7 @@ class MLV:
                 frame = None
             self.preloaderResults.put((arg,frame))
     def preloadFrame(self,index):
+        self.initPreloader()
         self.preloaderArgs.put(index)
     def frame(self,index):
         preloadedindex = -1
@@ -291,8 +308,33 @@ class MLV:
                 break
             self.preloadFrame(index)
         return frame
+    def _getframedata(self,index):
+        try:
+            fh, framepos = self.framepos[index]
+            return fh, framepos
+        except:
+            # Do not have that frame (yet)
+            # Find which file should contain that frame
+            for fileindex,info in enumerate(self.files):
+                fh, firstframe, frames, header, parsedTo, size = info
+                if index>=firstframe and index<(firstframe+frames):
+                    break
+            # Parse through file until we find frame
+            pos = parsedTo
+            while pos < size: 
+                fh.seek(pos)
+                blockType,blockSize = struct.unpack("II",fh.read(8))   
+                blockName = MLV.BlockTypeLookup[blockType]
+                #print blockName,blockSize
+                if blockType==MLV.BlockType.VideoFrame:
+                    videoFrameHeader = self.parseVideoFrame(fh,pos,blockSize)
+                    self.framepos[videoFrameHeader[1]] = (fh,pos) 
+                    if videoFrameHeader[1]==index:
+                        break # Found it 
+                pos += blockSize
+            return self.framepos[index]
     def _loadframe(self,index):
-        fh,framepos = self.framepos[index]
+        fh,framepos = self._getframedata(index)
         fh.seek(framepos)
         blockType,blockSize = struct.unpack("II",fh.read(8))         
         videoFrameHeader = self.parseVideoFrame(fh,framepos,blockSize)
