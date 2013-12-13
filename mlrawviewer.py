@@ -101,8 +101,8 @@ class Display(GLCompute.Drawable):
     def render(self,scene):
         # Now display the RGB image
         #self.rgbImage.addmipmap()
-        brightness = 75.0
-        balance = (1.*brightness,0.6*brightness,0.9*brightness)
+        brightness = 50.0
+        balance = (2.0*brightness,1.0*brightness,1.5*brightness)
         # Scale
         self.displayShader.draw(scene.size[0],scene.size[1],self.rgbImage,balance)
         # 1 to 1
