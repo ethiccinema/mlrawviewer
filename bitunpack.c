@@ -18,7 +18,10 @@ bitunpack_unpack14to16(PyObject* self, PyObject *args)
     short unsigned int* read = (short unsigned int*)input;
     short unsigned int* write = (short unsigned int*)baptr;
     //printf("Decoding frame\n");
-    
+   
+    unsigned int statmin = 1<<14-1;
+    unsigned int statmax = 0;
+ 
     while (i<elements) {
         if (sparebits<14) {
             acc |= *read++;
@@ -31,10 +34,16 @@ bitunpack_unpack14to16(PyObject* self, PyObject *args)
             acc = 0;
         }
         *write++ = out;
+        if (out<statmin) statmin = out;
+        if (out>statmax) statmax = out;
         acc = (acc&((1<<sparebits)-1))<<16;
         i++;
     }
-    return ba;
+    PyObject *stat = Py_BuildValue("II",statmin,statmax);
+    PyObject *rslt = PyTuple_New(2);
+    PyTuple_SetItem(rslt, 0, ba);
+    PyTuple_SetItem(rslt, 1, stat);
+    return rslt;
 }
 
 static PyMethodDef methods[] = {
@@ -50,5 +59,6 @@ initbitunpack(void)
     m = Py_InitModule("bitunpack", methods);
     if (m == NULL)
         return;
+    PyModule_AddStringConstant(m,"__version__","1.1");
 }
 

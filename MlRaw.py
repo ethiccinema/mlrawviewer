@@ -41,9 +41,17 @@ try:
     numpy in case it hasn't been compiled
     """
     import bitunpack
+    if ("__version__" not in dir(bitunpack)) or bitunpack.__version__!="1.1":
+        print """
+
+!!! Wrong version of bitunpack found !!!
+!!! Please rebuild latest version. !!!
+
+"""
+        raise  
     def unpacks14np16(rawdata,width,height):
-        unpacked = bitunpack.unpack14to16(rawdata)
-        return np.frombuffer(unpacked,dtype=np.uint16)
+        unpacked,stats = bitunpack.unpack14to16(rawdata)
+        return np.frombuffer(unpacked,dtype=np.uint16),stats
 except:
     print """Falling back to Numpy for bit unpacking operations.
 Consider compiling bitunpack module for faster conversion."""
@@ -68,19 +76,25 @@ Consider compiling bitunpack module for faster conversion."""
         unpacked[:,5] = packing5>>12|(np.bitwise_and(packing4,0x3FF)<<4)
         unpacked[:,6] = packing6>>14|(np.bitwise_and(packing5,0xFFF)<<2)
         unpacked[:,7] = packing6&0x3FFF
-        return unpacked
+        stats = (np.min(unpacked),np.max(unpacked))
+        return unpacked,stats
 
 class Frame:
-    def __init__(self,rawdata,width,height,black):
+    def __init__(self,rawfile,rawdata,width,height,black):
         #print "opening frame",len(rawdata),width,height
         #print width*height
+        self.rawfile = rawfile
         self.black = black
         self.rawdata = rawdata
         self.width = width
         self.height = height
         self.rawdata = rawdata
     def convert(self):
-        self.rawimage = unpacks14np16(self.rawdata,self.width,self.height)
+        self.rawimage,self.framestats = unpacks14np16(self.rawdata,self.width,self.height)
+        if self.framestats[0] < self.black:
+            self.black = self.framestats[0]
+            print "Adjusting black level to",self.black
+            self.rawfile.black = self.black # Update (lower) black for the file
 
 def getRawFileSeries(basename):
     dirname,filename = os.path.split(basename)
@@ -104,7 +118,7 @@ class MLRAW:
         self.footer = struct.unpack("4shhiiiiii",footerdata[:8*4])
         self.info = struct.unpack("40i",footerdata[8*4:])
         #print self.footer,self.info
-        self.black = 2020 # self.info[7]-1 # Stored value wrong? 
+        self.black = 2000 # self.info[7]-1 # Stored value wrong? 
         #print self.black
         self.framefiles = []
         for framefilename in allfiles:
@@ -161,7 +175,7 @@ class MLRAW:
                 framedata += newframedata
                 if needed==0:
                     break
-            return Frame(framedata,self.width(),self.height(),self.black)
+            return Frame(self,framedata,self.width(),self.height(),self.black)
         return ""
 
  
@@ -289,7 +303,7 @@ class MLV:
         return self.framecount
     def preindex(self):
         if self.preindexed == self.framecount: return
-        preindexStep = 50
+        preindexStep = 10
         preindexAtStart = self.preindexed
         while self.preindexed < self.framecount and self.preindexed < preindexAtStart + preindexStep:
             self._getframedata(self.preindexed,checkNextFile=False)
@@ -377,7 +391,7 @@ class MLV:
         rawsize = blockSize - 32 - videoFrameHeader[-2]
         fh.seek(rawstarts)
         rawdata = fh.read(rawsize)
-        return Frame(rawdata,self.width(),self.height(),self.black)
+        return Frame(self,rawdata,self.width(),self.height(),self.black)
 
 def loadRAWorMLV(filename):
     fl = filename.lower()
