@@ -137,13 +137,15 @@ class DisplayScene(GLCompute.Scene):
         width,height = self.size
         m2.viewport(width,height)
         m2.translate(7.-float(width)/2.0,7.-float(height)/2.0)
-        self.progressBackground.geometry = self.textshader.rectangle(1.9,0.1,rgba=(0.2,0.2,0.2,0.2),update=self.progressBackground.geometry)
-        self.progress.geometry = self.textshader.rectangle((float(frameNumber)/float(self.raw.frames()))*1.9,0.1,rgba=(1.0,1.0,0.2,0.2),update=self.progress.geometry)
+        rectHeight = 0.08/(float(width)/540.0)
+        rectWidth = 1.9
+        self.progressBackground.geometry = self.textshader.rectangle(rectWidth,rectHeight,rgba=(0.2,0.2,0.2,0.2),update=self.progressBackground.geometry)
+        self.progress.geometry = self.textshader.rectangle((float(frameNumber)/float(self.raw.frames()))*rectWidth,rectHeight,rgba=(1.0,1.0,0.2,0.2),update=self.progress.geometry)
         self.progressBackground.matrix = m2
         self.progress.matrix = m2
         m = Matrix4x4()
         m.viewport(width,height)
-        m.scale(40.0*(1.0/(64.0*height*(width/height))))
+        m.scale(40.0*(1.0/(64.0*float(height)*(float(width)/float(height)))))
         m.translate(10.-float(width)/2.0,10.-float(height)/2.0)
         self.timestamp.matrix = m
         minutes = (frameNumber/25)/60
