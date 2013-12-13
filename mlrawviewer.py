@@ -156,7 +156,9 @@ class DisplayScene(GLCompute.Scene):
 
 class Viewer(GLCompute.GLCompute):
     def __init__(self,raw,**kwds):
-        super(Viewer,self).__init__(width=960,height=540,**kwds)
+        userWidth = 720
+        vidAspect = float(raw.height())/(raw.width())
+        super(Viewer,self).__init__(width=userWidth,height=int(userWidth*vidAspect),**kwds)
         self._init = False
         self._raw = raw
         self.font = Font.Font("data/os.glf")
