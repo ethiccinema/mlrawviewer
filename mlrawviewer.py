@@ -25,6 +25,12 @@ SOFTWARE.
 # standard python imports. Should not be missing
 import sys,struct,os,math,time,datetime
 
+version = "1.0.1"
+
+print "MlRawViewer v"+version
+print "(c) Andrew Baldwin & contributors 2013"
+
+
 # OpenGL. Could be missing
 try:
     from OpenGL.GL import *
@@ -80,7 +86,6 @@ class DemosaicScene(GLCompute.Scene):
         f = 0
         self.raw = raw
         self.raw.preloadFrame(f)
-        print self.raw.width()
         frame0 = self.raw.frame(f)
         frame0.convert()
         self.raw.preloadFrame(f)
@@ -157,8 +162,8 @@ class DisplayScene(GLCompute.Scene):
 class Viewer(GLCompute.GLCompute):
     def __init__(self,raw,**kwds):
         userWidth = 720
-        vidAspect = float(raw.height())/(raw.width())
-        super(Viewer,self).__init__(width=userWidth,height=int(userWidth*vidAspect),**kwds)
+        self.vidAspect = float(raw.height())/(raw.width())
+        super(Viewer,self).__init__(width=userWidth,height=int(userWidth*self.vidAspect),**kwds)
         self._init = False
         self._raw = raw
         self.font = Font.Font("data/os.glf")
@@ -167,7 +172,7 @@ class Viewer(GLCompute.GLCompute):
         self.paused = False
         self.needsRefresh = False
     def windowName(self):
-        return "MLRAW Viewer"
+        return "MlRawViewer v"+version+" - "+os.path.split(sys.argv[1])[1]
     def init(self):
         if self._init: return
         self.demosaic = DemosaicScene(self._raw,size=(self._raw.width(),self._raw.height()))
@@ -181,19 +186,24 @@ class Viewer(GLCompute.GLCompute):
         self.init()
         self.display.size = (width,height)
         self.renderScenes()
+    def jump(self,framesToJumpBy):
+        self._frames += framesToJumpBy
+        self.refresh()
     def key(self,k,x,y):
         if ord(k)==32:
             self.paused = not self.paused
+        elif k=='.': # Nudge forward one frame - best when paused
+            self.jump(0) # If paused, will automatically load next frame
+        elif k==',': # Nudge back on frame - best when paused
+            self.jump(-2) # If paused, will automatically be on next frame, so need to go back 2!
         else:
             super(Viewer,self).key(k,x,y)
     def specialkey(self,k,x,y):
         #print "special key",k
         if k==100: # Left cursor
-            self._frames -= self._fps # Go back 1 second (will wrap)
-            self.refresh()
+            self.jump(-self._fps) # Go back 1 second (will wrap)
         elif k==102: # Right cursor
-            self._frames += self._fps # Go forward 1 second (will wrap)
-            self.refresh()
+            self.jump(self._fps) # Go forward 1 second (will wrap)
         else:
             super(Viewer,self).specialkey(k,x,y)
     def onIdle(self):

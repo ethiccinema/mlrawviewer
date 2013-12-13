@@ -176,6 +176,8 @@ class Scene(object):
 
 class GLCompute(object):
     def __init__(self,width=640,height=360,**kwds):
+        self.width = width  
+        self.height = height
         glutInit(sys.argv) 
         glutInitDisplayMode(GLUT_DOUBLE|GLUT_RGB|GLUT_DEPTH)
         glutInitWindowSize(width,height)
@@ -211,6 +213,9 @@ class GLCompute(object):
         glBindFramebuffer(GL_FRAMEBUFFER, 0)
         w = glutGet(GLUT_WINDOW_WIDTH)
         h = glutGet(GLUT_WINDOW_HEIGHT)
+        if not self._isFull:
+            self.width = w
+            self.height = h
         glViewport(0,0,w,h)
         glClearColor(0.0,0.0,0.0,1)
         glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT)
@@ -244,7 +249,7 @@ class GLCompute(object):
             self.__close()
         if ord(k)==9:
             if self._isFull:
-                glutReshapeWindow(640,360) # TODO - should obey original aspect ratio
+                glutReshapeWindow(self.width,self.height)
                 self._isFull = False
             else:
                 glutFullScreen()

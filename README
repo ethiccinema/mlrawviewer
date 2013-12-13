@@ -27,3 +27,5 @@ SPACE - Pause/Unpause playback
 TAB - Toggle between initial windowed mode and fullscreen
 
 LEFT/RIGHT CURSOR - Jump back/forward 1 second
+
+,/. - Nudge back/forward by 1 frame (works best when paused)
