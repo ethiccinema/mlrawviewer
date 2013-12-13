@@ -103,11 +103,11 @@ class Display(GLCompute.Drawable):
         super(Display,self).__init__(**kwds)
         self.displayShader = ShaderDisplaySimpleToneMap()
         self.rgbImage = rgbImage
+        self.brightness = 50.0
     def render(self,scene):
         # Now display the RGB image
         #self.rgbImage.addmipmap()
-        brightness = 50.0
-        balance = (2.0*brightness,1.0*brightness,1.5*brightness)
+        balance = (2.0*self.brightness,1.0*self.brightness,1.5*self.brightness)
         # Scale
         self.displayShader.draw(scene.size[0],scene.size[1],self.rgbImage,balance)
         # 1 to 1
@@ -142,7 +142,7 @@ class DisplayScene(GLCompute.Scene):
         width,height = self.size
         m2.viewport(width,height)
         m2.translate(7.-float(width)/2.0,7.-float(height)/2.0)
-        rectHeight = 0.08/(float(width)/540.0)
+        rectHeight = 0.075/(float(width)/540.0)
         rectWidth = 1.9
         self.progressBackground.geometry = self.textshader.rectangle(rectWidth,rectHeight,rgba=(0.2,0.2,0.2,0.2),update=self.progressBackground.geometry)
         self.progress.geometry = self.textshader.rectangle((float(frameNumber)/float(self.raw.frames()))*rectWidth,rectHeight,rgba=(1.0,1.0,0.2,0.2),update=self.progress.geometry)
@@ -157,7 +157,7 @@ class DisplayScene(GLCompute.Scene):
         seconds = (frameNumber/25)%60
         frames = frameNumber%25
         self.timestamp.geometry = self.textshader.label(self.textshader.font,"%02d:%02d.%02d"%(minutes,seconds,frames),update=self.timestamp.geometry)
-        self.timestamp.colour = (0.1,0.1,0.2,1.0)
+        self.timestamp.colour = (0.0,0.0,0.0,1.0)
 
 class Viewer(GLCompute.GLCompute):
     def __init__(self,raw,**kwds):
@@ -186,6 +186,8 @@ class Viewer(GLCompute.GLCompute):
         self.init()
         self.display.size = (width,height)
         self.renderScenes()
+        if self.paused:
+            self._frames -= 1
     def jump(self,framesToJumpBy):
         self._frames += framesToJumpBy
         self.refresh()
@@ -193,9 +195,9 @@ class Viewer(GLCompute.GLCompute):
         if ord(k)==32:
             self.paused = not self.paused
         elif k=='.': # Nudge forward one frame - best when paused
-            self.jump(0) # If paused, will automatically load next frame
+            self.jump(1) # If paused, will automatically load next frame
         elif k==',': # Nudge back on frame - best when paused
-            self.jump(-2) # If paused, will automatically be on next frame, so need to go back 2!
+            self.jump(-1) # If paused, will automatically be on next frame, so need to go back 2!
         else:
             super(Viewer,self).key(k,x,y)
     def specialkey(self,k,x,y):
@@ -204,8 +206,15 @@ class Viewer(GLCompute.GLCompute):
             self.jump(-self._fps) # Go back 1 second (will wrap)
         elif k==102: # Right cursor
             self.jump(self._fps) # Go forward 1 second (will wrap)
+        elif k==101: # Up cursor
+            self.scaleBrightness(1.1)
+        elif k==103: # Down cursor
+            self.scaleBrightness(1.0/1.1)
         else:
             super(Viewer,self).specialkey(k,x,y)
+    def scaleBrightness(self,scale):
+        self.display.display.brightness *= scale
+        self.refresh()
     def onIdle(self):
         if self.needsRefresh and self.paused:
             self.redisplay()

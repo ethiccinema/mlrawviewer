@@ -79,6 +79,9 @@ void main() {
         glVertexAttribPointer(self.actmg,4,GL_FLOAT,GL_FALSE,48,vertices+32)
         if texture:
             texture.bindtex(True) # Use linear filter
+        else:
+            glActiveTexture(GL_TEXTURE0)
+            glBindTexture(GL_TEXTURE_2D, 0)
         glUniform4f(self.uniforms["urgba"], rgba[0],rgba[1],rgba[2],rgba[3])
         glUniformMatrix4fv(self.uniforms["matrix"], 1, 0, matrix.m.tolist())
         glUniform1i(self.uniforms["tex"], 0)
