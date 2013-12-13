@@ -165,6 +165,7 @@ class Viewer(GLCompute.GLCompute):
         self.time = 0
         self._fps = 25 # TODO - This should be read from the file
         self.paused = False
+        self.needsRefresh = False
     def windowName(self):
         return "MLRAW Viewer"
     def init(self):
@@ -186,12 +187,28 @@ class Viewer(GLCompute.GLCompute):
         else:
             super(Viewer,self).key(k,x,y)
     def specialkey(self,k,x,y):
-        super(Viewer,self).specialkey(k,x,y)
+        #print "special key",k
+        if k==100: # Left cursor
+            self._frames -= self._fps # Go back 1 second (will wrap)
+            self.refresh()
+        elif k==102: # Right cursor
+            self._frames += self._fps # Go forward 1 second (will wrap)
+            self.refresh()
+        else:
+            super(Viewer,self).specialkey(k,x,y)
     def onIdle(self):
+        if self.needsRefresh and self.paused:
+            self.redisplay()
+
         now = GLCompute.timeInUsec()
-        if not self.paused and (now-self._last >= (1.0/self._fps)):
+        if not self.needsRefresh and not self.paused and (now-self._last >= (1.0/self._fps)):
             #print now,self._last,1.0/self._fps
             self.redisplay()
+
+        self.needsRefresh = False
+
+    def refresh(self):
+        self.needsRefresh = True 
 
 def main():
     filename = sys.argv[1]
