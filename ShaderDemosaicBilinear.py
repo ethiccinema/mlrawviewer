@@ -55,7 +55,8 @@ float get(vec2 bayerpixel) {
     vec2 clampedpixel = clamp(bayerpixel,vec2(0.0),rawres.xy-1.0);
     vec2 diff = bayerpixel - clampedpixel;
     vec2 clampedcoord = (bayerpixel-diff*2.0)*rawres.zw;
-    return log2(texture2D(rawtex,clampedcoord).r-black);
+    float raw = texture2D(rawtex,clampedcoord).r-black;
+    return log2(clamp(raw,0.00001,1.0));
 }
 
 float red(vec2 coord) {

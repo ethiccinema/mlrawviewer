@@ -201,6 +201,7 @@ class MLV:
         self.framepos = {}
         header,raw,parsedTo,size,ts = self.parseFile(mlvfile,self.framepos)
         self.framecount = header[14]
+        self.preindexed = 0
         self.header = header
         self.raw = raw
         self.ts = ts
@@ -286,8 +287,16 @@ class MLV:
         return self.raw[2]
     def frames(self):
         return self.framecount
+    def preindex(self):
+        if self.preindexed == self.framecount: return
+        preindexStep = 50
+        preindexAtStart = self.preindexed
+        while self.preindexed < self.framecount and self.preindexed < preindexAtStart + preindexStep:
+            self._getframedata(self.preindexed,checkNextFile=False)
+            self.preindexed += 1
     def preloaderMain(self):
         while 1:
+            self.preindex() # Do some preindexing if still needed
             arg = self.preloaderArgs.get() # Will wait for a job
             try:
                 frame = self._loadframe(arg)
@@ -308,7 +317,7 @@ class MLV:
                 break
             self.preloadFrame(index)
         return frame
-    def _getframedata(self,index):
+    def _getframedata(self,index,checkNextFile=True):
         try:
             fh, framepos = self.framepos[index]
             return fh, framepos
@@ -321,6 +330,7 @@ class MLV:
                     break
             # Parse through file until we find frame
             pos = parsedTo
+            notFound = True
             while pos < size: 
                 fh.seek(pos)
                 blockType,blockSize = struct.unpack("II",fh.read(8))
@@ -333,9 +343,31 @@ class MLV:
                     videoFrameHeader = self.parseVideoFrame(fh,pos,blockSize)
                     self.framepos[videoFrameHeader[1]] = (fh,pos) 
                     if videoFrameHeader[1]==index:
+                        notFound = False
                         break # Found it 
                 pos += blockSize
-            return self.framepos[index]
+                if pos>=size and notFound:
+                    self.files[fileindex] = (fh, firstframe, frames, header, pos, size)
+                    if checkNextFile:
+                        # Update parsedTo point
+                        # Try next file if there is one
+                        #print "FRAME NOT FOUND IN EXPECTED FILE",fileindex,index
+                        fileindex += 1
+                        if fileindex<len(self.files):
+                            #print "TRYING NEXT FILE"
+                            fh, firstframe, frames, header, parsedTo, size = self.files[fileindex]
+                            pos = parsedTo
+                    else:
+                        #print "FAILED TO FIND FRAME",index
+                        return None
+            # Update parsedTo point
+            self.files[fileindex] = (fh, firstframe, frames, header, pos, size)
+            result = None
+            try:
+                result = self.framepos[index]
+            except:
+                pass
+            return result
     def _loadframe(self,index):
         fh,framepos = self._getframedata(index)
         fh.seek(framepos)
