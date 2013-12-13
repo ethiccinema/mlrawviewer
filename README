@@ -1,5 +1,24 @@
-Instructions
-------------
+About
+-----
+
+MlRawViewer is a cross-platform viewer for raw video files produced by the Magic Lantern add-on software
+for Canon DSLR cameras. (See http://www.magiclantern.fm/ for more details).
+
+It supports both the original RAW format, and the newer MLV (RAW v2.0) format in both
+single and multi-file versions.
+
+The program is written in python, and makes use of OpenGL for image processing in order to be 
+able to display videos at their intended frame rate. This also depends on you having
+good file read speed in your computer.
+
+It has mainly been developed and tested on Linux, but it has also been used on Mac and Windows. 
+However, it does currently assume you are able to set up the python runtime yourself. 
+(For Mac and Windows you might find other alternatives which are easier to get going).
+
+License
+-------
+
+The software is supplied under a BSD-style license. See the source code.
 
 Installation
 ------------
