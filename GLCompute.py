@@ -189,8 +189,8 @@ class GLCompute(object):
             glutSetOption(GLUT_ACTION_ON_WINDOW_CLOSE,GLUT_ACTION_GLUTMAINLOOP_RETURNS)
         except:
             pass # Hmm... doesn't work on Mac
-        glutKeyboardFunc(self.__key)
-        glutSpecialFunc(self.__skey)
+        glutKeyboardFunc(self.key)
+        glutSpecialFunc(self.specialkey)
         self._isFull = False
         self._start = time.time()
         self._frames = 0
@@ -229,11 +229,7 @@ class GLCompute(object):
         pass
     def __idle(self):
         self.onIdle()
-        now = timeInUsec()
-        if (now-self._last >= (1.0/self._fps)):
-            #print now,self._last,1.0/self._fps
-            glutPostRedisplay()
-    def display(self):
+    def redisplay(self):
         glutPostRedisplay()
     def onIdle(self):
         pass
@@ -242,18 +238,20 @@ class GLCompute(object):
             glutLeaveMainLoop()
         except:
             sys.exit(0) # Needed on Mac
-    def __key(self,k,x,y):
+    def key(self,k,x,y):
+        #print "key",ord(k),x,y
         if ord(k)==27:
             self.__close()
         if ord(k)==9:
             if self._isFull:
-                glutReshapeWindow(640,360)
+                glutReshapeWindow(640,360) # TODO - should obey original aspect ratio
                 self._isFull = False
             else:
                 glutFullScreen()
                 self._isFull = True
-    def __skey(self,k,x,y):
-        print "special",k,x,y
+    def specialkey(self,k,x,y):
+        #print "special",k,x,y
+        pass
 
 
 

@@ -22,4 +22,5 @@ Playback will happen at around 25FPS or the closest achievable if constrained by
 Keys
 ----
 
+SPACE - Pause/Unpause playback
 TAB - Toggle between initial windowed mode and fullscreen

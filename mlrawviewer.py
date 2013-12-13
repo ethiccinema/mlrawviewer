@@ -163,7 +163,8 @@ class Viewer(GLCompute.GLCompute):
         self._raw = raw
         self.font = Font.Font("data/os.glf")
         self.time = 0
-        self._fps = 25
+        self._fps = 25 # TODO - This should be read from the file
+        self.paused = False
     def windowName(self):
         return "MLRAW Viewer"
     def init(self):
@@ -179,27 +180,18 @@ class Viewer(GLCompute.GLCompute):
         self.init()
         self.display.size = (width,height)
         self.renderScenes()
-        """
-        # Draw the overlay timestamp
-        if self.matrix == None:
-            self.matrix = Matrix4x4()
-            self.matrix.viewport(width,height)
-            self.matrix.scale(40.0*(1.0/(64.0*height*(width/height))))
-            self.matrix.translate(10.-float(width)/2.0,10.-float(height)/2.0)
-        #if self.timestamp == None:
-        minutes = (frameNumber/25)/60
-        seconds = (frameNumber/25)%60
-        frames = frameNumber%25
-        self.timestamp = self.textshader.label(self.font,"%02d:%02d.%02d"%(minutes,seconds,frames),update=self.timestamp)
-        self.textshader.draw(self.timestamp,self.matrix,(0.1,0.1,0.2,1.0))
-        #self.time += 0.001
-        # FPS calculations
-        if self._frames%30==0:
-            dur = time.time()-self._start
-            self._start = time.time()
-            if self._frames>0:
-                print "FPS:",30.0/float(dur)
-        """
+    def key(self,k,x,y):
+        if ord(k)==32:
+            self.paused = not self.paused
+        else:
+            super(Viewer,self).key(k,x,y)
+    def specialkey(self,k,x,y):
+        super(Viewer,self).specialkey(k,x,y)
+    def onIdle(self):
+        now = GLCompute.timeInUsec()
+        if not self.paused and (now-self._last >= (1.0/self._fps)):
+            #print now,self._last,1.0/self._fps
+            self.redisplay()
 
 def main():
     filename = sys.argv[1]
