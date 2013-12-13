@@ -323,8 +323,11 @@ class MLV:
             pos = parsedTo
             while pos < size: 
                 fh.seek(pos)
-                blockType,blockSize = struct.unpack("II",fh.read(8))   
-                blockName = MLV.BlockTypeLookup[blockType]
+                blockType,blockSize = struct.unpack("II",fh.read(8))
+                try:  
+                    blockName = MLV.BlockTypeLookup[blockType]
+                except:
+                    pass
                 #print blockName,blockSize
                 if blockType==MLV.BlockType.VideoFrame:
                     videoFrameHeader = self.parseVideoFrame(fh,pos,blockSize)
