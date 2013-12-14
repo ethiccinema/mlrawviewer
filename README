@@ -51,3 +51,5 @@ COMMA(,)/PERIOD(.) - Nudge back/forward by 1 frame (works best when paused)
 
 UP/DOWN CURSOR - Increase/decrease brightness
 
+0, 1, 2, 3, 4 - Change White Balance
+

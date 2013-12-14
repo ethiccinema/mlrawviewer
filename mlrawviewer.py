@@ -104,10 +104,11 @@ class Display(GLCompute.Drawable):
         self.displayShader = ShaderDisplaySimpleToneMap()
         self.rgbImage = rgbImage
         self.brightness = 50.0
+        self.rgb = (2.0, 1.0, 1.5)
     def render(self,scene):
         # Now display the RGB image
         #self.rgbImage.addmipmap()
-        balance = (2.0*self.brightness,1.0*self.brightness,1.5*self.brightness)
+        balance = (self.rgb[0]*self.brightness, self.rgb[1]*self.brightness, self.rgb[2]*self.brightness)
         # Scale
         self.displayShader.draw(scene.size[0],scene.size[1],self.rgbImage,balance)
         # 1 to 1
@@ -198,6 +199,18 @@ class Viewer(GLCompute.GLCompute):
             self.jump(1) # If paused, will automatically load next frame
         elif k==',': # Nudge back on frame - best when paused
             self.jump(-1) # If paused, will automatically be on next frame, so need to go back 2!
+
+        elif k=='1':
+            self.changeWhiteBalance(2.0, 1.0, 2.0, "WhiteFluro") # ~WhiteFluro
+        elif k=='2':
+            self.changeWhiteBalance(2.0, 1.0, 1.5, "Daylight") # ~Daylight
+        elif k=='3':
+            self.changeWhiteBalance(2.5, 1.0, 1.5, "Cloudy.") # ~Cloudy
+        elif k=='4':
+            self.changeWhiteBalance(1.5, 1.0, 2.0, "Tungsten") # ~Tungsten
+        elif k=='0':
+            self.changeWhiteBalance(1.0, 1.0, 1.0, "Passthrough") # =passthrough
+
         else:
             super(Viewer,self).key(k,x,y)
     def specialkey(self,k,x,y):
@@ -214,6 +227,10 @@ class Viewer(GLCompute.GLCompute):
             super(Viewer,self).specialkey(k,x,y)
     def scaleBrightness(self,scale):
         self.display.display.brightness *= scale
+        self.refresh()
+    def changeWhiteBalance(self, R, G, B, Name="WB"):
+        self.display.display.rgb = (R, G, B)
+        print "%s:\t %.1f %.1f %.1f"%(Name, R, G, B)
         self.refresh()
     def onIdle(self):
         if self.needsRefresh and self.paused:
