@@ -1,5 +1,5 @@
 """
-ShaderDemosaic.py
+ShaderDisplaySimple.py
 (c) Andrew Baldwin 2013
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
@@ -21,40 +21,50 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
-from OpenGL.GL import *
 import GLCompute
+from OpenGL.GL import *
 
+class ShaderDisplaySimple(GLCompute.Shader):
+    vertex_src = """
+attribute vec4 vertex;
+varying vec2 texcoord;
+uniform float time;
+uniform vec3 colourBalance;
+uniform vec4 rawres;
+void main() {
+    gl_Position = vertex;
+    texcoord = (vec2(.5*vertex.x+.5,.5+.5*vertex.y));
+}
 """
-Note:
+    fragment_src = """
+varying vec2 texcoord;
+uniform float time;
+uniform vec3 colourBalance;
+uniform vec4 rawres;
+uniform sampler2D tex;
 
-In lots of cases we do log2 on a raw value, then exp2 later.
-This is so we do all interpolation operations in log
-space, and gives better results especially in regions
-where the intensity changes rapidly by orders of magnitude.
-
+void main() {
+    vec3 col = colourBalance*texture2D(tex,texcoord).rgb;
+    gl_FragColor = vec4(col,1.);
+}
 """
-class ShaderDemosaic(GLCompute.Shader):
-    size_minus_one = True
+
     def __init__(self,**kwds):
         myclass = self.__class__
-        super(ShaderDemosaic,self).__init__(myclass.vertex_src,myclass.fragment_src,["time","rawtex","rawres","black","colourBalance"],**kwds)
-    def demosaicPass(self,texture,black,time=0,balance=(1.0,1.0,1.0)):
+        super(ShaderDisplaySimple,self).__init__(myclass.vertex_src,myclass.fragment_src,["time","tex","rawres","colourBalance"],**kwds)
+    def draw(self,width,height,texture,balance):
         self.use()
         vertices = GLCompute.glarray(GLfloat,(-1,-1,0,1,-1,0,-1,1,0,1,1,0))
         glVertexAttribPointer(self.vertex,3,GL_FLOAT,GL_FALSE,0,vertices)
         glEnableVertexAttribArray(self.vertex)
-        texture.bindtex(False,0)
-        glUniform1i(self.uniforms["rawtex"], 0)
+        texture.bindtex(True) # Use linear filter
+        glUniform1i(self.uniforms["tex"], 0)
         glUniform3f(self.uniforms["colourBalance"], balance[0], balance[1],balance[2])
-        glUniform1f(self.uniforms["black"], float(black)/(2**16))
-        w = texture.width
-        h = texture.height
-        if self.__class__.size_minus_one:
-            w = w-1
-            h = h-1
-        iw = 1.0/float(w)
-        ih = 1.0/float(h)
-        glUniform4f(self.uniforms["rawres"], w, h, iw, ih)
-        glUniform1f(self.uniforms["time"], time)
+        w = width
+        h = height
+        glUniform4f(self.uniforms["rawres"], w, h, 1.0/float(w),1.0/float(h))
+        glUniform1f(self.uniforms["time"], 0)
         glDrawArrays(GL_TRIANGLE_STRIP, 0, 4)
          
+    
+

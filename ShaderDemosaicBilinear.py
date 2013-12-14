@@ -102,12 +102,14 @@ float blue(vec2 coord) {
     return sample;
 }
 
-vec3 getColor(vec2 coord) {
+vec3 getColour(vec2 coord) {
     return vec3(red(coord),green(coord),blue(coord));    
 }
 
 void main() {
-    gl_FragColor = vec4(getColor(texcoord),1.0);
+    vec3 colour = colourBalance * getColour(texcoord);
+    vec3 toneMapped = colour/(1.0 + colour);
+    gl_FragColor = vec4(toneMapped,1.0);
 }
 
 """

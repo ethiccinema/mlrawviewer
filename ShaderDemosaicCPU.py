@@ -1,5 +1,5 @@
 """
-ShaderDisplaySimpletoneMap.py
+ShaderDemosaicCPU.py
 (c) Andrew Baldwin 2013
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
@@ -19,12 +19,16 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+Take the ouput of a CPU demosaic
+and apply colourBalance and tone mapping
 """
 
-import GLCompute
-from OpenGL.GL import *
+import ShaderDemosaic
 
-class ShaderDisplaySimpleToneMap(GLCompute.Shader):
+class ShaderDemosaicCPU(ShaderDemosaic.ShaderDemosaic): 
+    demosaic_type = "CPU"
+    size_minus_one = False
     vertex_src = """
 attribute vec4 vertex;
 varying vec2 texcoord;
@@ -33,39 +37,23 @@ uniform vec3 colourBalance;
 uniform vec4 rawres;
 void main() {
     gl_Position = vertex;
-    texcoord = (vec2(.5*vertex.x+.5,.5+.5*vertex.y));
+    texcoord = (vec2(.5*vertex.x+.5,.5-.5*vertex.y));
 }
 """
     fragment_src = """
 varying vec2 texcoord;
 uniform float time;
+uniform float black;
 uniform vec3 colourBalance;
 uniform vec4 rawres;
-uniform sampler2D tex;
+uniform sampler2D rawtex;
 
 void main() {
-    vec3 col = colourBalance*texture2D(tex,texcoord).rgb;
-    // Tone map everything into 0-1 range
-    gl_FragColor = vec4(vec3(col/(1.0+col)),1.);
+    vec3 col = texture2D(rawtex,texcoord).rgb;
+    col = colourBalance * col;
+    col = col/(col + 1.0);
+    gl_FragColor = vec4(col,1.0);
 }
 """
 
-    def __init__(self,**kwds):
-        myclass = self.__class__
-        super(ShaderDisplaySimpleToneMap,self).__init__(myclass.vertex_src,myclass.fragment_src,["time","tex","rawres","colourBalance"],**kwds)
-    def draw(self,width,height,texture,balance):
-        self.use()
-        vertices = GLCompute.glarray(GLfloat,(-1,-1,0,1,-1,0,-1,1,0,1,1,0))
-        glVertexAttribPointer(self.vertex,3,GL_FLOAT,GL_FALSE,0,vertices)
-        glEnableVertexAttribArray(self.vertex)
-        texture.bindtex(True) # Use linear filter
-        glUniform1i(self.uniforms["tex"], 0)
-        glUniform3f(self.uniforms["colourBalance"], balance[0], balance[1],balance[2])
-        w = width
-        h = height
-        glUniform4f(self.uniforms["rawres"], w, h, 1.0/float(w),1.0/float(h))
-        glUniform1f(self.uniforms["time"], 0)
-        glDrawArrays(GL_TRIANGLE_STRIP, 0, 4)
-         
-    
 

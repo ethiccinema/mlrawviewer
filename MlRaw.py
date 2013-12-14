@@ -24,6 +24,8 @@ SOFTWARE.
 # standard python imports
 import sys,struct,os,math,time,threading,Queue,traceback
 
+haveDemosaic = False
+
 # numpy. Could be missing
 try:
     import numpy as np
@@ -41,7 +43,7 @@ try:
     numpy in case it hasn't been compiled
     """
     import bitunpack
-    if ("__version__" not in dir(bitunpack)) or bitunpack.__version__!="1.1":
+    if ("__version__" not in dir(bitunpack)) or bitunpack.__version__!="1.4":
         print """
 
 !!! Wrong version of bitunpack found !!!
@@ -52,9 +54,13 @@ try:
     def unpacks14np16(rawdata,width,height):
         unpacked,stats = bitunpack.unpack14to16(rawdata)
         return np.frombuffer(unpacked,dtype=np.uint16),stats
+    def demosaic14(rawdata,width,height,black):
+        raw = bitunpack.demosaic14(rawdata,width,height,black)
+        return np.frombuffer(raw,dtype=np.float32)
+    haveDemosaic = True
 except:
     print """Falling back to Numpy for bit unpacking operations.
-Consider compiling bitunpack module for faster conversion."""
+Consider compiling bitunpack module for faster conversion and export."""
     def unpacks14np16(rawdata,width,height):
         pixels = width*height
         packed = pixels/8.0*7.0
@@ -78,9 +84,13 @@ Consider compiling bitunpack module for faster conversion."""
         unpacked[:,7] = packing6&0x3FFF
         stats = (np.min(unpacked),np.max(unpacked))
         return unpacked,stats
+    def demosaic14(rawdata,width,height,black):
+        # No numpy implementation
+        return np.zeros(shape=(width*height,),dtype=np.float32)
 
 class Frame:
     def __init__(self,rawfile,rawdata,width,height,black):
+        global haveDemosaic
         #print "opening frame",len(rawdata),width,height
         #print width*height
         self.rawfile = rawfile
@@ -89,8 +99,12 @@ class Frame:
         self.width = width
         self.height = height
         self.rawdata = rawdata
+        self.canDemosaic = haveDemosaic
     def convert(self):
         self.rawimage,self.framestats = unpacks14np16(self.rawdata,self.width,self.height)
+    def demosaic(self):
+		# CPU based demosaic -> SLOW!
+        self.rgbimage = demosaic14(self.rawdata,self.width,self.height,self.black)
 
 def getRawFileSeries(basename):
     dirname,filename = os.path.split(basename)
