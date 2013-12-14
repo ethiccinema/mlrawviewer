@@ -53,3 +53,5 @@ UP/DOWN CURSOR - Increase/decrease brightness
 
 0, 1, 2, 3, 4 - Change White Balance
 
+Q - Toggle between fast and high-quality demosaicing for playback (high-quality is used automatically when paused)
+
