@@ -84,7 +84,7 @@ class Demosaicer(GLCompute.Drawable):
         rgb = self.settings.rgb()
         balance = (rgb[0]*brightness, rgb[1]*brightness, rgb[2]*brightness)
         if (frameData):
-            if (self.settings.highQuality() or self.settings.encoding()):
+            if (self.settings.highQuality() or self.settings.encoding()) and (frameData.canDemosaic):
                 # Slow/high quality decode for static view or encoding
                 frameData.demosaic()
                 self.rgbUploadTex.update(frameData.rgbimage)
@@ -104,9 +104,10 @@ class DemosaicScene(GLCompute.Scene):
         self.raw.preloadFrame(f)
         print "Width:",self.raw.width(),"Height:",self.raw.height(),"Frames:",self.raw.frames()
         self.rawUploadTex = GLCompute.Texture((self.raw.width(),self.raw.height()),None,hasalpha=False,mono=True,sixteen=True)
-        self.rgbUploadTex = GLCompute.Texture((self.raw.width(),self.raw.height()),None,hasalpha=False,mono=False,fp=True)
+        #try: self.rgbUploadTex = GLCompute.Texture((self.raw.width(),self.raw.height()),None,hasalpha=False,mono=False,fp=True)
+        self.rgbUploadTex = GLCompute.Texture((self.raw.width(),self.raw.height()),None,hasalpha=False,mono=False,sixteen=True)
         try: self.rgbImage = GLCompute.Texture((self.raw.width(),self.raw.height()),None,hasalpha=False,mono=False,fp=True)
-        except GLError: self.rgbImage = GLCompute.Texture((self.raw.width(),self.raw.height()),None,hasalpha=False,mono=False,sixteen=False,fp=False)
+        except GLError: self.rgbImage = GLCompute.Texture((self.raw.width(),self.raw.height()),None,hasalpha=False,sixteen=True)
         self.demosaicer = Demosaicer(raw,self.rawUploadTex,self.rgbUploadTex,settings,encoder)
         print "Using",self.demosaicer.shaderNormal.demosaic_type,"demosaic algorithm"
         self.drawables.append(self.demosaicer)

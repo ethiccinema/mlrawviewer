@@ -55,14 +55,14 @@ bitunpack_demosaic14(PyObject* self, PyObject *args)
             sparebits = 0;
             acc = 0;
         }
-        if (out<min) min=out;
-        if (out>max) max=out;
+        //if (out<min) min=out;
+        //if (out>max) max=out;
         int ival = out-black;
         if (ival<1) ival=1;
-        float val = 256.0*log2(1.0*(((float)(ival))));///65535.0f);
+        float val = 2048.0*log2(1.0*(((float)(ival))));///65535.0f);
         *write++ = val;
-        if (val<iminf) iminf = val;
-        if (val>imaxf) imaxf = val;
+        //if (val<iminf) iminf = val;
+        //if (val>imaxf) imaxf = val;
         acc = (acc&((1<<sparebits)-1))<<16;
         i++;
     }
@@ -94,13 +94,17 @@ bitunpack_demosaic14(PyObject* self, PyObject *args)
     float maxf=0.0f;
     float minf=999999999.0f;
     for (rr=0;rr<elements;rr++) {
-           if (*rptr<minf) minf = *rptr;
-           if (*rptr>maxf) maxf = *rptr;
-           float t = *rptr++;
+           float t = exp2((*rptr++)/2048.0f);
+           //if ((t)<minf) minf = (t);
+           //if ((t)>maxf) maxf = (t);
            *outptr++ = t;
-           t = *gptr++;
+           t = exp2((*gptr++)/2048.0f);
+           //if ((t)<minf) minf = (t);
+           //if ((t)>maxf) maxf = (t);
            *outptr++ = t;
-           t = *bptr++;
+           t = exp2((*bptr++)/2048.0f);
+           //if ((t)<minf) minf = (t);
+           //if ((t)>maxf) maxf = (t);
            *outptr++ = t;
     }
     //printf("min=%d,max=%d,iminf=%f,imaxf=%f,minf=%f, maxf=%f\n",min,max,iminf,imaxf,minf,maxf);
@@ -176,6 +180,6 @@ initbitunpack(void)
     m = Py_InitModule("bitunpack", methods);
     if (m == NULL)
         return;
-    PyModule_AddStringConstant(m,"__version__","1.3");
+    PyModule_AddStringConstant(m,"__version__","1.4");
 }
 

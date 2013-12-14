@@ -50,7 +50,7 @@ uniform sampler2D rawtex;
 
 void main() {
     vec3 col = texture2D(rawtex,texcoord).rgb;
-    col = colourBalance * exp2(col/256.0)/65535.0;
+    col = colourBalance * col;
     col = col/(col + 1.0);
     gl_FragColor = vec4(col,1.0);
 }
