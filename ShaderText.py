@@ -32,7 +32,7 @@ attribute vec4 axyuv;
 attribute vec4 argba;
 attribute vec4 actmg;
 varying vec2 texcoord;
-uniform mat4x4 matrix;
+uniform mat4 matrix;
 uniform float opacity;
 uniform vec4 urgba;
 varying vec4 rgba;
