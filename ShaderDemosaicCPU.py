@@ -20,7 +20,8 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-Take the ouput of CPU demosaic and fix for export
+Take the ouput of a CPU demosaic
+and apply colourBalance and tone mapping
 """
 
 import ShaderDemosaic
@@ -48,8 +49,8 @@ uniform vec4 rawres;
 uniform sampler2D rawtex;
 
 void main() {
-    vec3 col = texture2D(rawtex,texcoord);
-    col = colourBalance * exp2(col/256.0)/1.0;
+    vec3 col = texture2D(rawtex,texcoord).rgb;
+    col = colourBalance * exp2(col/256.0)/65535.0;
     col = col/(col + 1.0);
     gl_FragColor = vec4(col,1.0);
 }

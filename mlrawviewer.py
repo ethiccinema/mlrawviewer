@@ -59,15 +59,20 @@ import Font
 from Matrix import *
 from ShaderDemosaicNearest import *
 from ShaderDemosaicBilinear import *
-from ShaderDisplaySimpleToneMap import *
+from ShaderDemosaicCPU import *
+from ShaderDisplaySimple import *
 from ShaderText import *
 
 class Demosaicer(GLCompute.Drawable):
-    def __init__(self,raw,uploadTex,**kwds):
+    def __init__(self,raw,rawUploadTex,rgbUploadTex,settings,encoder,**kwds):
         super(Demosaicer,self).__init__(**kwds)
-        self.shader = ShaderDemosaicBilinear()
+        self.shaderNormal = ShaderDemosaicBilinear()
+        self.shaderQuality = ShaderDemosaicCPU()
+        self.settings = settings
+        self.encoder = encoder
         self.raw = raw
-        self.rawUploadTex = uploadTex
+        self.rawUploadTex = rawUploadTex
+        self.rgbUploadTex = rgbUploadTex
     def render(self,scene):
         f = scene.frame
         frame = f 
@@ -75,41 +80,49 @@ class Demosaicer(GLCompute.Drawable):
         frameData = self.raw.frame(frameNumber)
         nextFrame = int((1*(frame+1)) % self.raw.frames())
         self.raw.preloadFrame(nextFrame)
+        brightness = self.settings.brightness()
+        rgb = self.settings.rgb()
+        balance = (rgb[0]*brightness, rgb[1]*brightness, rgb[2]*brightness)
         if (frameData):
-            frameData.convert()
-            self.rawUploadTex.update(frameData.rawimage)
-            self.shader.demosaicPass(self.rawUploadTex,frameData.black)
+            if (self.settings.highQuality() or self.settings.encoding()):
+                # Slow/high quality decode for static view or encoding
+                frameData.demosaic()
+                self.rgbUploadTex.update(frameData.rgbimage)
+                self.shaderQuality.demosaicPass(self.rgbUploadTex,frameData.black,balance=balance)
+            else: 
+                # Fast decode for full speed viewing
+                frameData.convert()
+                self.rawUploadTex.update(frameData.rawimage)
+                self.shaderNormal.demosaicPass(self.rawUploadTex,frameData.black,balance=balance)
+            
 
 class DemosaicScene(GLCompute.Scene):
-    def __init__(self,raw,**kwds):
+    def __init__(self,raw,settings,encoder,**kwds):
         super(DemosaicScene,self).__init__(**kwds)
         f = 0
         self.raw = raw
         self.raw.preloadFrame(f)
-        frame0 = self.raw.frame(f)
-        frame0.convert()
-        self.raw.preloadFrame(f)
         print "Width:",self.raw.width(),"Height:",self.raw.height(),"Frames:",self.raw.frames()
-        self.rawUploadTex = GLCompute.Texture((self.raw.width(),self.raw.height()),rgbadata=frame0.rawimage,hasalpha=False,mono=True,sixteen=True)
-        try: self.rgbImage = GLCompute.Texture((self.raw.width(),self.raw.height()),None,hasalpha=False,mono=False,sixteen=True,fp=True)
+        self.rawUploadTex = GLCompute.Texture((self.raw.width(),self.raw.height()),None,hasalpha=False,mono=True,sixteen=True)
+        self.rgbUploadTex = GLCompute.Texture((self.raw.width(),self.raw.height()),None,hasalpha=False,mono=False,fp=True)
+        try: self.rgbImage = GLCompute.Texture((self.raw.width(),self.raw.height()),None,hasalpha=False,mono=False,fp=True)
         except GLError: self.rgbImage = GLCompute.Texture((self.raw.width(),self.raw.height()),None,hasalpha=False,mono=False,sixteen=False,fp=False)
-        demosaicer = Demosaicer(raw,self.rawUploadTex)
-        print "Using",demosaicer.shader.demosaic_type,"demosaic algorithm"
-        self.drawables.append(demosaicer)
+        self.demosaicer = Demosaicer(raw,self.rawUploadTex,self.rgbUploadTex,settings,encoder)
+        print "Using",self.demosaicer.shaderNormal.demosaic_type,"demosaic algorithm"
+        self.drawables.append(self.demosaicer)
     def setTarget(self):
         self.rgbImage.bindfbo()
 
 class Display(GLCompute.Drawable):
     def __init__(self,rgbImage,**kwds):
         super(Display,self).__init__(**kwds)
-        self.displayShader = ShaderDisplaySimpleToneMap()
+        self.displayShader = ShaderDisplaySimple()
         self.rgbImage = rgbImage
-        self.brightness = 50.0
-        self.rgb = (2.0, 1.0, 1.5)
     def render(self,scene):
         # Now display the RGB image
         #self.rgbImage.addmipmap()
-        balance = (self.rgb[0]*self.brightness, self.rgb[1]*self.brightness, self.rgb[2]*self.brightness)
+        # Balance now happens in demosaicing shader
+        balance = (1.0,1.0,1.0)
         # Scale
         self.displayShader.draw(scene.size[0],scene.size[1],self.rgbImage,balance)
         # 1 to 1
@@ -173,11 +186,17 @@ class Viewer(GLCompute.GLCompute):
         self._fps = 25 # TODO - This should be read from the file
         self.paused = False
         self.needsRefresh = False
+        # Shared settings
+        self.setting_brightness = 50.0
+        self.setting_rgb = (2.0, 1.0, 1.5)
+        self.setting_highQuality = False
+        self.setting_encoding = False
+
     def windowName(self):
         return "MlRawViewer v"+version+" - "+os.path.split(sys.argv[1])[1]
     def init(self):
         if self._init: return
-        self.demosaic = DemosaicScene(self._raw,size=(self._raw.width(),self._raw.height()))
+        self.demosaic = DemosaicScene(self._raw,self,self,size=(self._raw.width(),self._raw.height()))
         self.scenes.append(self.demosaic)
         self.display = DisplayScene(self._raw,self.demosaic.rgbImage,self.font,size=(0,0))
         self.scenes.append(self.display)
@@ -196,10 +215,13 @@ class Viewer(GLCompute.GLCompute):
     def key(self,k,x,y):
         if ord(k)==32:
             self.paused = not self.paused
+            if self.paused:
+                self.jump(-1) # Redisplay the current frame in high quality
+                self.refresh()
         elif k=='.': # Nudge forward one frame - best when paused
-            self.jump(1) # If paused, will automatically load next frame
+            self.jump(1) 
         elif k==',': # Nudge back on frame - best when paused
-            self.jump(-1) # If paused, will automatically be on next frame, so need to go back 2!
+            self.jump(-1)
 
         elif k=='1':
             self.changeWhiteBalance(2.0, 1.0, 2.0, "WhiteFluro") # ~WhiteFluro
@@ -211,6 +233,9 @@ class Viewer(GLCompute.GLCompute):
             self.changeWhiteBalance(1.5, 1.0, 2.0, "Tungsten") # ~Tungsten
         elif k=='0':
             self.changeWhiteBalance(1.0, 1.0, 1.0, "Passthrough") # =passthrough
+
+        elif k=='q' or k=='Q':
+            self.toggleQuality()
 
         else:
             super(Viewer,self).key(k,x,y)
@@ -227,12 +252,14 @@ class Viewer(GLCompute.GLCompute):
         else:
             super(Viewer,self).specialkey(k,x,y)
     def scaleBrightness(self,scale):
-        self.display.display.brightness *= scale
+        self.setting_brightness *= scale
         self.refresh()
     def changeWhiteBalance(self, R, G, B, Name="WB"):
-        self.display.display.rgb = (R, G, B)
+        self.setting_rgb = (R, G, B)
         print "%s:\t %.1f %.1f %.1f"%(Name, R, G, B)
         self.refresh()
+    def toggleQuality(self):
+        self.setting_highQuality = not self.setting_highQuality
     def onIdle(self):
         if self.needsRefresh and self.paused:
             self.redisplay()
@@ -246,6 +273,20 @@ class Viewer(GLCompute.GLCompute):
 
     def refresh(self):
         self.needsRefresh = True 
+
+    # Settings interface to the scene
+    def brightness(self):
+        return self.setting_brightness
+    def rgb(self):
+        return self.setting_rgb
+    def highQuality(self):
+        return self.setting_highQuality or self.paused
+    def encoding(self):
+        return self.setting_encoding
+
+    # Encoder interface to demosaicing -> frames are returned to here if encoding setting is True
+    def encode(self, index, frame):
+        print "encode:",index,frame.shape
 
 def main():
     filename = sys.argv[1]

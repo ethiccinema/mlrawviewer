@@ -1,5 +1,5 @@
 """
-ShaderDisplaySimpletoneMap.py
+ShaderDisplaySimple.py
 (c) Andrew Baldwin 2013
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
@@ -24,7 +24,7 @@ SOFTWARE.
 import GLCompute
 from OpenGL.GL import *
 
-class ShaderDisplaySimpleToneMap(GLCompute.Shader):
+class ShaderDisplaySimple(GLCompute.Shader):
     vertex_src = """
 attribute vec4 vertex;
 varying vec2 texcoord;
@@ -45,14 +45,13 @@ uniform sampler2D tex;
 
 void main() {
     vec3 col = colourBalance*texture2D(tex,texcoord).rgb;
-    // Tone map everything into 0-1 range
-    gl_FragColor = vec4(vec3(col/(1.0+col)),1.);
+    gl_FragColor = vec4(col,1.);
 }
 """
 
     def __init__(self,**kwds):
         myclass = self.__class__
-        super(ShaderDisplaySimpleToneMap,self).__init__(myclass.vertex_src,myclass.fragment_src,["time","tex","rawres","colourBalance"],**kwds)
+        super(ShaderDisplaySimple,self).__init__(myclass.vertex_src,myclass.fragment_src,["time","tex","rawres","colourBalance"],**kwds)
     def draw(self,width,height,texture,balance):
         self.use()
         vertices = GLCompute.glarray(GLfloat,(-1,-1,0,1,-1,0,-1,1,0,1,1,0))

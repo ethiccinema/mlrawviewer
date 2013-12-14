@@ -42,6 +42,8 @@ bitunpack_demosaic14(PyObject* self, PyObject *args)
    
     int min = 70000;
     int max = 0; 
+    float imaxf=0.0f;
+    float iminf=999999999.0f;
     while (i<elements) {
         if (sparebits<14) {
             acc |= *read++;
@@ -57,13 +59,14 @@ bitunpack_demosaic14(PyObject* self, PyObject *args)
         if (out>max) max=out;
         int ival = out-black;
         if (ival<1) ival=1;
-        float val = 256.0*log2(1.0*(((float)(ival)))/65535.0f);
+        float val = 256.0*log2(1.0*(((float)(ival))));///65535.0f);
         *write++ = val;
+        if (val<iminf) iminf = val;
+        if (val>imaxf) imaxf = val;
         acc = (acc&((1<<sparebits)-1))<<16;
         i++;
     }
 
-    printf("min=%d, max=%d\n",min,max);
     // Now demosaic with CPU
     float* red = malloc(elements*sizeof(float));
     float** redrows = (float**)malloc(height*sizeof(float*));
@@ -88,7 +91,11 @@ bitunpack_demosaic14(PyObject* self, PyObject *args)
     float* rptr = red;
     float* gptr = green;
     float* bptr = blue;
+    float maxf=0.0f;
+    float minf=999999999.0f;
     for (rr=0;rr<elements;rr++) {
+           if (*rptr<minf) minf = *rptr;
+           if (*rptr>maxf) maxf = *rptr;
            float t = *rptr++;
            *outptr++ = t;
            t = *gptr++;
@@ -96,6 +103,7 @@ bitunpack_demosaic14(PyObject* self, PyObject *args)
            t = *bptr++;
            *outptr++ = t;
     }
+    //printf("min=%d,max=%d,iminf=%f,imaxf=%f,minf=%f, maxf=%f\n",min,max,iminf,imaxf,minf,maxf);
     free(raw);
     free(rrows);
     free(red);
@@ -168,6 +176,6 @@ initbitunpack(void)
     m = Py_InitModule("bitunpack", methods);
     if (m == NULL)
         return;
-    PyModule_AddStringConstant(m,"__version__","1.2");
+    PyModule_AddStringConstant(m,"__version__","1.3");
 }
 

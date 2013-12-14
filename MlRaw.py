@@ -41,7 +41,7 @@ try:
     numpy in case it hasn't been compiled
     """
     import bitunpack
-    if ("__version__" not in dir(bitunpack)) or bitunpack.__version__!="1.2":
+    if ("__version__" not in dir(bitunpack)) or bitunpack.__version__!="1.3":
         print """
 
 !!! Wrong version of bitunpack found !!!
@@ -99,7 +99,7 @@ class Frame:
         self.rawimage,self.framestats = unpacks14np16(self.rawdata,self.width,self.height)
     def demosaic(self):
 		# CPU based demosaic -> SLOW!
-        self.rgbimage = demosaic14(self.rawdata,self.width,self.height)
+        self.rgbimage = demosaic14(self.rawdata,self.width,self.height,self.black)
 
 def getRawFileSeries(basename):
     dirname,filename = os.path.split(basename)
