@@ -91,7 +91,8 @@ class DemosaicScene(GLCompute.Scene):
         self.raw.preloadFrame(f)
         print "Width:",self.raw.width(),"Height:",self.raw.height(),"Frames:",self.raw.frames()
         self.rawUploadTex = GLCompute.Texture((self.raw.width(),self.raw.height()),rgbadata=frame0.rawimage,hasalpha=False,mono=True,sixteen=True)
-        self.rgbImage = GLCompute.Texture((self.raw.width(),self.raw.height()),None,hasalpha=False,mono=False,sixteen=True,fp=True)
+        try: self.rgbImage = GLCompute.Texture((self.raw.width(),self.raw.height()),None,hasalpha=False,mono=False,sixteen=True,fp=True)
+        except GLError: self.rgbImage = GLCompute.Texture((self.raw.width(),self.raw.height()),None,hasalpha=False,mono=False,sixteen=False,fp=False)
         demosaicer = Demosaicer(raw,self.rawUploadTex)
         print "Using",demosaicer.shader.demosaic_type,"demosaic algorithm"
         self.drawables.append(demosaicer)

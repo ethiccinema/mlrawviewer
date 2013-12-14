@@ -91,10 +91,6 @@ class Frame:
         self.rawdata = rawdata
     def convert(self):
         self.rawimage,self.framestats = unpacks14np16(self.rawdata,self.width,self.height)
-        if self.framestats[0] < self.black:
-            self.black = self.framestats[0]
-            print "Adjusting black level to",self.black
-            self.rawfile.black = self.black # Update (lower) black for the file
 
 def getRawFileSeries(basename):
     dirname,filename = os.path.split(basename)
@@ -118,8 +114,8 @@ class MLRAW:
         self.footer = struct.unpack("4shhiiiiii",footerdata[:8*4])
         self.info = struct.unpack("40i",footerdata[8*4:])
         #print self.footer,self.info
-        self.black = 2000 # self.info[7]-1 # Stored value wrong? 
-        #print self.black
+        self.black = self.info[7]
+        print "Black level:", self.black
         self.framefiles = []
         for framefilename in allfiles:
             fullframefilename = os.path.join(dirname,framefilename)
@@ -281,6 +277,7 @@ class MLV:
         rawData = fh.read(size-8)
         raw = struct.unpack("<Q2H40I",rawData[:(8+2*2+40*4)])
         self.black = raw[10]
+        print "Black level:", self.black
         return raw
         #print "RawInfo:",self.raw
     def parseRtc(self,fh,pos,size):
