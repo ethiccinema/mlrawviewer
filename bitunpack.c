@@ -19,7 +19,7 @@ bitunpack_unpack14to16(PyObject* self, PyObject *args)
     short unsigned int* write = (short unsigned int*)baptr;
     //printf("Decoding frame\n");
    
-    unsigned int statmin = 1<<14-1;
+    unsigned int statmin = (1<<14)-1;
     unsigned int statmax = 0;
  
     while (i<elements) {
