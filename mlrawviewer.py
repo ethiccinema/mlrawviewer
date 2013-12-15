@@ -187,6 +187,7 @@ class Viewer(GLCompute.GLCompute):
         self._fps = 25 # TODO - This should be read from the file
         self.paused = False
         self.needsRefresh = False
+        self.anamorphic = False
         # Shared settings
         self.setting_brightness = 50.0
         self.setting_rgb = (2.0, 1.0, 1.5)
@@ -210,14 +211,14 @@ class Viewer(GLCompute.GLCompute):
         # First convert Raw to RGB image at same size
         self.init()
         aspectHeight = int((width*self.vidAspect))
-        print width, aspectHeight
+        if self.anamorphic == True:
+            aspectHeight = int(aspectHeight*1.4)
         if height >= aspectHeight:
             self.display.size = (width,aspectHeight)
             self.display.position = height/2 - aspectHeight/2
         else:
             self.display.size = (width,height)
-            self.display.position = 0
-            
+            self.display.position = 0            
         self.renderScenes()
         if self.paused:
             self._frames -= 1
@@ -248,6 +249,8 @@ class Viewer(GLCompute.GLCompute):
 
         elif k=='q' or k=='Q':
             self.toggleQuality()
+        elif k=='a' or k=='A':
+            self.toggleAnamorphic()
 
         else:
             super(Viewer,self).key(k,x,y)
@@ -272,6 +275,8 @@ class Viewer(GLCompute.GLCompute):
         self.refresh()
     def toggleQuality(self):
         self.setting_highQuality = not self.setting_highQuality
+    def toggleAnamorphic(self):
+        self.anamorphic = not self.anamorphic
     def onIdle(self):
         if self.needsRefresh and self.paused:
             self.redisplay()
