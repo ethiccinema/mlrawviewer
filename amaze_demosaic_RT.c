@@ -32,25 +32,30 @@
 #include <string.h>
 #include <math.h>
 #include <time.h>
-#include "helpersse2.h"
 
-static INLINE vfloat vabsf(vfloat f) { return (vfloat)vandnotm((vmask)vcast_vf_f(-0.0f), (vmask)f); }
+#ifdef __SSE2__
+    #include "helpersse2.h"
 
-static INLINE vfloat SQRV(vfloat a){
-	return _mm_mul_ps( a,a );
-}
+    static INLINE vfloat vabsf(vfloat f) { return (vfloat)vandnotm((vmask)vcast_vf_f(-0.0f), (vmask)f); }
 
-static INLINE vfloat vself(vmask mask, vfloat x, vfloat y) {
-  return (vfloat)vorm(vandm(mask, (vmask)x), vandnotm(mask, (vmask)y));
-}
+    static INLINE vfloat SQRV(vfloat a){
+	    return _mm_mul_ps( a,a );
+    }
 
-static INLINE vfloat LIMV( vfloat a, vfloat b, vfloat c ) {
-return _mm_max_ps( b, _mm_min_ps(a,c));
-}
+    static INLINE vfloat vself(vmask mask, vfloat x, vfloat y) {
+        return (vfloat)vorm(vandm(mask, (vmask)x), vandnotm(mask, (vmask)y));
+    }
 
-static INLINE vfloat ULIMV( vfloat a, vfloat b, vfloat c  ){
-	return vself( vmaskf_lt(b,c), LIMV(a,b,c), LIMV(a,c,b));
-}
+    static INLINE vfloat LIMV( vfloat a, vfloat b, vfloat c ) {
+        return _mm_max_ps( b, _mm_min_ps(a,c));
+    }
+
+    static INLINE vfloat ULIMV( vfloat a, vfloat b, vfloat c  ){
+	    return vself( vmaskf_lt(b,c), LIMV(a,b,c), LIMV(a,c,b));
+    }
+#else
+    #define INLINE inline
+#endif
 
 #define initialGain 1.0 /* IDK */
 
@@ -111,7 +116,9 @@ __inline float xdivf( float d, int n){
 #define ULIM(a, b, c) (((b) < (c)) ? LIM(a,b,c) : LIM(a,c,b))
 
 
-void demosaic(
+void 
+__attribute__ ((force_align_arg_pointer)) // Needed for win32/mingw (might need include gaurd with another compiler)
+demosaic(
     float** rawData,    /* holds preprocessed pixel values, rawData[i][j] corresponds to the ith row and jth column */
     float** red,        /* the interpolated red plane */
     float** green,      /* the interpolated green plane */
