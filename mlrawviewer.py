@@ -178,7 +178,7 @@ class DisplayScene(GLCompute.Scene):
 class Viewer(GLCompute.GLCompute):
     def __init__(self,raw,**kwds):
         userWidth = 720
-        self.vidAspect = float(raw.height())/(raw.width())
+        self.vidAspect = float(raw.height())/(raw.width()) # multiply this number on width to give height in aspect
         super(Viewer,self).__init__(width=userWidth,height=int(userWidth*self.vidAspect),**kwds)
         self._init = False
         self._raw = raw
@@ -209,7 +209,15 @@ class Viewer(GLCompute.GLCompute):
     def onDraw(self,width,height):
         # First convert Raw to RGB image at same size
         self.init()
-        self.display.size = (width,height)
+        aspectHeight = int((width*self.vidAspect))
+        print width, aspectHeight
+        if height >= aspectHeight:
+            self.display.size = (width,aspectHeight)
+            self.display.position = height/2 - aspectHeight/2
+        else:
+            self.display.size = (width,height)
+            self.display.position = 0
+            
         self.renderScenes()
         if self.paused:
             self._frames -= 1
