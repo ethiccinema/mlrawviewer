@@ -63,7 +63,7 @@ bitunpack_demosaic14(PyObject* self, PyObject *args)
         ival += 15.0;
         if (ival<15) ival=15; // Don't want log2(0)
 
-        float val = 64.0*log2((float)ival);
+        float val = (float)ival;//64.0*log2((float)ival);
         *write++ = val;
         //if (val<iminf) iminf = val;
         //if (val>imaxf) imaxf = val;
@@ -98,7 +98,10 @@ bitunpack_demosaic14(PyObject* self, PyObject *args)
     float maxf=0.0f;
     float minf=999999999.0f;
     for (rr=0;rr<elements;rr++) {
-           float t = (*rptr++)/64.0;//exp2((*rptr++)/2048.0f);
+           *outptr++ = (*rptr++);
+           *outptr++ = (*gptr++);
+           *outptr++ = (*bptr++);
+    /*       float t = (*rptr++)/64.0;//exp2((*rptr++)/2048.0f);
            if (t<1.0f) t = 1.0f;
            float l = exp2(t)-15.0f; // Invert earlier offset
            if (l<0.0f) l = 0.0f;
@@ -114,7 +117,7 @@ bitunpack_demosaic14(PyObject* self, PyObject *args)
            if (t<1.0f) t = 1.0f;
            l = exp2(t)-15.0f;
            if (l<0.0f) l = 0.0f;
-           *outptr++ = l;
+           *outptr++ = l;*/
     }
     //printf("min=%d,max=%d,iminf=%f,imaxf=%f,minf=%f, maxf=%f\n",min,max,iminf,imaxf,minf,maxf);
     free(raw);

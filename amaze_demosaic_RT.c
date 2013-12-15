@@ -344,6 +344,13 @@ struct s_hv {
 		if (FC(0,0)==0) {ey=0; ex=0;} else {ey=1; ex=1;}
 	}
 
+#pragma omp for schedule(dynamic) collapse(2) nowait
+    for (top=winy; top < winy+winh; top += 1) 
+        for (left=winx; left < winx+winw; left += 1) {
+            float val = rawData[top][left];
+            val = 64.0f*log2(val);
+            rawData[top][left] = val;
+    } 
 	// Main algorithm: Tile loop
 	//#pragma omp parallel for shared(rawData,height,width,red,green,blue) private(top,left) schedule(dynamic)
 	//code is openmp ready; just have to pull local tile variable declarations inside the tile loop
@@ -1436,7 +1443,25 @@ struct s_hv {
 
 	// %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-
+#pragma omp for schedule(dynamic) collapse(2) nowait
+    for (top=winy; top < winy+winh; top += 1) 
+        for (left=winx; left < winx+winw; left += 1) {
+            float r = red[top][left]/64.0f;
+            if (r<1.0f) r = 1.0f;
+            r = exp2(r)-15.0f;
+            if (r<0.0f) r = 0.0f;
+            red[top][left] = r;
+            float g = green[top][left]/64.0f;
+            if (g<1.0f) g = 1.0f;
+            g = exp2(g)-15.0f;
+            if (g<0.0f) g = 0.0f;
+            green[top][left] = g;
+            float b = blue[top][left]/64.0f;
+            if (b<1.0f) b = 1.0f;
+            b = exp2(b)-15.0f;
+            if (b<0.0f) b = 0.0f;
+            blue[top][left] = b;
+    } 
 
 	// clean up
 	free(buffer);
