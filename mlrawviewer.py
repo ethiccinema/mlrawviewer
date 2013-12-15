@@ -194,7 +194,10 @@ class Viewer(GLCompute.GLCompute):
         self.setting_encoding = False
 
     def windowName(self):
-        return "MlRawViewer v"+version+" - "+os.path.split(sys.argv[1])[1]
+        try:
+            return "MlRawViewer v"+version+" - "+os.path.split(sys.argv[1])[1]
+        except IndexError:
+            return "MlRawViewer v"+version
     def init(self):
         if self._init: return
         self.demosaic = DemosaicScene(self._raw,self,self,size=(self._raw.width(),self._raw.height()))
