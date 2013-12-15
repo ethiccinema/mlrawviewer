@@ -7,6 +7,9 @@ for Canon DSLR cameras. (See http://www.magiclantern.fm/ for more details).
 It supports both the original RAW format, and the newer MLV (RAW v2.0) format in both
 single and multi-file versions.
 
+It can also act as a front end to ffmpeg for encoding raw files into another video
+format such as ProRes.
+
 The program is written in python, and makes use of OpenGL for image processing in order to be 
 able to display videos at their intended frame rate. This also depends on you having
 good file read speed in your computer.
@@ -33,10 +36,13 @@ Installation
 Usage
 -----
 
--/mlrawviewer.py <path_to_ML_RAW_or_MLV_base_file>
+-/mlrawviewer.py <path_to_ML_RAW_or_MLV_base_file> [<output_file_name_for_encoding>]
 
 If the Raw file is the first in a numbered set, the other files will be used automatically.
 Playback will happen at around 25FPS or the closest achievable if constrained by disk read speed.
+
+Encoding is made using the version of "ffmpeg" found on the path. Currently it tries to encode
+with the "prores_ks" codec, which may only be found in newer versions of (real) ffmpeg.
 
 Keys
 ----
@@ -57,3 +63,4 @@ Q - Toggle between fast and high-quality demosaicing for playback (high-quality 
 
 A - Toggle anamorphic aspect to take into account the 1.4x squeeze from shooting 50p/60p
 
+E - Start encoding from the current frame. If no file name was supplied, will use the source name with ".MOV" appended.

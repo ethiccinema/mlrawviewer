@@ -237,6 +237,7 @@ class MLV:
             self.files.append((spanfile,self.framecount,header[14],header,parsedTo, size))
             self.framecount += header[14]
         self.preloader = None
+        self.allParsed = False
     def initPreloader(self):
         if (self.preloader == None):
             self.preloader = threading.Thread(target=self.preloaderMain) 
@@ -312,13 +313,38 @@ class MLV:
         return self.raw[2]
     def frames(self):
         return self.framecount
+    def nextUnindexedFile(self):
+        for fileindex,info in enumerate(self.files):
+            fh, firstframe, frames, header, parsedTo, size = info
+            if parsedTo < size:
+                return fileindex,info
+        self.allParsed = True
+        return None
     def preindex(self):
-        if self.preindexed == self.framecount: return
+        if self.allParsed: 
+            return
         preindexStep = 10
-        preindexAtStart = self.preindexed
-        while self.preindexed < self.framecount and self.preindexed < preindexAtStart + preindexStep:
-            self._getframedata(self.preindexed,checkNextFile=False)
-            self.preindexed += 1
+        indexinfo = self.nextUnindexedFile()
+        if indexinfo == None:
+            if len(self.framepos) < self.framecount:
+                print "Set indexed. Frames missing:",self.framecount - len(self.framepos)
+            else:
+                pass
+                #print "Set indexed. No frames missing."
+            return
+        index,info = indexinfo
+        fh, firstframe, frames, header, pos, size = info
+        while (pos < size) and (preindexStep > 0):
+            fh.seek(pos)
+            blockType,blockSize = struct.unpack("II",fh.read(8))
+            if blockType==MLV.BlockType.VideoFrame:
+                videoFrameHeader = self.parseVideoFrame(fh,pos,blockSize)
+                self.framepos[videoFrameHeader[1]] = (fh,pos)
+                #print videoFrameHeader[1],pos
+                preindexStep -= 1
+            pos += blockSize
+        self.files[index] = (fh, firstframe, frames, header, pos, size)
+
     def preloaderMain(self):
         while 1:
             self.preindex() # Do some preindexing if still needed
@@ -343,6 +369,7 @@ class MLV:
             self.preloadFrame(index)
         return frame
     def _getframedata(self,index,checkNextFile=True):
+        printWhenFound = False
         try:
             fh, framepos = self.framepos[index]
             return fh, framepos
@@ -367,7 +394,9 @@ class MLV:
                 if blockType==MLV.BlockType.VideoFrame:
                     videoFrameHeader = self.parseVideoFrame(fh,pos,blockSize)
                     self.framepos[videoFrameHeader[1]] = (fh,pos) 
+                    #print videoFrameHeader[1],index,fh,pos
                     if videoFrameHeader[1]==index:
+                        pos += blockSize
                         notFound = False
                         break # Found it 
                 pos += blockSize
@@ -376,22 +405,25 @@ class MLV:
                     if checkNextFile:
                         # Update parsedTo point
                         # Try next file if there is one
-                        #print "FRAME NOT FOUND IN EXPECTED FILE",fileindex,index
+                        print "FRAME NOT FOUND IN EXPECTED FILE",fileindex,index
+                        printWhenFound = True
                         fileindex += 1
                         if fileindex<len(self.files):
                             #print "TRYING NEXT FILE"
                             fh, firstframe, frames, header, parsedTo, size = self.files[fileindex]
                             pos = parsedTo
                     else:
-                        #print "FAILED TO FIND FRAME",index
+                        print "FAILED TO FIND FRAME",index
                         return None
             # Update parsedTo point
             self.files[fileindex] = (fh, firstframe, frames, header, pos, size)
             result = None
             try:
                 result = self.framepos[index]
+                if printWhenFound:
+                    print "FOUND",index
             except:
-                pass
+                print "FAILED TO FIND FRAME AFTER SCAN",index
             return result
     def _loadframe(self,index):
         fh,framepos = self._getframedata(index)

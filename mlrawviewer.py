@@ -23,7 +23,7 @@ SOFTWARE.
 """
 
 # standard python imports. Should not be missing
-import sys,struct,os,math,time,datetime
+import sys,struct,os,math,time,datetime,subprocess,signal
 
 version = "1.0.1"
 
@@ -89,6 +89,11 @@ class Demosaicer(GLCompute.Drawable):
                 frameData.demosaic()
                 self.rgbUploadTex.update(frameData.rgbimage)
                 self.shaderQuality.demosaicPass(self.rgbUploadTex,frameData.black,balance=balance)
+        
+                if self.settings.encoding():
+            	    self.rgb = glReadPixels(0,0,scene.size[0],scene.size[1],GL_RGB,GL_UNSIGNED_SHORT)
+            	    self.encoder.encode(frameNumber,self.rgb)
+
             else: 
                 # Fast decode for full speed viewing
                 frameData.convert()
@@ -176,7 +181,7 @@ class DisplayScene(GLCompute.Scene):
         self.timestamp.colour = (0.0,0.0,0.0,1.0)
 
 class Viewer(GLCompute.GLCompute):
-    def __init__(self,raw,**kwds):
+    def __init__(self,raw,outfilename,**kwds):
         userWidth = 720
         self.vidAspect = float(raw.height())/(raw.width()) # multiply this number on width to give height in aspect
         super(Viewer,self).__init__(width=userWidth,height=int(userWidth*self.vidAspect),**kwds)
@@ -188,6 +193,9 @@ class Viewer(GLCompute.GLCompute):
         self.paused = False
         self.needsRefresh = False
         self.anamorphic = False
+        self.encoderProcess = None
+        self.outfilename = outfilename
+        self.lastEncodedFrame = None
         # Shared settings
         self.setting_brightness = 50.0
         self.setting_rgb = (2.0, 1.0, 1.5)
@@ -251,6 +259,8 @@ class Viewer(GLCompute.GLCompute):
             self.toggleQuality()
         elif k=='a' or k=='A':
             self.toggleAnamorphic()
+        elif k=='e' or k=='E':
+            self.toggleEncoding()
 
         else:
             super(Viewer,self).key(k,x,y)
@@ -291,6 +301,28 @@ class Viewer(GLCompute.GLCompute):
     def refresh(self):
         self.needsRefresh = True 
 
+    def toggleEncoding(self):
+        if not self.setting_encoding:
+            # Start the encoding process
+            self.setting_encoding = True
+            self.lastEncodedFrame = None
+            self.paused = False # In case we were paused
+            args = ["ffmpeg","-f","rawvideo","-pix_fmt","rgb48","-s","%dx%d"%(self._raw.width(),self._raw.height()),"-r","%d"%self._fps,"-i","-","-an","-f","mov","-vf","vflip","-vcodec","prores_ks","-profile:v","3","-r","%d"%self._fps,self.outfilename]
+            print "Encoder args:",args
+            self.encoderProcess = subprocess.Popen(args,stdin=subprocess.PIPE,stdout=subprocess.PIPE)
+            self.encoderProcess.poll()
+            if self.encoderProcess.returncode != None:
+                self.encoderProcess = None # Failed to start encoder for some reason
+                self.setting_encoding = False
+        else:
+            # Stop/cancel the encoding process
+            self.setting_encoding = False
+            if self.encoderProcess:
+                self.encoderProcess.stdin.close()
+                self.encoderProcess = None
+                self.paused = True
+                self.refresh()
+
     # Settings interface to the scene
     def brightness(self):
         return self.setting_brightness
@@ -303,21 +335,37 @@ class Viewer(GLCompute.GLCompute):
 
     # Encoder interface to demosaicing -> frames are returned to here if encoding setting is True
     def encode(self, index, frame):
-        print "encode:",index,frame.shape
+        if self.setting_encoding and self.encoderProcess and self.lastEncodedFrame:
+            if index < self.lastEncodedFrame:
+                self.toggleEncoding() # Stop encoding as we reached the end
+                self.paused = True
+                self.jump(-1) # Should go back to last frame
+                self.refresh()
+                return        
+        if self.encoderProcess:
+            #print "Encoding frame:",index
+            self.encoderProcess.stdin.write(frame.tostring())
+        self.lastEncodedFrame = index
 
 def main():
     filename = sys.argv[1]
+    if len(sys.argv)>2:
+        outfilename = sys.argv[2]
+    else:
+        # Try to pick a sensible default filename for any possible encoding
+        outfilename = sys.argv[1]+".MOV"
+
     try:
         r = MlRaw.loadRAWorMLV(filename)
     except Exception, err:
         sys.stderr.write('Could not open file %s. Error:%s\n'%(filename,str(err)))
         return 1
-    rmc = Viewer(r)
+    rmc = Viewer(r,outfilename)
     return rmc.run()
     return 0
 
-def launchFromGui(rawfile):
-    rmc = Viewer(rawfile)
+def launchFromGui(rawfile,outfilename=None):
+    rmc = Viewer(rawfile,outfilename)
     return rmc.run()
     
 if __name__ == '__main__':
