@@ -161,9 +161,10 @@ class Scene(object):
     def __init__(self,size):
         self.drawables = []
         self.size = size
+        self.position = 0
     def setTarget(self):
         glBindFramebuffer(GL_FRAMEBUFFER, 0)
-        glViewport(0,0,self.size[0],self.size[1])
+        glViewport(0,self.position,self.size[0],self.size[1])
     def render(self,frame):
         self.frame = frame
         self.prepareToRender()
