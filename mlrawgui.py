@@ -80,7 +80,7 @@ class Application(tk.Frame):
             self.labelFilePath['text'] = 'Could not open file %s. Error:%s\n'%(afile,str(err))
 
     def rawThread(self, r):
-        p = multiprocessing.Process(target=mlrawviewer.Viewer, args=(r,))
+        p = multiprocessing.Process(target=mlrawviewer.launchFromGui, args=(r,))
         #p = multiprocessing.Process(target=self.fakeLoop)
         p.daemon = True
         p.start()

@@ -316,5 +316,9 @@ def main():
     return rmc.run()
     return 0
 
+def launchFromGui(rawfile):
+    rmc = Viewer(rawfile)
+    return rmc.run()
+    
 if __name__ == '__main__':
     sys.exit(main())
