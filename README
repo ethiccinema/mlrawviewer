@@ -55,3 +55,5 @@ UP/DOWN CURSOR - Increase/decrease brightness
 
 Q - Toggle between fast and high-quality demosaicing for playback (high-quality is used automatically when paused)
 
+A - Toggle anamorphic aspect to take into account the 1.4x squeeze from shooting 50p/60p
+
