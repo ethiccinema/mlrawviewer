@@ -58,8 +58,12 @@ bitunpack_demosaic14(PyObject* self, PyObject *args)
         //if (out<min) min=out;
         //if (out>max) max=out;
         int ival = out-black;
-        if (ival<1) ival=1;
-        float val = 2048.0*log2(1.0*(((float)(ival))));///65535.0f);
+
+        // To avoid artifacts from demosaicing at low levels
+        ival += 15.0;
+        if (ival<15) ival=15; // Don't want log2(0)
+
+        float val = 64.0*log2((float)ival);
         *write++ = val;
         //if (val<iminf) iminf = val;
         //if (val>imaxf) imaxf = val;
@@ -94,18 +98,23 @@ bitunpack_demosaic14(PyObject* self, PyObject *args)
     float maxf=0.0f;
     float minf=999999999.0f;
     for (rr=0;rr<elements;rr++) {
-           float t = exp2((*rptr++)/2048.0f);
-           //if ((t)<minf) minf = (t);
-           //if ((t)>maxf) maxf = (t);
-           *outptr++ = t;
-           t = exp2((*gptr++)/2048.0f);
-           //if ((t)<minf) minf = (t);
-           //if ((t)>maxf) maxf = (t);
-           *outptr++ = t;
-           t = exp2((*bptr++)/2048.0f);
-           //if ((t)<minf) minf = (t);
-           //if ((t)>maxf) maxf = (t);
-           *outptr++ = t;
+           float t = (*rptr++)/64.0;//exp2((*rptr++)/2048.0f);
+           if (t<1.0f) t = 1.0f;
+           float l = exp2(t)-15.0f; // Invert earlier offset
+           if (l<0.0f) l = 0.0f;
+           *outptr++ = l;
+
+           t = (*gptr++)/64.0;//exp2((*gptr++)/2048.0f);
+           if (t<1.0f) t = 1.0f;
+           l = exp2(t)-15.0f;
+           if (l<0.0f) l = 0.0f;
+           *outptr++ = l;
+
+           t = (*bptr++)/64.0;//exp2((*bptr++)/2048.0f);
+           if (t<1.0f) t = 1.0f;
+           l = exp2(t)-15.0f;
+           if (l<0.0f) l = 0.0f;
+           *outptr++ = l;
     }
     //printf("min=%d,max=%d,iminf=%f,imaxf=%f,minf=%f, maxf=%f\n",min,max,iminf,imaxf,minf,maxf);
     free(raw);
