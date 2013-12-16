@@ -307,7 +307,12 @@ class Viewer(GLCompute.GLCompute):
             self.setting_encoding = True
             self.lastEncodedFrame = None
             self.paused = False # In case we were paused
-            args = ["ffmpeg","-f","rawvideo","-pix_fmt","rgb48","-s","%dx%d"%(self._raw.width(),self._raw.height()),"-r","%d"%self._fps,"-i","-","-an","-f","mov","-vf","vflip","-vcodec","prores_ks","-profile:v","3","-r","%d"%self._fps,self.outfilename]
+            exe = "ffmpeg"
+            localexe = os.path.abspath(os.path.join(os.path.split(sys.argv[0])[0],"ffmpeg"))
+            print localexe
+            if os.path.exists(localexe):
+                exe = localexe
+            args = [localexe,"-f","rawvideo","-pix_fmt","rgb48","-s","%dx%d"%(self._raw.width(),self._raw.height()),"-r","%d"%self._fps,"-i","-","-an","-f","mov","-vf","vflip","-vcodec","prores_ks","-profile:v","3","-r","%d"%self._fps,self.outfilename]
             print "Encoder args:",args
             self.encoderProcess = subprocess.Popen(args,stdin=subprocess.PIPE,stdout=subprocess.PIPE)
             self.encoderProcess.poll()
