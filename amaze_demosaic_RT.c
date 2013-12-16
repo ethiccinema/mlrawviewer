@@ -344,7 +344,7 @@ struct s_hv {
 		if (FC(0,0)==0) {ey=0; ex=0;} else {ey=1; ex=1;}
 	}
 
-#pragma omp for schedule(dynamic) collapse(2) nowait
+#pragma omp for schedule(dynamic) collapse(2) 
     for (top=winy; top < winy+winh; top += 1) 
         for (left=winx; left < winx+winw; left += 1) {
             float val = rawData[top][left];
@@ -357,7 +357,7 @@ struct s_hv {
 
 // Issue 1676
 // use collapse(2) to collapse the 2 loops to one large loop, so there is better scaling
-#pragma omp for schedule(dynamic) collapse(2) nowait
+#pragma omp for schedule(dynamic) collapse(2) 
 	for (top=winy-16; top < winy+height; top += TS-32)
 		for (left=winx-16; left < winx+width; left += TS-32) {
             //printf("top %d left %d",top,left);
@@ -1443,7 +1443,7 @@ struct s_hv {
 
 	// %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-#pragma omp for schedule(dynamic) collapse(2) nowait
+#pragma omp for schedule(dynamic) collapse(2) 
     for (top=winy; top < winy+winh; top += 1) 
         for (left=winx; left < winx+winw; left += 1) {
             float r = red[top][left]/64.0f;
