@@ -41,8 +41,8 @@ Usage
 If the Raw file is the first in a numbered set, the other files will be used automatically.
 Playback will happen at around 25FPS or the closest achievable if constrained by disk read speed.
 
-Encoding is made using the version of "ffmpeg" found on the path. Currently it tries to encode
-with the "prores_ks" codec, which may only be found in newer versions of (real) ffmpeg.
+Encoding is made using the version of "ffmpeg" found either in the scritp directory or on the path. Currently it tries to encode
+with the "prores_ks" codec, which may only be found in newer versions of (real) ffmpeg. You can download a suitable (e.g. static) version off ffmpeg from http://www.ffmpeg.org/download.html
 
 Keys
 ----
