@@ -27,6 +27,10 @@ import sys,struct,os,math,time,datetime,subprocess,signal
 
 version = "1.0.1"
 
+programpath = os.path.abspath(os.path.split(sys.argv[0])[0])
+if getattr(sys,'frozen',False):
+    programpath = sys._MEIPASS
+
 print "MlRawViewer v"+version
 print "(c) Andrew Baldwin & contributors 2013"
 
@@ -187,7 +191,7 @@ class Viewer(GLCompute.GLCompute):
         super(Viewer,self).__init__(width=userWidth,height=int(userWidth*self.vidAspect),**kwds)
         self._init = False
         self._raw = raw
-        self.font = Font.Font("data/os.glf")
+        self.font = Font.Font(os.path.join(programpath,"data/os.glf"))
         self.time = 0
         self._fps = 25 # TODO - This should be read from the file
         self.paused = False
@@ -308,11 +312,11 @@ class Viewer(GLCompute.GLCompute):
             self.lastEncodedFrame = None
             self.paused = False # In case we were paused
             exe = "ffmpeg"
-            localexe = os.path.abspath(os.path.join(os.path.split(sys.argv[0])[0],"ffmpeg"))
+            localexe = os.path.join(programpath,exe)
             print localexe
             if os.path.exists(localexe):
                 exe = localexe
-            args = [localexe,"-f","rawvideo","-pix_fmt","rgb48","-s","%dx%d"%(self._raw.width(),self._raw.height()),"-r","%d"%self._fps,"-i","-","-an","-f","mov","-vf","vflip","-vcodec","prores_ks","-profile:v","3","-r","%d"%self._fps,self.outfilename]
+            args = [exe,"-f","rawvideo","-pix_fmt","rgb48","-s","%dx%d"%(self._raw.width(),self._raw.height()),"-r","%d"%self._fps,"-i","-","-an","-f","mov","-vf","vflip","-vcodec","prores_ks","-profile:v","3","-r","%d"%self._fps,self.outfilename]
             print "Encoder args:",args
             self.encoderProcess = subprocess.Popen(args,stdin=subprocess.PIPE,stdout=subprocess.PIPE)
             self.encoderProcess.poll()
