@@ -26,7 +26,7 @@ SOFTWARE.
 import sys,struct,os,math,time,datetime,subprocess,signal
 from threading import Thread
 
-version = "1.0.1"
+version = "1.0.2"
 
 programpath = os.path.abspath(os.path.split(sys.argv[0])[0])
 if getattr(sys,'frozen',False):
