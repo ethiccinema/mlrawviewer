@@ -126,8 +126,10 @@ class MLRAW:
         self.indexfile.seek(-192,os.SEEK_END)
         footerdata = self.indexfile.read(192)
         self.footer = struct.unpack("4shhiiiiii",footerdata[:8*4])
+        self.fps = float(self.footer[6])*0.001
+        print "FPS:",self.fps
         self.info = struct.unpack("40i",footerdata[8*4:])
-        #print self.footer,self.info
+        print self.footer,self.info
         self.black = self.info[7]
         self.white = self.info[8]
         print "Black level:", self.black, "White level:", self.white
@@ -225,6 +227,8 @@ class MLV:
         mlvfile = file(filename,'rb')
         self.framepos = {}
         header,raw,parsedTo,size,ts = self.parseFile(mlvfile,self.framepos)
+        self.fps = float(header[16])/float(header[17])
+        print "FPS:",self.fps
         self.framecount = header[14]
         self.preindexed = 0
         self.header = header
@@ -286,6 +290,19 @@ class MLV:
         fh.seek(pos+8)
         headerData = fh.read(size-8)
         header = struct.unpack("<8cQHHIHHIIII",headerData[:44])
+        """
+        print "GUID:",header[8]
+        print "fileNum:",header[9]
+        print "fileCount:",header[10]
+        print "fileFlags:",header[11]
+        print "videoClass:",header[12]
+        print "audioClass:",header[13]
+        print "videoFrameCount:",header[14]
+        print "audioFrameCount:",header[15]
+        print "fpsNom:",header[16]
+        print "fpsDenom:",header[17]
+        print "fps:",float(header[16])/float(header[17])
+        """
         return header
         #print "FileHeader:",self.header
     def parseRawInfo(self,fh,pos,size):

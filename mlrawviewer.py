@@ -189,10 +189,11 @@ class DisplayScene(GLCompute.Scene):
             m.scale(40.0*(1.0/(64.0*float(height)*(float(width)/float(height)))))
         m.translate(10.-float(width)/2.0,10.-float(height)/2.0)
         self.timestamp.matrix = m
-        minutes = (frameNumber/25)/60
-        seconds = (frameNumber/25)%60
-        frames = frameNumber%25
-        self.timestamp.geometry = self.textshader.label(self.textshader.font,"%02d:%02d.%02d"%(minutes,seconds,frames),update=self.timestamp.geometry)
+        totsec = float(frameNumber)/self.raw.fps
+        minutes = int(totsec/60.0)
+        seconds = int(totsec%60.0)
+        fsec = (totsec - int(totsec))*1000.0
+        self.timestamp.geometry = self.textshader.label(self.textshader.font,"%02d:%02d.%03d"%(minutes,seconds,fsec),update=self.timestamp.geometry)
         self.timestamp.colour = (0.0,0.0,0.0,1.0)
 
 class Viewer(GLCompute.GLCompute):
@@ -205,7 +206,7 @@ class Viewer(GLCompute.GLCompute):
         self._raw = raw
         self.font = Font.Font(os.path.join(programpath,"data/os.glf"))
         self.time = 0
-        self._fps = 25 # TODO - This should be read from the file
+        self._fps = raw.fps
         self.paused = False
         self.needsRefresh = False
         self.anamorphic = False
@@ -418,7 +419,13 @@ class Viewer(GLCompute.GLCompute):
         self.lastEncodedFrame = index
 
 def main():
+    if len(sys.argv)<2:
+        print "Error. Please specify an MLV or RAW file to view"
+        return -1
     filename = sys.argv[1]
+    if not os.path.exists(filename):
+        print "Error. Specified filename",filename,"does not exist"
+        return -1
     if len(sys.argv)>2:
         outfilename = sys.argv[2]
     else:
