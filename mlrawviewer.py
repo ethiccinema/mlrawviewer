@@ -187,8 +187,9 @@ class DisplayScene(GLCompute.Scene):
 class Viewer(GLCompute.GLCompute):
     def __init__(self,raw,outfilename,**kwds):
         userWidth = 720
-        self.vidAspect = float(raw.height())/(raw.width()) # multiply this number on width to give height in aspect
-        super(Viewer,self).__init__(width=userWidth,height=int(userWidth*self.vidAspect),**kwds)
+        self.vidAspectHeight = float(raw.height())/(raw.width()) # multiply this number on width to give height in aspect
+        self.vidAspectWidth = float(raw.width())/(raw.height()) # multiply this number on height to give height in aspect
+        super(Viewer,self).__init__(width=userWidth,height=int(userWidth*self.vidAspectHeight),**kwds)
         self._init = False
         self._raw = raw
         self.font = Font.Font(os.path.join(programpath,"data/os.glf"))
@@ -222,15 +223,17 @@ class Viewer(GLCompute.GLCompute):
     def onDraw(self,width,height):
         # First convert Raw to RGB image at same size
         self.init()
-        aspectHeight = int((width*self.vidAspect))
+        aspectHeight = int((width*self.vidAspectHeight))
+        aspectWidth = int((height*self.vidAspectWidth))
         if self.anamorphic == True:
             aspectHeight = int(aspectHeight*1.4)
-        if height >= aspectHeight:
+            aspectWidth = int(aspectWidth/1.4)
+        if height > aspectHeight:
             self.display.size = (width,aspectHeight)
-            self.display.position = height/2 - aspectHeight/2
+            self.display.position = (0, height/2 - aspectHeight/2)
         else:
-            self.display.size = (width,height)
-            self.display.position = 0            
+            self.display.size = (aspectWidth,height)
+            self.display.position = (width/2 - aspectWidth/2, 0)            
         self.renderScenes()
         if self.paused:
             self._frames -= 1
