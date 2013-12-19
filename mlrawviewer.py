@@ -24,12 +24,16 @@ SOFTWARE.
 
 # standard python imports. Should not be missing
 import sys,struct,os,math,time,datetime,subprocess,signal
+from threading import Thread
 
 version = "1.0.1"
 
 programpath = os.path.abspath(os.path.split(sys.argv[0])[0])
 if getattr(sys,'frozen',False):
     programpath = sys._MEIPASS
+    # Assume we have no console, so redirect output to a log file...somewhere
+    sys.stdout = file("mlrawviewer.log","a")
+    sys.stderr = sys.stdout
 
 print "MlRawViewer v"+version
 print "(c) Andrew Baldwin & contributors 2013"
@@ -37,6 +41,8 @@ print "(c) Andrew Baldwin & contributors 2013"
 
 # OpenGL. Could be missing
 try:
+    import OpenGL
+    OpenGL.ERROR_CHECKING = False # Only for one erroneously-failing Framebuffer2DEXT call on Windows with Intel...grrr
     from OpenGL.GL import *
     from OpenGL.GL.framebufferobjects import *
 except Exception,err:
@@ -90,13 +96,17 @@ class Demosaicer(GLCompute.Drawable):
         if (frameData):
             if (self.settings.highQuality() or self.settings.encoding()) and (frameData.canDemosaic):
                 # Slow/high quality decode for static view or encoding
+                before = time.time()
                 frameData.demosaic()
+                after = time.time()
+                self.encoder.demosaicDuration(after-before)
+
                 self.rgbUploadTex.update(frameData.rgbimage)
                 self.shaderQuality.demosaicPass(self.rgbUploadTex,frameData.black,balance=balance)
         
                 if self.settings.encoding():
-            	    self.rgb = glReadPixels(0,0,scene.size[0],scene.size[1],GL_RGB,GL_UNSIGNED_SHORT)
-            	    self.encoder.encode(frameNumber,self.rgb)
+                    self.rgb = glReadPixels(0,0,scene.size[0],scene.size[1],GL_RGB,GL_UNSIGNED_SHORT)
+                    self.encoder.encode(frameNumber,self.rgb)
 
             else: 
                 # Fast decode for full speed viewing
@@ -201,6 +211,9 @@ class Viewer(GLCompute.GLCompute):
         self.encoderProcess = None
         self.outfilename = outfilename
         self.lastEncodedFrame = None
+        self.demosaicCount = 0
+        self.demosaicTotal = 0.0
+        self.demosaicAverage = 0.0
         # Shared settings
         self.setting_brightness = 50.0
         self.setting_rgb = (2.0, 1.0, 1.5)
@@ -297,6 +310,8 @@ class Viewer(GLCompute.GLCompute):
     def onIdle(self):
         if self.needsRefresh and self.paused:
             self.redisplay()
+        elif self.paused:
+            time.sleep(0.016) # Sleep for one frame
 
         now = GLCompute.timeInUsec()
         if not self.needsRefresh and not self.paused and (now-self._last >= (1.0/self._fps)):
@@ -308,21 +323,56 @@ class Viewer(GLCompute.GLCompute):
     def refresh(self):
         self.needsRefresh = True 
 
+    def checkoutfile(self):
+        if os.path.exists(self.outfilename):
+            i = 1
+            start = os.path.splitext(self.outfilename)[0]
+            if start[-3]=='_' and start[-2].isdigit() and start[-1].isdigit():
+                start = start[:-3]
+            self.outfilename = start + "_%02d.MOV"%i
+            while os.path.exists(self.outfilename):
+                i+=1
+                self.outfilename = start + "_%02d.MOV"%i
+    def stdoutReaderLoop(self):
+        try:
+            buf = self.encoderProcess.stdout.readline().strip()
+            while len(buf)>0:
+                self.encoderOutput.append(buf)
+                print "Encoder:",buf
+                buf = self.encoderProcess.stdout.readline().strip()
+        except:
+            pass
+        print "ENCODER FINISHED!"
     def toggleEncoding(self):
         if not self.setting_encoding:
             # Start the encoding process
             self.setting_encoding = True
             self.lastEncodedFrame = None
             self.paused = False # In case we were paused
-            exe = "ffmpeg"
+            if subprocess.mswindows:
+                exe = "ffmpeg.exe"
+            else:
+                exe = "ffmpeg"
             localexe = os.path.join(programpath,exe)
             print localexe
             if os.path.exists(localexe):
                 exe = localexe
+            self.checkoutfile()
+            kwargs = {"stdin":subprocess.PIPE,"stdout":subprocess.PIPE,"stderr":subprocess.STDOUT}
+            if subprocess.mswindows:
+                su = subprocess.STARTUPINFO() 
+                su.dwFlags |= subprocess.STARTF_USESHOWWINDOW 
+                su.wShowWindow = subprocess.SW_HIDE 
+                kwargs["startupinfo"] = su
             args = [exe,"-f","rawvideo","-pix_fmt","rgb48","-s","%dx%d"%(self._raw.width(),self._raw.height()),"-r","%d"%self._fps,"-i","-","-an","-f","mov","-vf","vflip","-vcodec","prores_ks","-profile:v","3","-r","%d"%self._fps,self.outfilename]
             print "Encoder args:",args
-            self.encoderProcess = subprocess.Popen(args,stdin=subprocess.PIPE,stdout=subprocess.PIPE)
+            print "Subprocess args:",kwargs
+            self.encoderProcess = subprocess.Popen(args,**kwargs)
             self.encoderProcess.poll()
+            self.stdoutReader = Thread(target=self.stdoutReaderLoop)
+            self.stdoutReader.daemon = True
+            self.encoderOutput = []
+            self.stdoutReader.start()
             if self.encoderProcess.returncode != None:
                 self.encoderProcess = None # Failed to start encoder for some reason
                 self.setting_encoding = False
@@ -341,11 +391,18 @@ class Viewer(GLCompute.GLCompute):
     def rgb(self):
         return self.setting_rgb
     def highQuality(self):
-        return self.setting_highQuality or self.paused
+        # Only use high quality when paused if we can CPU demosaic in less than 0.5 seconds
+        return self.setting_highQuality or (self.paused and self.demosaicAverage < 0.5)
     def encoding(self):
         return self.setting_encoding
 
     # Encoder interface to demosaicing -> frames are returned to here if encoding setting is True
+    def demosaicDuration(self, duration):
+        # Maintain an average measure of how long it takes this machine to CPU demosaic
+        self.demosaicCount += 1
+        self.demosaicTotal += duration
+        self.demosaicAverage = self.demosaicTotal/float(self.demosaicCount)
+        print "demosaicAverage:",self.demosaicAverage
     def encode(self, index, frame):
         if self.setting_encoding and self.encoderProcess and self.lastEncodedFrame:
             if index < self.lastEncodedFrame:
