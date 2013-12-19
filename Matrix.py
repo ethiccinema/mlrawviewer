@@ -18,15 +18,18 @@ class Matrix4x4(object):
         self.m[2,2]=1.
         self.m[3,3]=1.
     def viewport(self,width,height):
-        self.m[1,1] *= float(width)/float(height)
+        if height>0:
+            self.m[1,1] *= float(width)/float(height)
         self.width = float(width)
         self.height = float(height)
     def scale(self,factor):
         self.m[0,0] *= factor
         self.m[1,1] *= factor
     def translate(self,x,y):
-        self.m[3,0] += x * 2.0/self.width 
-        self.m[3,1] += y * 2.0/self.height 
+        if self.width>0:
+            self.m[3,0] += x * 2.0/self.width 
+        if self.height>0:
+            self.m[3,1] += y * 2.0/self.height 
     def rotation(self,angle):
         sa = math.sin(angle)
         ca = math.cos(angle)

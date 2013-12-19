@@ -185,7 +185,8 @@ class DisplayScene(GLCompute.Scene):
         self.progress.matrix = m2
         m = Matrix4x4()
         m.viewport(width,height)
-        m.scale(40.0*(1.0/(64.0*float(height)*(float(width)/float(height)))))
+        if height>0:
+            m.scale(40.0*(1.0/(64.0*float(height)*(float(width)/float(height)))))
         m.translate(10.-float(width)/2.0,10.-float(height)/2.0)
         self.timestamp.matrix = m
         minutes = (frameNumber/25)/60

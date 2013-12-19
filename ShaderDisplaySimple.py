@@ -62,7 +62,8 @@ void main() {
         glUniform3f(self.uniforms["colourBalance"], balance[0], balance[1],balance[2])
         w = width
         h = height
-        glUniform4f(self.uniforms["rawres"], w, h, 1.0/float(w),1.0/float(h))
+        if w>0 and h>0:
+            glUniform4f(self.uniforms["rawres"], w, h, 1.0/float(w),1.0/float(h))
         glUniform1f(self.uniforms["time"], 0)
         glDrawArrays(GL_TRIANGLE_STRIP, 0, 4)
          
