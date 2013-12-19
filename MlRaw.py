@@ -129,7 +129,8 @@ class MLRAW:
         self.info = struct.unpack("40i",footerdata[8*4:])
         #print self.footer,self.info
         self.black = self.info[7]
-        print "Black level:", self.black
+        self.white = self.info[8]
+        print "Black level:", self.black, "White level:", self.white
         self.framefiles = []
         for framefilename in allfiles:
             fullframefilename = os.path.join(dirname,framefilename)
@@ -292,7 +293,8 @@ class MLV:
         rawData = fh.read(size-8)
         raw = struct.unpack("<Q2H40I",rawData[:(8+2*2+40*4)])
         self.black = raw[10]
-        print "Black level:", self.black
+        self.white = raw[11]
+        print "Black level:", self.black,"White level:", self.white
         return raw
         #print "RawInfo:",self.raw
     def parseRtc(self,fh,pos,size):

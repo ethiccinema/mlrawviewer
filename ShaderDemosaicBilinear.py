@@ -1,5 +1,5 @@
 """
-ShaderDemosaic.py
+ShaderDemosaicBilinear.py
 (c) Andrew Baldwin 2013
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
@@ -45,7 +45,7 @@ void main() {
 varying vec2 texcoord;
 uniform vec3 colourBalance;
 uniform float time;
-uniform float black;
+uniform vec2 black;
 uniform vec4 rawres;
 uniform sampler2D rawtex;
 
@@ -55,7 +55,7 @@ float get(vec2 bayerpixel) {
     vec2 clampedpixel = clamp(bayerpixel,vec2(0.0),rawres.xy-1.0);
     vec2 diff = bayerpixel - clampedpixel;
     vec2 clampedcoord = (bayerpixel-diff*2.0)*rawres.zw;
-    float raw = texture2D(rawtex,clampedcoord).r-black;
+    float raw = texture2D(rawtex,clampedcoord).r-black.x;
     return log2(clamp(raw,0.00001,1.0));
 }
 
@@ -108,6 +108,8 @@ vec3 getColour(vec2 coord) {
 
 void main() {
     vec3 colour = colourBalance * getColour(texcoord);
+    float levelAdjust = 1.0/(black.y - black.x);
+    colour *= levelAdjust;
     vec3 toneMapped = colour/(1.0 + colour);
     gl_FragColor = vec4(toneMapped,1.0);
 }

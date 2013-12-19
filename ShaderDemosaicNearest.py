@@ -1,5 +1,5 @@
 """
-ShaderDemosaic.py
+ShaderDemosaicNearest.py
 (c) Andrew Baldwin 2013
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
@@ -42,7 +42,7 @@ void main() {
     fragment_src = """
 varying vec2 texcoord;
 uniform float time;
-uniform float black;
+uniform vec2 black;
 uniform vec3 colourBalance;
 uniform vec4 rawres;
 uniform sampler2D rawtex;
@@ -52,7 +52,7 @@ float red(vec2 coord) {
     vec2 gridpos = coord*rawres.xy*0.5;
     vec2 set = floor(gridpos)*2.0;
     vec2 offset = fract(gridpos)*2.0;
-    float sample = texture2D(rawtex,(set-vec2(0.,0.))*rawres.zw).r-black;
+    float sample = texture2D(rawtex,(set-vec2(0.,0.))*rawres.zw).r-black.x;
     return sample;
 }
 float green(vec2 coord) {
@@ -60,15 +60,15 @@ float green(vec2 coord) {
     vec2 set = floor(gridpos)*2.0;
     vec2 offset = fract(gridpos)*2.0;
     
-    float sample1 = log2(texture2D(rawtex,(set+vec2(1.0,0.0))*rawres.zw).r-black);
-    float sample2 = log2(texture2D(rawtex,(set+vec2(0.0,1.0))*rawres.zw).r-black);
+    float sample1 = log2(texture2D(rawtex,(set+vec2(1.0,0.0))*rawres.zw).r-black.x);
+    float sample2 = log2(texture2D(rawtex,(set+vec2(0.0,1.0))*rawres.zw).r-black.x);
     return exp2(0.5*(sample1+sample2));
 }
 float blue(vec2 coord) {
     vec2 gridpos = coord*rawres.xy*0.5;
     vec2 set = floor(gridpos)*2.0;
     vec2 offset = fract(gridpos)*2.0;
-    float sample = texture2D(rawtex,(set+vec2(1.0,1.0))*rawres.zw).r-black;
+    float sample = texture2D(rawtex,(set+vec2(1.0,1.0))*rawres.zw).r-black.x;
     return sample;
 }
 
@@ -77,7 +77,11 @@ vec3 getColor(vec2 coord) {
 }
 
 void main() {
-    gl_FragColor = vec4(getColor(texcoord),1.0);
+    vec3 colour = colourBalance * getColour(texcoord);
+    float levelAdjust = 1.0/(black.y - black.x);
+    colour *= levelAdjust;
+    vec3 toneMapped = colour/(1.0 + colour);
+    gl_FragColor = vec4(toneMapped,1.0);
 }
 """
 

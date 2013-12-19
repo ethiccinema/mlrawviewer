@@ -38,7 +38,7 @@ class ShaderDemosaic(GLCompute.Shader):
     def __init__(self,**kwds):
         myclass = self.__class__
         super(ShaderDemosaic,self).__init__(myclass.vertex_src,myclass.fragment_src,["time","rawtex","rawres","black","colourBalance"],**kwds)
-    def demosaicPass(self,texture,black,time=0,balance=(1.0,1.0,1.0)):
+    def demosaicPass(self,texture,black,time=0,balance=(1.0,1.0,1.0),white=(2**14-1)):
         self.use()
         vertices = GLCompute.glarray(GLfloat,(-1,-1,0,1,-1,0,-1,1,0,1,1,0))
         glVertexAttribPointer(self.vertex,3,GL_FLOAT,GL_FALSE,0,vertices)
@@ -46,7 +46,7 @@ class ShaderDemosaic(GLCompute.Shader):
         texture.bindtex(False,0)
         glUniform1i(self.uniforms["rawtex"], 0)
         glUniform3f(self.uniforms["colourBalance"], balance[0], balance[1],balance[2])
-        glUniform1f(self.uniforms["black"], float(black)/(2**16))
+        glUniform2f(self.uniforms["black"], float(black)/(2**16-1),float(white)/(2**16-1))
         w = texture.width
         h = texture.height
         if self.__class__.size_minus_one:

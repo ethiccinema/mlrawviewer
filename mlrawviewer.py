@@ -216,7 +216,7 @@ class Viewer(GLCompute.GLCompute):
         self.demosaicTotal = 0.0
         self.demosaicAverage = 0.0
         # Shared settings
-        self.setting_brightness = 50.0
+        self.setting_brightness = 16.0
         self.setting_rgb = (2.0, 1.0, 1.5)
         self.setting_highQuality = False
         self.setting_encoding = False
