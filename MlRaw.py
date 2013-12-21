@@ -106,6 +106,19 @@ class Frame:
 		# CPU based demosaic -> SLOW!
         self.rgbimage = demosaic14(self.rawdata,self.width,self.height,self.black)
 
+def colorMatrix(raw_info):
+    vals = np.array(raw_info[-19:-1]).astype(np.float32)
+    nom = vals[::2]
+    denom = vals[1::2]
+    scaled = (nom/denom).reshape((3,3))
+    camToXYZ = np.matrix(scaled).getI()
+    XYZtosRGB = np.matrix([[3.2404542,-1.5371385,-0.4985314],
+                           [-0.9692660,1.8760108,0.0415560],
+                           [0.0556434,-0.2040259,1.0572252]])
+    camToLinearsRGB = XYZtosRGB * camToXYZ
+    #print "colorMatrix:",camTosRGB
+    return camToLinearsRGB
+
 def getRawFileSeries(basename):
     dirname,filename = os.path.split(basename)
     base = filename[:-2]
@@ -129,9 +142,10 @@ class MLRAW:
         self.fps = float(self.footer[6])*0.001
         print "FPS:",self.fps
         self.info = struct.unpack("40i",footerdata[8*4:])
-        print self.footer,self.info
+        #print self.footer,self.info
         self.black = self.info[7]
         self.white = self.info[8]
+        self.colorMatrix = colorMatrix(self.info)
         print "Black level:", self.black, "White level:", self.white
         self.framefiles = []
         for framefilename in allfiles:
@@ -308,10 +322,12 @@ class MLV:
     def parseRawInfo(self,fh,pos,size):
         fh.seek(pos+8)
         rawData = fh.read(size-8)
-        raw = struct.unpack("<Q2H40I",rawData[:(8+2*2+40*4)])
+        raw = struct.unpack("<Q2H40i",rawData[:(8+2*2+40*4)])
         self.black = raw[10]
         self.white = raw[11]
+        self.colorMatrix = colorMatrix(raw)
         print "Black level:", self.black,"White level:", self.white
+        #print raw
         return raw
         #print "RawInfo:",self.raw
     def parseRtc(self,fh,pos,size):
