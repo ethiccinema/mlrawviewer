@@ -193,7 +193,7 @@ class DisplayScene(GLCompute.Scene):
         minutes = int(totsec/60.0)
         seconds = int(totsec%60.0)
         fsec = (totsec - int(totsec))*1000.0
-        self.timestamp.geometry = self.textshader.label(self.textshader.font,"%02d:%02d.%03d"%(minutes,seconds,fsec),update=self.timestamp.geometry)
+        self.timestamp.geometry = self.textshader.label(self.textshader.font,"%02d:%02d.%03d (%d/%d)"%(minutes,seconds,fsec,frameNumber,self.raw.frames()),update=self.timestamp.geometry)
         self.timestamp.colour = (0.0,0.0,0.0,1.0)
 
 class Viewer(GLCompute.GLCompute):
