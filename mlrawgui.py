@@ -44,24 +44,38 @@ class Application(tk.Frame):
         self.labelFrames.grid(row=1, column=3)
 
         #row 2
+        self.labelBlack = tk.Label(self, text='Black Level', padx=10, pady=5)
+        self.labelBlack.grid(row=2, column=0, columnspan=2)
+        self.labelWhite = tk.Label(self, text='White Level', padx=10, pady=5)
+        self.labelWhite.grid(row=2, column=2, columnspan=2)
+        
+
+        #row 3
         self.labelBrightness = tk.Label(self, text='Brightness:', padx=10, pady=5)
-        self.labelBrightness.grid(row=2, column=0, sticky='W')
+        self.labelBrightness.grid(row=3, column=0, sticky='W')
         
         self.spinBrightness = tk.Spinbox(self, from_=0, to=100, width=15, justify='right', wrap=True)
-        self.spinBrightness.grid(row=2, column=1)
+        self.spinBrightness.grid(row=3, column=1)
         
-        #row 3
+        #row 4
         self.labelRGB = tk.Label(self, text='RGB Multipliers:', padx=10, pady=5)
-        self.labelRGB.grid(row=3, column=0, sticky='W')
+        self.labelRGB.grid(row=4, column=0, sticky='W')
         
         self.spinRed = tk.Spinbox(self, from_=0, to=8, width=15, justify='right', increment=0.2, wrap=True)
-        self.spinRed.grid(row=3, column=1)
+        self.spinRed.grid(row=4, column=1)
         
         self.spinGreen = tk.Spinbox(self, from_=0, to=8, width=15, justify='right', increment=0.2, wrap=True)
-        self.spinGreen.grid(row=3, column=2)
+        self.spinGreen.grid(row=4, column=2)
         
         self.spinBlue = tk.Spinbox(self, from_=0, to=8, width=15, justify='right', increment=0.2, wrap=True)
-        self.spinBlue.grid(row=3, column=3)
+        self.spinBlue.grid(row=4, column=3)
+
+
+        self.BUTTON = tk.Button(self, text='TEST', command=self.TEST)
+        self.BUTTON.grid(row=5, column=1, columnspan=2)
+    def TEST(self):
+        self.p.toggleAnamorphic()
+
 
     def openFile(self):
         mlFileTypes = ('*.MLV', '*.mlv', '*.RAW', '*.raw')
@@ -73,30 +87,31 @@ class Application(tk.Frame):
         try:
             r = MlRaw.loadRAWorMLV(afile)
             self.labelFilePath['text'] = str(afile)
+
             self.labelSize['text'] = str(r.width()) + ' x ' + str(r.height())
+            self.labelFPS['text'] = str(r.fps) + ' fps'
             self.labelFrames['text'] = str(r.frames()) + ' frames'
+
+            self.labelBlack['text'] = 'Black level: ' + str(r.black)
+            self.labelWhite['text'] = 'White level: ' + str(r.white)
+
             self.rawThread(r)
         except Exception, err:
             self.labelFilePath['text'] = 'Could not open file %s. Error:%s\n'%(afile,str(err))
 
     def rawThread(self, r):
-        p = multiprocessing.Process(target=mlrawviewer.launchFromGui, args=(r,))
-        #p = multiprocessing.Process(target=self.fakeLoop)
-        p.daemon = True
-        p.start()
-        print p.is_alive()
+        #self.p = mlrawviewer.launchFromGui(r)
+        #self.p.run()
+
+        self.p = multiprocessing.Process(target=mlrawviewer.launchFromGui, args=(r,))
+        self.p.daemon = True
+        self.p.start()
+        #print self.p.is_alive()
+        #self.p.run()
 
         #self.rmc = mlrawviewer.Viewer(r) 
         #return self.rmc.run()
         #return 0
-
-    def fakeLoop(self):
-        while True:
-            print 0
-
-
-class FakeClass:
-    pass
 
 
 if __name__ == '__main__':
