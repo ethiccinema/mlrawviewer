@@ -73,6 +73,7 @@ class Texture:
         self.height = size[1]
         glActiveTexture(GL_TEXTURE0)
         glBindTexture(GL_TEXTURE_2D,self.id)
+        glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
         if hasalpha and not fp:
             glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA,self.width,self.height,0,GL_RGBA,GL_UNSIGNED_BYTE,rgbadata)
         elif hasalpha and fp:

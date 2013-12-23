@@ -26,7 +26,7 @@ SOFTWARE.
 import sys,struct,os,math,time,datetime,subprocess,signal
 from threading import Thread
 
-version = "1.0.2"
+version = "1.0.3 alpha" # Change to
 
 programpath = os.path.abspath(os.path.split(sys.argv[0])[0])
 if getattr(sys,'frozen',False):
@@ -83,17 +83,28 @@ class Demosaicer(GLCompute.Drawable):
         self.raw = raw
         self.rawUploadTex = rawUploadTex
         self.rgbUploadTex = rgbUploadTex
+        self.lastFrameData = None
+        self.lastFrameNumber = None
+        self.lastBrightness = None
+        self.lastRgb = None
     def render(self,scene):
         f = scene.frame
         frame = f
         frameNumber = int((1*frame)/1 % self.raw.frames())
-        frameData = self.raw.frame(frameNumber)
-        nextFrame = int((1*(frame+1)) % self.raw.frames())
-        self.raw.preloadFrame(nextFrame)
+        if frameNumber==0 or self.raw.indexingStatus<1.0:
+            frameData = self.raw.firstFrame # Always preloaded
+        elif frameNumber != self.lastFrameNumber:
+            frameData = self.raw.frame(frameNumber)
+            nextFrame = int((1*(frame+1)) % self.raw.frames())
+            self.raw.preloadFrame(nextFrame)
+        else:
+            frameData = self.lastFrameData
+
         brightness = self.settings.brightness()
         rgb = self.settings.rgb()
         balance = (rgb[0]*brightness, rgb[1]*brightness, rgb[2]*brightness)
-        if (frameData):
+        different = (frameData != self.lastFrameData) or (brightness != self.lastBrightness) or (rgb != self.lastRgb)
+        if (frameData and different):
             if (self.settings.highQuality() or self.settings.encoding()) and (frameData.canDemosaic):
                 # Slow/high quality decode for static view or encoding
                 before = time.time()
@@ -108,17 +119,19 @@ class Demosaicer(GLCompute.Drawable):
 
             else:
                 # Fast decode for full speed viewing
-                frameData.convert()
-                self.rawUploadTex.update(frameData.rawimage)
+                if frameData != self.lastFrameData:
+                    frameData.convert()
+                    self.rawUploadTex.update(frameData.rawimage)
                 self.shaderNormal.demosaicPass(self.rawUploadTex,frameData.black,balance=balance)
-
+        self.lastFrameData = frameData
+        self.lastFrameNumber = frameNumber
+        self.lastBrightness = brightness
+        self.lastRgb = rgb
 
 class DemosaicScene(GLCompute.Scene):
     def __init__(self,raw,settings,encoder,**kwds):
         super(DemosaicScene,self).__init__(**kwds)
-        f = 0
         self.raw = raw
-        self.raw.preloadFrame(f)
         print "Width:",self.raw.width(),"Height:",self.raw.height(),"Frames:",self.raw.frames()
         self.rawUploadTex = GLCompute.Texture((self.raw.width(),self.raw.height()),None,hasalpha=False,mono=True,sixteen=True)
         #try: self.rgbUploadTex = GLCompute.Texture((self.raw.width(),self.raw.height()),None,hasalpha=False,mono=False,fp=True)
@@ -177,8 +190,11 @@ class DisplayScene(GLCompute.Scene):
         m2.translate(7.-float(width)/2.0,7.-float(height)/2.0)
         rectHeight = 0.075/(float(width)/540.0)
         rectWidth = 2.0 - 2.0*(14.0/float(width))
-        self.progressBackground.geometry = self.textshader.rectangle(rectWidth,rectHeight,rgba=(0.2,0.2,0.2,0.2),update=self.progressBackground.geometry)
+        self.progressBackground.geometry = self.textshader.rectangle(rectWidth*self.raw.indexingStatus(),rectHeight,rgba=(1.0-0.8*self.raw.indexingStatus(),0.2,0.2,0.2),update=self.progressBackground.geometry)
+        #if self.raw.indexingStatus()==1.0:
         self.progress.geometry = self.textshader.rectangle((float(frameNumber)/float(self.raw.frames()-1))*rectWidth,rectHeight,rgba=(1.0,1.0,0.2,0.2),update=self.progress.geometry)
+        #else:
+        #    self.progress.geometry = self.textshader.rectangle((self.raw.indexingStatus())*rectWidth,rectHeight,rgba=(1.0,1.0,0.2,0.2),update=self.progress.geometry)
         self.progressBackground.matrix = m2
         self.progress.matrix = m2
         m = Matrix4x4()
@@ -192,7 +208,10 @@ class DisplayScene(GLCompute.Scene):
         seconds = int(totsec%60.0)
         fsec = (totsec - int(totsec))*1000.0
         # NOTE: We use one-based numbering for the frame number display because it is more natural -> ends on last frame
-        self.timestamp.geometry = self.textshader.label(self.textshader.font,"%02d:%02d.%03d (%d/%d)"%(minutes,seconds,fsec,frameNumber+1,self.raw.frames()),update=self.timestamp.geometry)
+        if self.raw.indexingStatus()==1.0:
+            self.timestamp.geometry = self.textshader.label(self.textshader.font,"%02d:%02d.%03d (%d/%d)"%(minutes,seconds,fsec,frameNumber+1,self.raw.frames()),update=self.timestamp.geometry)
+        else:
+            self.timestamp.geometry = self.textshader.label(self.textshader.font,"%02d:%02d.%03d (%d/%d) Indexing: %d%%"%(minutes,seconds,fsec,frameNumber+1,self.raw.frames(),self.raw.indexingStatus()*100.0),update=self.timestamp.geometry)
         self.timestamp.colour = (0.0,0.0,0.0,1.0)
 
 class Viewer(GLCompute.GLCompute):
@@ -203,6 +222,7 @@ class Viewer(GLCompute.GLCompute):
         super(Viewer,self).__init__(width=userWidth,height=int(userWidth*self.vidAspectHeight),**kwds)
         self._init = False
         self._raw = raw
+        self._raw.preloadFrame(1)
         self.font = Font.Font(os.path.join(programpath,"data/os.glf"))
         self.time = 0
         self._fps = raw.fps
@@ -249,9 +269,12 @@ class Viewer(GLCompute.GLCompute):
             self.display.size = (aspectWidth,height)
             self.display.position = (width/2 - aspectWidth/2, 0)
         self.renderScenes()
-        if self.paused:
+        if self.paused: # or self._raw.indexingStatus()<1.0:
             self._frames -= 1
+        if self._raw.indexingStatus()<1.0:
+            self.refresh()
     def jump(self,framesToJumpBy):
+        #if self._raw.indexingStatus()==1.0:
         self._frames += framesToJumpBy
         self.refresh()
     def key(self,k,x,y):
@@ -299,7 +322,7 @@ class Viewer(GLCompute.GLCompute):
             super(Viewer,self).specialkey(k,x,y)
     def scaleBrightness(self,scale):
         self.setting_brightness *= scale
-        print "Brightness",self.setting_brightness
+        #print "Brightness",self.setting_brightness
         self.refresh()
     def changeWhiteBalance(self, R, G, B, Name="WB"):
         self.setting_rgb = (R, G, B)
@@ -312,13 +335,15 @@ class Viewer(GLCompute.GLCompute):
     def onIdle(self):
         if self.needsRefresh and self.paused:
             self.redisplay()
-        elif self.paused:
+        elif self.paused or self._raw.indexingStatus()<1.0:
             time.sleep(0.016) # Sleep for one frame
 
         now = GLCompute.timeInUsec()
-        if not self.needsRefresh and not self.paused and (now-self._last >= (1.0/self._fps)):
-            #print now,self._last,1.0/self._fps
-            self.redisplay()
+        if not self.needsRefresh and not self.paused:
+            if (now-self._last >= (1.0/self._fps)):
+                self.redisplay()
+            else:
+                time.sleep(0.001)
 
         self.needsRefresh = False
 

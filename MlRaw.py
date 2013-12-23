@@ -98,9 +98,12 @@ class Frame:
         self.rawdata = rawdata
         self.width = width
         self.height = height
-        self.rawdata = rawdata
         self.canDemosaic = haveDemosaic
+        self.rawimage = None
+        self.rgbimage = None
     def convert(self):
+        if self.rawimage != None:
+            return # Done already
         if self.rawdata != None:
             self.rawimage,self.framestats = unpacks14np16(self.rawdata,self.width,self.height)
         else:
@@ -109,6 +112,8 @@ class Frame:
             self.rawimage = rawimage.tostring()
     def demosaic(self):
         # CPU based demosaic -> SLOW!
+        if self.rgbimage != None:
+            return # Done already
         if self.rawdata != None:
             self.rgbimage = demosaic14(self.rawdata,self.width,self.height,self.black)
         else:
@@ -131,8 +136,12 @@ def colorMatrix(raw_info):
 def getRawFileSeries(basename):
     dirname,filename = os.path.split(basename)
     base = filename[:-2]
-    samenamefiles = [n for n in os.listdir(dirname) if n[:-2]==base and n!=filename]
+    ld = os.listdir(dirname)
+    samenamefiles = [n for n in ld if n[:-2]==base and n!=filename]
+    #idxname = base[:-1]+"IDX"
+    #indexfile = [n for n in ld if n==idxname]
     allfiles = [filename]
+    #allfiles.extend(indexfile)
     samenamefiles.sort()
     allfiles.extend(samenamefiles)
     return dirname,allfiles
@@ -163,15 +172,18 @@ class MLRAW:
             framefile.seek(0,os.SEEK_END)
             framefilelen = framefile.tell()
             self.framefiles.append((framefile,framefilelen))
-        self.preloader = threading.Thread(target=self.preloaderMain) 
+        self.firstFrame = self._loadframe(0)
+        self.preloader = threading.Thread(target=self.preloaderMain)
         self.preloaderArgs = Queue.Queue(1)
         self.preloaderResults = Queue.Queue(1)
         self.preloader.daemon = True
         self.preloader.start()
-    def close():
+    def close(self):
         self.indexfile.close()
         for filehandle,filelen in self.framefiles:
             filehandle.close()
+    def indexingStatus(self):
+        return 1.0 # RAW doesn't get indexed. It is sequential
     def width(self):
         return self.footer[1]
     def height(self):
@@ -191,7 +203,7 @@ class MLRAW:
         preloadedindex = -1
         frame = None
         while preloadedindex!=index:
-            preloadedindex,frame = self.preloaderResults.get() 
+            preloadedindex,frame = self.preloaderResults.get()
             if preloadedindex==index:
                 break
             self.preloadFrame(index)
@@ -216,7 +228,7 @@ class MLRAW:
             return Frame(self,framedata,self.width(),self.height(),self.black)
         return ""
 
- 
+
 """
 ML MLV format - need to handle spanning files
 """
@@ -224,14 +236,14 @@ class MLV:
     class BlockType:
         FileHeader = 0x49564c4d
         VideoFrame = 0x46444956
-        Audio = 0x46445541
+        AudioFrame = 0x46445541
         RawInfo = 0x49574152
         WavInfo = 0x73866587
         ExposureInfo = 0x4f505845
         LensInfo = 0x534e454c
         RealTimeClock = 0x49435452
         Idendity = 0x544e4449
-        XREF = 0x70698288
+        XREF = 0x46455258
         Info = 0x4f464e49
         DualISOInfo = 0x79837368
         Empty = 0x76768578
@@ -265,21 +277,34 @@ class MLV:
         self.raw = raw
         self.ts = ts
         self.files = [(mlvfile,0,header[14],header,parsedTo, size)]
+        self.totalSize = size
+        self.totalParsed = parsedTo
+        self.firstFrame = self._loadframe(0)
         for spanfilename in allfiles[1:]:
             fullspanfile = os.path.join(dirname,spanfilename)
+            #print fullspanfile
             spanfile = file(fullspanfile,'rb')
             header,raw,parsedTo,size,ts = self.parseFile(spanfile,self.framepos)
             self.files.append((spanfile,self.framecount,header[14],header,parsedTo, size))
             self.framecount += header[14]
             self.audioFrameCount += header[15]
+            self.totalSize += size
+            self.totalParsed += parsedTo
         self.preloader = None
         self.allParsed = False
+        self.preindexing = True
         print "Audio frame count",self.audioFrameCount
+        self.initPreloader()
+    def indexingStatus(self):
+        if self.preindexing:
+            return float(self.totalParsed)/float(self.totalSize)
+        else:
+            return 1.0
     def initPreloader(self):
         if (self.preloader == None):
-            self.preloader = threading.Thread(target=self.preloaderMain) 
-            self.preloaderArgs = Queue.Queue(1)
-            self.preloaderResults = Queue.Queue(1)
+            self.preloader = threading.Thread(target=self.preloaderMain)
+            self.preloaderArgs = Queue.Queue(2)
+            self.preloaderResults = Queue.Queue(2)
             self.preloader.daemon = True
             self.preloader.start()
     def close(self):
@@ -296,7 +321,7 @@ class MLV:
         while pos<size-8:
             fh.seek(pos)
             blockType,blockSize = struct.unpack("II",fh.read(8))
-            """
+            """ 
             try:
                 blockName = MLV.BlockTypeLookup[blockType]
                 print blockName,blockSize,pos,size,size-pos
@@ -318,6 +343,10 @@ class MLV:
                 #print videoFrameHeader[1],pos
             elif blockType==MLV.BlockType.Wavi:
                 wavi = self.parseWavi(fh,pos,blockSize)
+            elif blockType==MLV.BlockType.XREF:
+                xref = self.parseXref(fh,pos,blockSize)
+            elif blockType==MLV.BlockType.AudioFrame:
+                xref = self.parseXref(fh,pos,blockSize)
             count += 1
             pos += blockSize
             count += 1
@@ -362,14 +391,37 @@ class MLV:
         fh.seek(pos+8)
         waviData = fh.read(size-8)
         wavi = struct.unpack("<QHHIIHH",waviData[:(8+4+8+4)])
-        print "Wavi:",wavi
+        #print "Wavi:",wavi
         return wavi
+    def parseXref(self,fh,pos,size):
+        """
+        The Xref info is not very useful for us since we still need to
+        read all the chunks in order to find frame numbers
+        """
+        fh.seek(pos+8)
+        xrefData = fh.read(size-8)
+        offset = 8+4+4
+        xref = struct.unpack("<QII",xrefData[:offset])
+        xrefCount = xref[2]
+        xrefs = []
+        for x in range(xrefCount):
+            xrefEntry = struct.unpack("<HHQ",xrefData[offset:offset+12])
+            offset += 12
+            #print xrefEntry
+        #print "Xref:",xref
+        return xref
     def parseVideoFrame(self,fh,pos,size):
         fh.seek(pos+8)
         rawData = fh.read(8+4+2+2+2+2+4+4)
         videoFrameHeader = struct.unpack("<QI4H2I",rawData)
-        #print "VideoFrame:",videoFrameHeader
+        #print "Video frame",videoFrameHeader[1],"at",pos
         return videoFrameHeader
+    def parseAudioFrame(self,fh,pos,size):
+        fh.seek(pos+8)
+        audioData = fh.read(8+4+4)
+        audioFrameHeader = struct.unpack("<QII",audioData)
+        #print "Audio frame",audioFrameHeader[1],"at",pos
+        return audioFrameHeader
     def width(self):
         return self.raw[1]
     def height(self):
@@ -387,6 +439,7 @@ class MLV:
         return None
     def preindex(self):
         if self.allParsed:
+            self.preindexing = False
             return
         preindexStep = 10
         indexinfo = self.nextUnindexedFile()
@@ -399,7 +452,7 @@ class MLV:
             return
         index,info = indexinfo
         fh, firstframe, frames, header, pos, size = info
-        while (pos < size) and (preindexStep > 0):
+        while (pos < size) and ((preindexStep > 0) or self.preloaderArgs.empty()):
             fh.seek(pos)
             blockType,blockSize = struct.unpack("II",fh.read(8))
             """
@@ -410,15 +463,23 @@ class MLV:
                 pass
                 print "Unknown block type %08x"%blockType
             """
+
             if blockType==MLV.BlockType.VideoFrame:
                 videoFrameHeader = self.parseVideoFrame(fh,pos,blockSize)
                 self.framepos[videoFrameHeader[1]] = (fh,pos)
                 #print videoFrameHeader[1],pos
                 preindexStep -= 1
+            elif blockType==MLV.BlockType.AudioFrame:
+                audioFrameHeader = self.parseAudioFrame(fh,pos,blockSize)
+
             pos += blockSize
+            self.totalParsed += blockSize
         self.files[index] = (fh, firstframe, frames, header, pos, size)
 
     def preloaderMain(self):
+        #while self.preindexing:
+        #    self.preindex() # Do some preindexing if still needed
+        # Now we can load frames
         while 1:
             self.preindex() # Do some preindexing if still needed
             arg = self.preloaderArgs.get() # Will wait for a job
