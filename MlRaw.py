@@ -22,7 +22,7 @@ SOFTWARE.
 """
 
 # standard python imports
-import sys,struct,os,math,time,threading,Queue,traceback
+import sys,struct,os,math,time,threading,Queue,traceback,wave
 
 haveDemosaic = False
 
@@ -262,6 +262,7 @@ class MLV:
     BlockTypeLookup = dict(zip(BlockTypeValues,BlockTypeNames))
 
     def __init__(self,filename):
+        self.filename = filename
         print "Opening MLV file",filename
         dirname,allfiles = getRawFileSeries(filename)
         mlvfile = file(filename,'rb')
@@ -321,7 +322,7 @@ class MLV:
         while pos<size-8:
             fh.seek(pos)
             blockType,blockSize = struct.unpack("II",fh.read(8))
-            """ 
+            """
             try:
                 blockName = MLV.BlockTypeLookup[blockType]
                 print blockName,blockSize,pos,size,size-pos
@@ -346,7 +347,7 @@ class MLV:
             elif blockType==MLV.BlockType.XREF:
                 xref = self.parseXref(fh,pos,blockSize)
             elif blockType==MLV.BlockType.AudioFrame:
-                xref = self.parseXref(fh,pos,blockSize)
+                audio = self.parseAudioFrame(fh,pos,blockSize)
             count += 1
             pos += blockSize
             count += 1
@@ -391,6 +392,8 @@ class MLV:
         fh.seek(pos+8)
         waviData = fh.read(size-8)
         wavi = struct.unpack("<QHHIIHH",waviData[:(8+4+8+4)])
+        self.wav = wave.open(self.filename[:-3]+"WAV",'w')
+        self.wav.setparams((wavi[2],2,wavi[3],0,'NONE',''))
         #print "Wavi:",wavi
         return wavi
     def parseXref(self,fh,pos,size):
@@ -420,7 +423,13 @@ class MLV:
         fh.seek(pos+8)
         audioData = fh.read(8+4+4)
         audioFrameHeader = struct.unpack("<QII",audioData)
-        #print "Audio frame",audioFrameHeader[1],"at",pos
+        #print "Audio frame",audioFrameHeader[1],"at",pos,audioFrameHeader,size-8-12
+        #self.audioframepos[audioFrameHeader]
+        audiodata = fh.read(size-24)
+        if audioFrameHeader[0]<1 and audioFrameHeader[1]<1:
+            pass # Workaround foir bug in mlv_snd
+        else:
+            self.wav.writeframes(audiodata[audioFrameHeader[2]:])
         return audioFrameHeader
     def width(self):
         return self.raw[1]
@@ -440,6 +449,7 @@ class MLV:
     def preindex(self):
         if self.allParsed:
             self.preindexing = False
+            self.wav.close()
             return
         preindexStep = 10
         indexinfo = self.nextUnindexedFile()
