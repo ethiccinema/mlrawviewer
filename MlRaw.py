@@ -50,7 +50,7 @@ try:
 !!! Please rebuild latest version. !!!
 
 """
-        raise  
+        raise
     def unpacks14np16(rawdata,width,height):
         unpacked,stats = bitunpack.unpack14to16(rawdata)
         return np.frombuffer(unpacked,dtype=np.uint16),stats
@@ -101,10 +101,19 @@ class Frame:
         self.rawdata = rawdata
         self.canDemosaic = haveDemosaic
     def convert(self):
-        self.rawimage,self.framestats = unpacks14np16(self.rawdata,self.width,self.height)
+        if self.rawdata != None:
+            self.rawimage,self.framestats = unpacks14np16(self.rawdata,self.width,self.height)
+        else:
+            rawimage = np.empty(self.width*self.height,dtype=np.uint16)
+            rawimage.fill(self.black)
+            self.rawimage = rawimage.tostring()
     def demosaic(self):
-		# CPU based demosaic -> SLOW!
-        self.rgbimage = demosaic14(self.rawdata,self.width,self.height,self.black)
+        # CPU based demosaic -> SLOW!
+        if self.rawdata != None:
+            self.rgbimage = demosaic14(self.rawdata,self.width,self.height,self.black)
+        else:
+            self.rgbimage = np.zeros(self.width*self.height*3,dtype=np.uint16).tostring()
+
 
 def colorMatrix(raw_info):
     vals = np.array(raw_info[-19:-1]).astype(np.float32)
@@ -229,6 +238,9 @@ class MLV:
         Vignette = 0x78717386
         WhiteBalance = 0x4c414257
         ElectronicLevel = 0x4c564c45
+        Mark = 0x4b52414d
+        Styl = 0x4c595453
+        Wavi = 0x49564157
         Null = 0x4c4c554e
 
     BlockTypeNames = [n for n in dir(BlockType) if n!="__doc__" and n!="__module__"]
@@ -277,13 +289,15 @@ class MLV:
         ts = None
         while pos<size-8:
             fh.seek(pos)
-            blockType,blockSize = struct.unpack("II",fh.read(8))        
+            blockType,blockSize = struct.unpack("II",fh.read(8))
+            """
             try:
                 blockName = MLV.BlockTypeLookup[blockType]
-                #print blockName,blockSize,pos,size,size-pos
+                print blockName,blockSize,pos,size,size-pos
             except:
                 pass
-                #print "Unknown block type %08x"%blockType
+                print "Unknown block type %08x"%blockType
+            """
             if blockType==MLV.BlockType.FileHeader:
                 header = self.parseFileHeader(fh,pos,blockSize)
             elif blockType==MLV.BlockType.RawInfo:
@@ -292,7 +306,7 @@ class MLV:
                 ts = self.parseRtc(fh,pos,blockSize)
             elif blockType==MLV.BlockType.VideoFrame:
                 videoFrameHeader = self.parseVideoFrame(fh,pos,blockSize)
-                framepos[videoFrameHeader[1]] = (fh,pos) 
+                framepos[videoFrameHeader[1]] = (fh,pos)
                 pos += blockSize
                 break # Only get first frame in this file
                 #print videoFrameHeader[1],pos
@@ -356,7 +370,7 @@ class MLV:
         self.allParsed = True
         return None
     def preindex(self):
-        if self.allParsed: 
+        if self.allParsed:
             return
         preindexStep = 10
         indexinfo = self.nextUnindexedFile()
@@ -372,6 +386,14 @@ class MLV:
         while (pos < size) and (preindexStep > 0):
             fh.seek(pos)
             blockType,blockSize = struct.unpack("II",fh.read(8))
+            """
+            try:
+                blockName = MLV.BlockTypeLookup[blockType]
+                print blockName,blockSize,pos,size,size-pos
+            except:
+                pass
+                print "Unknown block type %08x"%blockType
+            """
             if blockType==MLV.BlockType.VideoFrame:
                 videoFrameHeader = self.parseVideoFrame(fh,pos,blockSize)
                 self.framepos[videoFrameHeader[1]] = (fh,pos)
@@ -398,7 +420,7 @@ class MLV:
         preloadedindex = -1
         frame = None
         while preloadedindex!=index:
-            preloadedindex,frame = self.preloaderResults.get() 
+            preloadedindex,frame = self.preloaderResults.get()
             if preloadedindex==index:
                 break
             self.preloadFrame(index)
@@ -418,22 +440,26 @@ class MLV:
             # Parse through file until we find frame
             pos = parsedTo
             notFound = True
-            while pos < size: 
+            while pos < size:
                 fh.seek(pos)
                 blockType,blockSize = struct.unpack("II",fh.read(8))
-                try:  
+                """
+                try:
                     blockName = MLV.BlockTypeLookup[blockType]
+                    print blockName,blockSize,pos,size,size-pos
                 except:
                     pass
+                    print "Unknown block type:",blockType
+                """
                 #print blockName,blockSize
                 if blockType==MLV.BlockType.VideoFrame:
                     videoFrameHeader = self.parseVideoFrame(fh,pos,blockSize)
-                    self.framepos[videoFrameHeader[1]] = (fh,pos) 
+                    self.framepos[videoFrameHeader[1]] = (fh,pos)
                     #print videoFrameHeader[1],index,fh,pos
                     if videoFrameHeader[1]==index:
                         pos += blockSize
                         notFound = False
-                        break # Found it 
+                        break # Found it
                 pos += blockSize
                 if pos>=size and notFound:
                     self.files[fileindex] = (fh, firstframe, frames, header, pos, size)
@@ -459,11 +485,17 @@ class MLV:
                     print "FOUND",index
             except:
                 print "FAILED TO FIND FRAME AFTER SCAN",index
+                self.framepos[index] = (None,None)
             return result
     def _loadframe(self,index):
-        fh,framepos = self._getframedata(index)
+        fhframepos = self._getframedata(index)
+        if fhframepos==None: # Return black frame
+            return Frame(self,None,self.width(),self.height(),self.black)
+        fh,framepos = fhframepos
+        if fh==None: # Return black frame
+            return Frame(self,None,self.width(),self.height(),self.black)
         fh.seek(framepos)
-        blockType,blockSize = struct.unpack("II",fh.read(8))         
+        blockType,blockSize = struct.unpack("II",fh.read(8))
         videoFrameHeader = self.parseVideoFrame(fh,framepos,blockSize)
         rawstarts = framepos + 32 + videoFrameHeader[-2]
         rawsize = blockSize - 32 - videoFrameHeader[-2]

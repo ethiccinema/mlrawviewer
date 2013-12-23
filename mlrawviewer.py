@@ -85,7 +85,7 @@ class Demosaicer(GLCompute.Drawable):
         self.rgbUploadTex = rgbUploadTex
     def render(self,scene):
         f = scene.frame
-        frame = f 
+        frame = f
         frameNumber = int((1*frame)/1 % self.raw.frames())
         frameData = self.raw.frame(frameNumber)
         nextFrame = int((1*(frame+1)) % self.raw.frames())
@@ -100,20 +100,18 @@ class Demosaicer(GLCompute.Drawable):
                 frameData.demosaic()
                 after = time.time()
                 self.encoder.demosaicDuration(after-before)
-
                 self.rgbUploadTex.update(frameData.rgbimage)
                 self.shaderQuality.demosaicPass(self.rgbUploadTex,frameData.black,balance=balance)
-        
                 if self.settings.encoding():
                     self.rgb = glReadPixels(0,0,scene.size[0],scene.size[1],GL_RGB,GL_UNSIGNED_SHORT)
                     self.encoder.encode(frameNumber,self.rgb)
 
-            else: 
+            else:
                 # Fast decode for full speed viewing
                 frameData.convert()
                 self.rawUploadTex.update(frameData.rawimage)
                 self.shaderNormal.demosaicPass(self.rawUploadTex,frameData.black,balance=balance)
-            
+
 
 class DemosaicScene(GLCompute.Scene):
     def __init__(self,raw,settings,encoder,**kwds):
@@ -193,7 +191,8 @@ class DisplayScene(GLCompute.Scene):
         minutes = int(totsec/60.0)
         seconds = int(totsec%60.0)
         fsec = (totsec - int(totsec))*1000.0
-        self.timestamp.geometry = self.textshader.label(self.textshader.font,"%02d:%02d.%03d (%d/%d)"%(minutes,seconds,fsec,frameNumber,self.raw.frames()),update=self.timestamp.geometry)
+        # NOTE: We use one-based numbering for the frame number display because it is more natural -> ends on last frame
+        self.timestamp.geometry = self.textshader.label(self.textshader.font,"%02d:%02d.%03d (%d/%d)"%(minutes,seconds,fsec,frameNumber+1,self.raw.frames()),update=self.timestamp.geometry)
         self.timestamp.colour = (0.0,0.0,0.0,1.0)
 
 class Viewer(GLCompute.GLCompute):
@@ -248,7 +247,7 @@ class Viewer(GLCompute.GLCompute):
             self.display.position = (0, height/2 - aspectHeight/2)
         else:
             self.display.size = (aspectWidth,height)
-            self.display.position = (width/2 - aspectWidth/2, 0)            
+            self.display.position = (width/2 - aspectWidth/2, 0)
         self.renderScenes()
         if self.paused:
             self._frames -= 1
@@ -262,7 +261,7 @@ class Viewer(GLCompute.GLCompute):
                 self.jump(-1) # Redisplay the current frame in high quality
                 self.refresh()
         elif k=='.': # Nudge forward one frame - best when paused
-            self.jump(1) 
+            self.jump(1)
         elif k==',': # Nudge back on frame - best when paused
             self.jump(-1)
 
@@ -300,6 +299,7 @@ class Viewer(GLCompute.GLCompute):
             super(Viewer,self).specialkey(k,x,y)
     def scaleBrightness(self,scale):
         self.setting_brightness *= scale
+        print "Brightness",self.setting_brightness
         self.refresh()
     def changeWhiteBalance(self, R, G, B, Name="WB"):
         self.setting_rgb = (R, G, B)
@@ -323,7 +323,7 @@ class Viewer(GLCompute.GLCompute):
         self.needsRefresh = False
 
     def refresh(self):
-        self.needsRefresh = True 
+        self.needsRefresh = True
 
     def checkoutfile(self):
         if os.path.exists(self.outfilename):
@@ -362,9 +362,9 @@ class Viewer(GLCompute.GLCompute):
             self.checkoutfile()
             kwargs = {"stdin":subprocess.PIPE,"stdout":subprocess.PIPE,"stderr":subprocess.STDOUT}
             if subprocess.mswindows:
-                su = subprocess.STARTUPINFO() 
-                su.dwFlags |= subprocess.STARTF_USESHOWWINDOW 
-                su.wShowWindow = subprocess.SW_HIDE 
+                su = subprocess.STARTUPINFO()
+                su.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+                su.wShowWindow = subprocess.SW_HIDE
                 kwargs["startupinfo"] = su
             args = [exe,"-f","rawvideo","-pix_fmt","rgb48","-s","%dx%d"%(self._raw.width(),self._raw.height()),"-r","%d"%self._fps,"-i","-","-an","-f","mov","-vf","vflip","-vcodec","prores_ks","-profile:v","3","-r","%d"%self._fps,self.outfilename]
             print "Encoder args:",args
@@ -404,7 +404,7 @@ class Viewer(GLCompute.GLCompute):
         self.demosaicCount += 1
         self.demosaicTotal += duration
         self.demosaicAverage = self.demosaicTotal/float(self.demosaicCount)
-        print "demosaicAverage:",self.demosaicAverage
+        #print "demosaicAverage:",self.demosaicAverage
     def encode(self, index, frame):
         if self.setting_encoding and self.encoderProcess and self.lastEncodedFrame:
             if index < self.lastEncodedFrame:
@@ -412,7 +412,7 @@ class Viewer(GLCompute.GLCompute):
                 self.paused = True
                 self.jump(-1) # Should go back to last frame
                 self.refresh()
-                return        
+                return
         if self.encoderProcess:
             #print "Encoding frame:",index
             self.encoderProcess.stdin.write(frame.tostring())
@@ -444,6 +444,6 @@ def main():
 def launchFromGui(rawfile,outfilename=None):
     rmc = Viewer(rawfile,outfilename)
     return rmc.run()
-    
+
 if __name__ == '__main__':
     sys.exit(main())
