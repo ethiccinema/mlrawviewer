@@ -176,9 +176,9 @@ class DisplayScene(GLCompute.Scene):
         m2.viewport(width,height)
         m2.translate(7.-float(width)/2.0,7.-float(height)/2.0)
         rectHeight = 0.075/(float(width)/540.0)
-        rectWidth = 1.9
+        rectWidth = 2.0 - 2.0*(14.0/float(width))
         self.progressBackground.geometry = self.textshader.rectangle(rectWidth,rectHeight,rgba=(0.2,0.2,0.2,0.2),update=self.progressBackground.geometry)
-        self.progress.geometry = self.textshader.rectangle((float(frameNumber)/float(self.raw.frames()))*rectWidth,rectHeight,rgba=(1.0,1.0,0.2,0.2),update=self.progress.geometry)
+        self.progress.geometry = self.textshader.rectangle((float(frameNumber)/float(self.raw.frames()-1))*rectWidth,rectHeight,rgba=(1.0,1.0,0.2,0.2),update=self.progress.geometry)
         self.progressBackground.matrix = m2
         self.progress.matrix = m2
         m = Matrix4x4()

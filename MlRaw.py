@@ -178,6 +178,8 @@ class MLRAW:
         return self.footer[2]
     def frames(self):
         return self.footer[4]
+    def audioFrames(self):
+        return 0
     def preloaderMain(self):
         while 1:
             arg = self.preloaderArgs.get() # Will wait for a job
@@ -252,10 +254,12 @@ class MLV:
         dirname,allfiles = getRawFileSeries(filename)
         mlvfile = file(filename,'rb')
         self.framepos = {}
+        self.audioframepos = {}
         header,raw,parsedTo,size,ts = self.parseFile(mlvfile,self.framepos)
         self.fps = float(header[16])/float(header[17])
         print "FPS:",self.fps
         self.framecount = header[14]
+        self.audioFrameCount = header[15]
         self.preindexed = 0
         self.header = header
         self.raw = raw
@@ -267,8 +271,10 @@ class MLV:
             header,raw,parsedTo,size,ts = self.parseFile(spanfile,self.framepos)
             self.files.append((spanfile,self.framecount,header[14],header,parsedTo, size))
             self.framecount += header[14]
+            self.audioFrameCount += header[15]
         self.preloader = None
         self.allParsed = False
+        print "Audio frame count",self.audioFrameCount
     def initPreloader(self):
         if (self.preloader == None):
             self.preloader = threading.Thread(target=self.preloaderMain) 
@@ -310,6 +316,8 @@ class MLV:
                 pos += blockSize
                 break # Only get first frame in this file
                 #print videoFrameHeader[1],pos
+            elif blockType==MLV.BlockType.Wavi:
+                wavi = self.parseWavi(fh,pos,blockSize)
             count += 1
             pos += blockSize
             count += 1
@@ -350,6 +358,12 @@ class MLV:
         rtc = struct.unpack("<Q10H8s",rtcData[:(8+10*2+8)])
         return rtc
         #print "RawInfo:",self.raw
+    def parseWavi(self,fh,pos,size):
+        fh.seek(pos+8)
+        waviData = fh.read(size-8)
+        wavi = struct.unpack("<QHHIIHH",waviData[:(8+4+8+4)])
+        print "Wavi:",wavi
+        return wavi
     def parseVideoFrame(self,fh,pos,size):
         fh.seek(pos+8)
         rawData = fh.read(8+4+2+2+2+2+4+4)
@@ -362,6 +376,8 @@ class MLV:
         return self.raw[2]
     def frames(self):
         return self.framecount
+    def audioFrames(self):
+        return self.audioFrameCount
     def nextUnindexedFile(self):
         for fileindex,info in enumerate(self.files):
             fh, firstframe, frames, header, parsedTo, size = info
