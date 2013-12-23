@@ -23,7 +23,7 @@ SOFTWARE.
 """
 
 # standard python imports. Should not be missing
-import sys,struct,os,math,time,datetime,subprocess,signal
+import sys,struct,os,math,time,datetime,subprocess,signal,threading,Queue
 from threading import Thread
 
 version = "1.0.3 alpha" # Change to
@@ -38,6 +38,12 @@ if getattr(sys,'frozen',False):
 print "MlRawViewer v"+version
 print "(c) Andrew Baldwin & contributors 2013"
 
+noAudio = True
+try:
+    import pyaudio
+    noAudio = False
+except Exception,err:
+    print "pyAudio not available. Cannot play audio"
 
 # OpenGL. Could be missing
 try:
@@ -214,6 +220,47 @@ class DisplayScene(GLCompute.Scene):
             self.timestamp.geometry = self.textshader.label(self.textshader.font,"%02d:%02d.%03d (%d/%d) Indexing: %d%%"%(minutes,seconds,fsec,frameNumber+1,self.raw.frames(),self.raw.indexingStatus()*100.0),update=self.timestamp.geometry)
         self.timestamp.colour = (0.0,0.0,0.0,1.0)
 
+class Audio(object):
+    INIT = 0
+    PLAY = 1
+    STOP = 2
+    def __init__(self):
+        global noAudio
+        self.playThread = threading.Thread(target=self.audioLoop)
+        self.playThread.daemon = True
+        self.commands = Queue.Queue(1)
+        if not noAudio:
+            self.playThread.start()
+    def init(self,sampleRate,sampleWidth,channels):
+        global noAudio
+        if not noAudio:
+            self.commands.put((Audio.INIT,(samplerate,sampleWidth,channels)))
+    def play(self,data):
+        global noAudio
+        if not noAudio:
+            self.commands.put((Audio.PLAY,data))
+    def stop(self):
+        global noAudio
+        if not noAudio:
+            self.commands.put((Audio.STOP,None))
+    def audioLoop(self):
+        print "Audio loop running"
+        pa = pyaudio.PyAudio()
+        while 1:
+            command = self.commands.get()
+            commandType,commandData = command
+            if commandType==Audio.INIT:
+                print "Init",commandData
+                sampleRate,sampleWidth,channels = commandData
+                format = pa.get_format_from_width(sampleWidth)
+                stream = pa.open(format,channels,sampleRate,output=True)
+            if commandType==Audio.PLAY:
+                print "Play",len(commandData)
+                stream.write(commandData)
+            elif commandType==Audio.STOP:
+                print "Stop"
+                stream.stop_stream()
+
 class Viewer(GLCompute.GLCompute):
     def __init__(self,raw,outfilename,**kwds):
         userWidth = 720
@@ -235,6 +282,7 @@ class Viewer(GLCompute.GLCompute):
         self.demosaicCount = 0
         self.demosaicTotal = 0.0
         self.demosaicAverage = 0.0
+        self.audio = Audio()
         # Shared settings
         self.setting_brightness = 16.0
         self.setting_rgb = (2.0, 1.0, 1.5)

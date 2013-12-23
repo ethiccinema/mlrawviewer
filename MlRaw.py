@@ -294,6 +294,7 @@ class MLV:
         self.preloader = None
         self.allParsed = False
         self.preindexing = True
+        self.wav = None
         print "Audio frame count",self.audioFrameCount
         self.initPreloader()
     def indexingStatus(self):
@@ -449,7 +450,8 @@ class MLV:
     def preindex(self):
         if self.allParsed:
             self.preindexing = False
-            self.wav.close()
+            if self.wav:
+                self.wav.close()
             return
         preindexStep = 10
         indexinfo = self.nextUnindexedFile()
