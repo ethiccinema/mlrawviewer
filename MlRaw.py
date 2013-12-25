@@ -428,8 +428,8 @@ class MLV:
         #self.audioframepos[audioFrameHeader]
         audiodata = fh.read(size-24)
         if audioFrameHeader[0]<1 and audioFrameHeader[1]<1:
-            pass # Workaround foir bug in mlv_snd
-        else:
+            pass # Workaround for bug in mlv_snd
+        elif self.wav != None:
             self.wav.writeframes(audiodata[audioFrameHeader[2]:])
         return audioFrameHeader
     def width(self):
