@@ -48,7 +48,7 @@ except Exception,err:
 # OpenGL. Could be missing
 try:
     import OpenGL
-    OpenGL.ERROR_CHECKING = False # Only for one erroneously-failing Framebuffer2DEXT call on Windows with Intel...grrr
+    #OpenGL.ERROR_CHECKING = False # Only for one erroneously-failing Framebuffer2DEXT call on Windows with Intel...grrr
     from OpenGL.GL import *
     from OpenGL.GL.framebufferobjects import *
 except Exception,err:
@@ -325,49 +325,47 @@ class Viewer(GLCompute.GLCompute):
         #if self._raw.indexingStatus()==1.0:
         self._frames += framesToJumpBy
         self.refresh()
-    def key(self,k,x,y):
-        if ord(k)==32:
+    def key(self,k):
+        if k==self.KEY_SPACE:
             self.paused = not self.paused
             if self.paused:
                 self.jump(-1) # Redisplay the current frame in high quality
                 self.refresh()
-        elif k=='.': # Nudge forward one frame - best when paused
+        elif k==self.KEY_PERIOD: # Nudge forward one frame - best when paused
             self.jump(1)
-        elif k==',': # Nudge back on frame - best when paused
+        elif k==self.KEY_COMMA: # Nudge back on frame - best when paused
             self.jump(-1)
 
-        elif k=='1':
+        elif k==self.KEY_ONE:
             self.changeWhiteBalance(2.0, 1.0, 2.0, "WhiteFluro") # ~WhiteFluro
-        elif k=='2':
+        elif k==self.KEY_TWO:
             self.changeWhiteBalance(2.0, 1.0, 1.5, "Daylight") # ~Daylight
-        elif k=='3':
+        elif k==self.KEY_THREE:
             self.changeWhiteBalance(2.5, 1.0, 1.5, "Cloudy.") # ~Cloudy
-        elif k=='4':
+        elif k==self.KEY_FOUR:
             self.changeWhiteBalance(1.5, 1.0, 2.0, "Tungsten") # ~Tungsten
-        elif k=='0':
+        elif k==self.KEY_ZERO:
             self.changeWhiteBalance(1.0, 1.0, 1.0, "Passthrough") # =passthrough
 
-        elif k=='q' or k=='Q':
+        elif k==self.KEY_Q:
             self.toggleQuality()
-        elif k=='a' or k=='A':
+        elif k==self.KEY_A:
             self.toggleAnamorphic()
-        elif k=='e' or k=='E':
+        elif k==self.KEY_E:
             self.toggleEncoding()
 
-        else:
-            super(Viewer,self).key(k,x,y)
-    def specialkey(self,k,x,y):
-        #print "special key",k
-        if k==100: # Left cursor
+        elif k==self.KEY_LEFT: # Left cursor
             self.jump(-self._fps) # Go back 1 second (will wrap)
-        elif k==102: # Right cursor
+        elif k==self.KEY_RIGHT: # Right cursor
             self.jump(self._fps) # Go forward 1 second (will wrap)
-        elif k==101: # Up cursor
+        elif k==self.KEY_UP: # Up cursor
             self.scaleBrightness(1.1)
-        elif k==103: # Down cursor
+        elif k==self.KEY_DOWN: # Down cursor
             self.scaleBrightness(1.0/1.1)
+
         else:
-            super(Viewer,self).specialkey(k,x,y)
+            super(Viewer,self).key(k) # Inherit standard behaviour
+
     def scaleBrightness(self,scale):
         self.setting_brightness *= scale
         #print "Brightness",self.setting_brightness
