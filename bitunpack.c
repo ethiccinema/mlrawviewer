@@ -21,7 +21,7 @@ bitunpack_demosaic14(PyObject* self, PyObject *args)
         return NULL;
     //printf("width %d height %d\n",width,height);
     PyObject* ba = PyByteArray_FromStringAndSize("",0);
-    int elements = length*8/14; 
+    int elements = length*8/14;
     PyByteArray_Resize(ba,elements*12); // Demosaiced as RGB 32bit float data
 
     // Convert 14bit packed to data to 32bit RAW float data, not demosaiced
@@ -30,7 +30,7 @@ bitunpack_demosaic14(PyObject* self, PyObject *args)
     int rr = 0;
     for (;rr<height;rr++) {
         rrows[rr] = raw + rr*width;
-    }    
+    }
 
     int i = 0;
     int sparebits = 0;
@@ -39,9 +39,9 @@ bitunpack_demosaic14(PyObject* self, PyObject *args)
     short unsigned int* read = (short unsigned int*)input;
     float* write = raw;
     //printf("Decoding frame\n");
-   
+
     int min = 70000;
-    int max = 0; 
+    int max = 0;
     float imaxf=0.0f;
     float iminf=999999999.0f;
     while (i<elements) {
@@ -57,14 +57,17 @@ bitunpack_demosaic14(PyObject* self, PyObject *args)
         }
         //if (out<min) min=out;
         //if (out>max) max=out;
-        int ival = out-black;
+        if (out==0) { // Dead pixel masking
+            *write++ = *(write-2);
+        } else {
+            int ival = out-black;
+            // To avoid artifacts from demosaicing at low levels
+            ival += 15.0;
+            if (ival<15) ival=15; // Don't want log2(0)
 
-        // To avoid artifacts from demosaicing at low levels
-        ival += 15.0;
-        if (ival<15) ival=15; // Don't want log2(0)
-
-        float val = (float)ival;//64.0*log2((float)ival);
-        *write++ = val;
+            float val = (float)ival;//64.0*log2((float)ival);
+            *write++ = val;
+        }
         //if (val<iminf) iminf = val;
         //if (val>imaxf) imaxf = val;
         acc = (acc&((1<<sparebits)-1))<<16;
@@ -76,17 +79,17 @@ bitunpack_demosaic14(PyObject* self, PyObject *args)
     float** redrows = (float**)malloc(height*sizeof(float*));
     for (rr=0;rr<height;rr++) {
         redrows[rr] = red + rr*width;
-    }    
+    }
     float* green = malloc(elements*sizeof(float));
     float** greenrows = (float**)malloc(height*sizeof(float*));
     for (rr=0;rr<height;rr++) {
         greenrows[rr] = green + rr*width;
-    }    
+    }
     float* blue = malloc(elements*sizeof(float));
     float** bluerows = (float**)malloc(height*sizeof(float*));
     for (rr=0;rr<height;rr++) {
         bluerows[rr] = blue + rr*width;
-    }    
+    }
 
     demosaic(rrows,redrows,greenrows,bluerows,0,0,width,height);
 
@@ -140,7 +143,7 @@ bitunpack_unpack14to16(PyObject* self, PyObject *args)
     if (!PyArg_ParseTuple(args, "t#", &input, &length))
         return NULL;
     PyObject* ba = PyByteArray_FromStringAndSize("",0);
-    int elements = length*8/14; 
+    int elements = length*8/14;
     PyByteArray_Resize(ba,elements*2);
     unsigned char* baptr = (unsigned char*)PyByteArray_AS_STRING(ba);
     int i = 0;
@@ -150,10 +153,10 @@ bitunpack_unpack14to16(PyObject* self, PyObject *args)
     short unsigned int* read = (short unsigned int*)input;
     short unsigned int* write = (short unsigned int*)baptr;
     //printf("Decoding frame\n");
-   
+
     unsigned int statmin = (1<<14)-1;
     unsigned int statmax = 0;
- 
+
     while (i<elements) {
         if (sparebits<14) {
             acc |= *read++;
@@ -165,6 +168,7 @@ bitunpack_unpack14to16(PyObject* self, PyObject *args)
             sparebits = 0;
             acc = 0;
         }
+        if (out==0) out = *(write-2); // Dead pixel masking
         *write++ = out;
         if (out<statmin) statmin = out;
         if (out>statmax) statmax = out;
