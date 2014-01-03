@@ -46,7 +46,7 @@ try:
     numpy in case it hasn't been compiled
     """
     import bitunpack
-    if ("__version__" not in dir(bitunpack)) or bitunpack.__version__!="1.5":
+    if ("__version__" not in dir(bitunpack)) or bitunpack.__version__!="1.6":
         print """
 
 !!! Wrong version of bitunpack found !!!
@@ -59,6 +59,9 @@ try:
         return np.frombuffer(unpacked,dtype=np.uint16),stats
     def demosaic14(rawdata,width,height,black,byteSwap=0):
         raw = bitunpack.demosaic14(rawdata,width,height,black,byteSwap)
+        return np.frombuffer(raw,dtype=np.float32)
+    def demosaic16(rawdata,width,height,black,byteSwap=0):
+        raw = bitunpack.demosaic16(rawdata,width,height,black,byteSwap)
         return np.frombuffer(raw,dtype=np.float32)
     haveDemosaic = True
 except:
@@ -92,9 +95,12 @@ Consider compiling bitunpack module for faster conversion and export."""
     def demosaic14(rawdata,width,height,black,byteSwap=0):
         # No numpy implementation
         return np.zeros(shape=(width*height,),dtype=np.float32)
+    def demosaic16(rawdata,width,height,black,byteSwap=0):
+        # No numpy implementation
+        return np.zeros(shape=(width*height,),dtype=np.float32)
 
 class Frame:
-    def __init__(self,rawfile,rawdata,width,height,black,byteSwap=0):
+    def __init__(self,rawfile,rawdata,width,height,black,byteSwap=0,bitsPerSample=14):
         global haveDemosaic
         #print "opening frame",len(rawdata),width,height
         #print width*height
@@ -107,11 +113,15 @@ class Frame:
         self.rawimage = None
         self.rgbimage = None
         self.byteSwap = byteSwap
+        self.bitsPerSample = bitsPerSample
     def convert(self):
         if self.rawimage != None:
             return # Done already
         if self.rawdata != None:
-            self.rawimage,self.framestats = unpacks14np16(self.rawdata,self.width,self.height,self.byteSwap)
+            if self.bitsPerSample == 14:
+                self.rawimage,self.framestats = unpacks14np16(self.rawdata,self.width,self.height,self.byteSwap)
+            elif self.bitsPerSample == 16:
+                self.rawimage,self.framestats = self.rawdata,(0,0)
         else:
             rawimage = np.empty(self.width*self.height,dtype=np.uint16)
             rawimage.fill(self.black)
@@ -121,7 +131,10 @@ class Frame:
         if self.rgbimage != None:
             return # Done already
         if self.rawdata != None:
-            self.rgbimage = demosaic14(self.rawdata,self.width,self.height,self.black,self.byteSwap)
+            if self.bitsPerSample == 14:
+                self.rgbimage = demosaic14(self.rawdata,self.width,self.height,self.black,self.byteSwap)
+            elif self.bitsPerSample == 16:
+                self.rgbimage = demosaic16(self.rawdata,self.width,self.height,self.black,byteSwap=0) # Hmm...what about byteSwapping?
         else:
             self.rgbimage = np.zeros(self.width*self.height*3,dtype=np.uint16).tostring()
 
@@ -632,6 +645,12 @@ class CDNG:
         self._width = fd.FULL_IFD.width
         self._height = fd.FULL_IFD.length
 
+        bps = self.bitsPerSample = fd.FULL_IFD.tags[DNG.Tag.BitsPerSample[0]][3][0]
+        print "BitsPerSample:",bps
+        if bps != 14 and bps != 16:
+            print "Unsupported BitsPerSample = ",bps,"(should be 14 or 16)"
+            raise IOError # Only support 14 or 16 bitsPerSample
+
         self.firstFrame = self._loadframe(0)
 
         self.preloader = threading.Thread(target=self.preloaderMain)
@@ -681,7 +700,7 @@ class CDNG:
             dng.readFileIn(os.path.join(self.cdngpath,filename))
             rawdata = dng.FULL_IFD.stripsCombined()
             dng.close()
-            return Frame(self,rawdata,self.width(),self.height(),self.black,byteSwap=1)
+            return Frame(self,rawdata,self.width(),self.height(),self.black,byteSwap=1,bitsPerSample=self.bitsPerSample)
         return ""
 
 def loadRAWorMLV(filename):
