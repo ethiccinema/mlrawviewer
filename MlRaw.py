@@ -613,7 +613,7 @@ class CDNG:
             self.cdngpath = filename
         else:
             self.cdngpath = os.path.dirname(filename)
-        self.dngs = [dng for dng in os.listdir(self.cdngpath) if dng.lower().endswith(".dng")]
+        self.dngs = [dng for dng in os.listdir(self.cdngpath) if dng.lower().endswith(".dng") and dng[0]!='.']
         self.dngs.sort()
 
         firstDngName = os.path.join(self.cdngpath,self.dngs[0])
