@@ -17,7 +17,8 @@ bitunpack_demosaic14(PyObject* self, PyObject *args)
     int width = 0;
     int height = 0;
     int black = 2000;
-    if (!PyArg_ParseTuple(args, "t#iii", &input, &length, &width, &height, &black))
+    int byteSwap = 0;
+    if (!PyArg_ParseTuple(args, "t#iiii", &input, &length, &width, &height, &black, &byteSwap))
         return NULL;
     //printf("width %d height %d\n",width,height);
     PyObject* ba = PyByteArray_FromStringAndSize("",0);
@@ -46,7 +47,10 @@ bitunpack_demosaic14(PyObject* self, PyObject *args)
     float iminf=999999999.0f;
     while (i<elements) {
         if (sparebits<14) {
-            acc |= *read++;
+            short unsigned int r = *read++;
+            if (byteSwap) 
+                r = (r&0xFF00)>>8 | ((r&0x00FF)<<8);
+            acc |= r;
             sparebits += 2;
             out = (acc>>sparebits)&0x3FFF;
         } else {
@@ -140,7 +144,8 @@ bitunpack_unpack14to16(PyObject* self, PyObject *args)
 {
     unsigned const char* input = 0;
     int length = 0;
-    if (!PyArg_ParseTuple(args, "t#", &input, &length))
+    int byteSwap = 0;
+    if (!PyArg_ParseTuple(args, "t#i", &input, &length, &byteSwap))
         return NULL;
     PyObject* ba = PyByteArray_FromStringAndSize("",0);
     int elements = length*8/14;
@@ -154,12 +159,12 @@ bitunpack_unpack14to16(PyObject* self, PyObject *args)
     short unsigned int* write = (short unsigned int*)baptr;
     //printf("Decoding frame\n");
 
-    unsigned int statmin = (1<<14)-1;
-    unsigned int statmax = 0;
-
     while (i<elements) {
         if (sparebits<14) {
-            acc |= *read++;
+            short unsigned int r = *read++;
+            if (byteSwap) 
+                r = (r&0xFF00)>>8 | ((r&0x00FF)<<8);
+            acc |= r;
             sparebits += 2;
             out = (acc>>sparebits)&0x3FFF;
         } else {
@@ -170,12 +175,10 @@ bitunpack_unpack14to16(PyObject* self, PyObject *args)
         }
         if (out==0) out = *(write-2); // Dead pixel masking
         *write++ = out;
-        if (out<statmin) statmin = out;
-        if (out>statmax) statmax = out;
         acc = (acc&((1<<sparebits)-1))<<16;
         i++;
     }
-    PyObject *stat = Py_BuildValue("II",statmin,statmax);
+    PyObject *stat = Py_BuildValue("II",0,0);
     PyObject *rslt = PyTuple_New(2);
     PyTuple_SetItem(rslt, 0, ba);
     PyTuple_SetItem(rslt, 1, stat);
@@ -196,6 +199,6 @@ initbitunpack(void)
     m = Py_InitModule("bitunpack", methods);
     if (m == NULL)
         return;
-    PyModule_AddStringConstant(m,"__version__","1.4");
+    PyModule_AddStringConstant(m,"__version__","1.5");
 }
 

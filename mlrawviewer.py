@@ -266,9 +266,9 @@ class Viewer(GLCompute.GLCompute):
         userWidth = 720
         self.vidAspectHeight = float(raw.height())/(raw.width()) # multiply this number on width to give height in aspect
         self.vidAspectWidth = float(raw.width())/(raw.height()) # multiply this number on height to give height in aspect
+        self._raw = raw
         super(Viewer,self).__init__(width=userWidth,height=int(userWidth*self.vidAspectHeight),**kwds)
         self._init = False
-        self._raw = raw
         self._raw.preloadFrame(1)
         self.font = Font.Font(os.path.join(programpath,"data/os.glf"))
         self.time = 0
@@ -290,10 +290,10 @@ class Viewer(GLCompute.GLCompute):
         self.setting_encoding = False
 
     def windowName(self):
-        try:
-            return "MlRawViewer v"+version+" - "+os.path.split(sys.argv[1])[1]
-        except IndexError:
-            return "MlRawViewer v"+version
+        #try:
+        return "MlRawViewer v"+version+" - "+self._raw.description()
+        #except:
+        #    return "MlRawViewer v"+version
     def init(self):
         if self._init: return
         self.demosaic = DemosaicScene(self._raw,self,self,size=(self._raw.width(),self._raw.height()))
@@ -501,10 +501,17 @@ def main():
         outfilename = sys.argv[2]
     else:
         # Try to pick a sensible default filename for any possible encoding
-        outfilename = sys.argv[1]+".MOV"
+        if os.path.isdir(sys.argv[1]): # Dir - probably CDNG
+            outfilename = os.path.abspath(sys.argv[1])+".MOV"
+            print "outfilename for CDNG:",outfilename
+        else: # File
+            outfilename = sys.argv[1]+".MOV"
 
     try:
         r = MlRaw.loadRAWorMLV(filename)
+        if r==None:
+            sys.stderr.write("%s not a recognised RAW/MLV file or CinemaDNG directory.\n"%filename)
+            return 1
     except Exception, err:
         sys.stderr.write('Could not open file %s. Error:%s\n'%(filename,str(err)))
         return 1

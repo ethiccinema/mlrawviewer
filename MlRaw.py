@@ -24,6 +24,9 @@ SOFTWARE.
 # standard python imports
 import sys,struct,os,math,time,threading,Queue,traceback,wave
 
+# MlRawViewer imports
+import DNG
+
 haveDemosaic = False
 
 # numpy. Could be missing
@@ -43,7 +46,7 @@ try:
     numpy in case it hasn't been compiled
     """
     import bitunpack
-    if ("__version__" not in dir(bitunpack)) or bitunpack.__version__!="1.4":
+    if ("__version__" not in dir(bitunpack)) or bitunpack.__version__!="1.5":
         print """
 
 !!! Wrong version of bitunpack found !!!
@@ -51,20 +54,22 @@ try:
 
 """
         raise
-    def unpacks14np16(rawdata,width,height):
-        unpacked,stats = bitunpack.unpack14to16(rawdata)
+    def unpacks14np16(rawdata,width,height,byteSwap=0):
+        unpacked,stats = bitunpack.unpack14to16(rawdata,byteSwap)
         return np.frombuffer(unpacked,dtype=np.uint16),stats
-    def demosaic14(rawdata,width,height,black):
-        raw = bitunpack.demosaic14(rawdata,width,height,black)
+    def demosaic14(rawdata,width,height,black,byteSwap=0):
+        raw = bitunpack.demosaic14(rawdata,width,height,black,byteSwap)
         return np.frombuffer(raw,dtype=np.float32)
     haveDemosaic = True
 except:
     print """Falling back to Numpy for bit unpacking operations.
 Consider compiling bitunpack module for faster conversion and export."""
-    def unpacks14np16(rawdata,width,height):
+    def unpacks14np16(rawdata,width,height,byteSwap=0):
         pixels = width*height
         packed = pixels/8.0*7.0
         rawzero = np.fromstring(rawdata,dtype=np.uint16)
+        if byteSwap:
+            rawzero = rawzero.byteswap()
         packing = rawzero[:packed].reshape((packed/7.0,7))
         unpacked = np.zeros((pixels/8,8),dtype=np.uint16)
         packing0 = packing[:,0]
@@ -84,12 +89,12 @@ Consider compiling bitunpack module for faster conversion and export."""
         unpacked[:,7] = packing6&0x3FFF
         stats = (np.min(unpacked),np.max(unpacked))
         return unpacked,stats
-    def demosaic14(rawdata,width,height,black):
+    def demosaic14(rawdata,width,height,black,byteSwap=0):
         # No numpy implementation
         return np.zeros(shape=(width*height,),dtype=np.float32)
 
 class Frame:
-    def __init__(self,rawfile,rawdata,width,height,black):
+    def __init__(self,rawfile,rawdata,width,height,black,byteSwap=0):
         global haveDemosaic
         #print "opening frame",len(rawdata),width,height
         #print width*height
@@ -101,11 +106,12 @@ class Frame:
         self.canDemosaic = haveDemosaic
         self.rawimage = None
         self.rgbimage = None
+        self.byteSwap = byteSwap
     def convert(self):
         if self.rawimage != None:
             return # Done already
         if self.rawdata != None:
-            self.rawimage,self.framestats = unpacks14np16(self.rawdata,self.width,self.height)
+            self.rawimage,self.framestats = unpacks14np16(self.rawdata,self.width,self.height,self.byteSwap)
         else:
             rawimage = np.empty(self.width*self.height,dtype=np.uint16)
             rawimage.fill(self.black)
@@ -115,7 +121,7 @@ class Frame:
         if self.rgbimage != None:
             return # Done already
         if self.rawdata != None:
-            self.rgbimage = demosaic14(self.rawdata,self.width,self.height,self.black)
+            self.rgbimage = demosaic14(self.rawdata,self.width,self.height,self.black,self.byteSwap)
         else:
             self.rgbimage = np.zeros(self.width*self.height*3,dtype=np.uint16).tostring()
 
@@ -151,6 +157,7 @@ ML RAW - need to handle spanning files
 class MLRAW:
     def __init__(self,filename):
         print "Opening MLRAW file",filename
+        self.filename = filename
         dirname,allfiles = getRawFileSeries(filename)
         indexfile = os.path.join(dirname,allfiles[-1])
         self.indexfile = file(indexfile,'rb')
@@ -184,6 +191,8 @@ class MLRAW:
             filehandle.close()
     def indexingStatus(self):
         return 1.0 # RAW doesn't get indexed. It is sequential
+    def description(self):
+        return self.filename
     def width(self):
         return self.footer[1]
     def height(self):
@@ -432,6 +441,8 @@ class MLV:
         elif self.wav != None:
             self.wav.writeframes(audiodata[audioFrameHeader[2]:])
         return audioFrameHeader
+    def description(self):
+        return self.filename
     def width(self):
         return self.raw[1]
     def height(self):
@@ -592,10 +603,98 @@ class MLV:
         rawdata = fh.read(rawsize)
         return Frame(self,rawdata,self.width(),self.height(),self.black)
 
+class CDNG:
+    """
+    Treat a directory of DNG files as sequential frames
+    """
+    def __init__(self,filename):
+        print "Opening CinemaDNG",filename
+        if os.path.isdir(filename):
+            self.cdngpath = filename
+        else:
+            self.cdngpath = os.path.dirname(filename)
+        self.dngs = [dng for dng in os.listdir(self.cdngpath) if dng.lower().endswith(".dng")]
+        self.dngs.sort()
+
+        firstDngName = os.path.join(self.cdngpath,self.dngs[0])
+        self.firstDng = fd = DNG.DNG()
+        fd.readFile(firstDngName) # Only parse metadata
+
+        FrameRate = fd.ifds[0].tags[DNG.Tag.FrameRate[0]][3][0]
+        self.fps = float(FrameRate[0])/float(FrameRate[1])
+        print "FPS:",self.fps,FrameRate
+
+        self.black = fd.FULL_IFD.tags[DNG.Tag.BlackLevel[0]][3][0]
+        self.white = fd.FULL_IFD.tags[DNG.Tag.WhiteLevel[0]][3][0]
+        #self.colorMatrix = colorMatrix(self.info)
+        print "Black level:", self.black, "White level:", self.white
+
+        self._width = fd.FULL_IFD.width
+        self._height = fd.FULL_IFD.length
+
+        self.firstFrame = self._loadframe(0)
+
+        self.preloader = threading.Thread(target=self.preloaderMain)
+        self.preloaderArgs = Queue.Queue(1)
+        self.preloaderResults = Queue.Queue(1)
+        self.preloader.daemon = True
+        self.preloader.start()
+    def description(self):
+        firstName = self.dngs[0]
+        lastName = self.dngs[-1]
+        name,ext = os.path.splitext(firstName)
+        lastname,ext = os.path.splitext(lastName)
+        return os.path.join(self.cdngpath,"["+name+"-"+lastname+"]"+ext)
+
+    def close(self):
+        self.firstDng.close()
+    def indexingStatus(self):
+        return 1.0
+    def width(self):
+        return self._width
+    def height(self):
+        return self._height
+    def frames(self):
+        return len(self.dngs)
+    def audioFrames(self):
+        return 0
+    def preloaderMain(self):
+        while 1:
+            arg = self.preloaderArgs.get() # Will wait for a job
+            frame = self._loadframe(arg)
+            self.preloaderResults.put((arg,frame))
+    def preloadFrame(self,index):
+        self.preloaderArgs.put(index)
+    def frame(self,index):
+        preloadedindex = -1
+        frame = None
+        while preloadedindex!=index:
+            preloadedindex,frame = self.preloaderResults.get()
+            if preloadedindex==index:
+                break
+            self.preloadFrame(index)
+        return frame
+    def _loadframe(self,index):
+        if index>=0 and index<self.frames():
+            filename = self.dngs[index]
+            dng = DNG.DNG()
+            dng.readFileIn(os.path.join(self.cdngpath,filename))
+            rawdata = dng.FULL_IFD.stripsCombined()
+            dng.close()
+            return Frame(self,rawdata,self.width(),self.height(),self.black,byteSwap=1)
+        return ""
+
 def loadRAWorMLV(filename):
     fl = filename.lower()
     if fl.endswith(".raw"):
         return MLRAW(filename)
     elif fl.endswith(".mlv"):
         return MLV(filename)
+    elif fl.endswith(".dng"):
+        return CDNG(os.path.dirname(filename))
+    elif os.path.isdir(filename):
+        dngfiles = [dng for dng in os.listdir(filename) if dng.lower().endswith(".dng")]
+        if len(dngfiles)>0:
+            return CDNG(filename)
+    return None
 
