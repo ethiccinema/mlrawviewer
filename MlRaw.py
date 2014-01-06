@@ -141,16 +141,18 @@ class Frame:
 
 def colorMatrix(raw_info):
     vals = np.array(raw_info[-19:-1]).astype(np.float32)
+    print vals
     nom = vals[::2]
     denom = vals[1::2]
     scaled = (nom/denom).reshape((3,3))
-    camToXYZ = np.matrix(scaled).getI()
+    XYZToCam = np.matrix(scaled)
+    camToXYZ = XYZToCam.getI()
     XYZtosRGB = np.matrix([[3.2404542,-1.5371385,-0.4985314],
                            [-0.9692660,1.8760108,0.0415560],
                            [0.0556434,-0.2040259,1.0572252]])
     camToLinearsRGB = XYZtosRGB * camToXYZ
     #print "colorMatrix:",camTosRGB
-    return camToLinearsRGB
+    return XYZToCam
 
 def getRawFileSeries(basename):
     dirname,filename = os.path.split(basename)
@@ -180,7 +182,7 @@ class MLRAW:
         self.fps = float(self.footer[6])*0.001
         print "FPS:",self.fps
         self.info = struct.unpack("40i",footerdata[8*4:])
-        #print self.footer,self.info
+        print self.footer,self.info
         self.black = self.info[7]
         self.white = self.info[8]
         self.colorMatrix = colorMatrix(self.info)
@@ -212,6 +214,10 @@ class MLRAW:
         return self.footer[2]
     def frames(self):
         return self.footer[4]
+    def make(self):
+        return "Canon"
+    def model(self):
+        return "EOS"
     def audioFrames(self):
         return 0
     def preloaderMain(self):
@@ -462,6 +468,10 @@ class MLV:
         return self.raw[2]
     def frames(self):
         return self.framecount
+    def make(self):
+        return "Canon"
+    def model(self):
+        return "EOS"
     def audioFrames(self):
         return self.audioFrameCount
     def nextUnindexedFile(self):

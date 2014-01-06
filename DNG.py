@@ -153,6 +153,7 @@ class DNG(object):
         self.dd = None # Buffer
         self.FULL_IFD = None
         self.THUMB_IFD = None
+        self.ifds = []
 
     def readFile(self,filename):
         """
@@ -209,7 +210,8 @@ class DNG(object):
         extraDataOff = self.align(off+2+len(ifd.entries)*12+4) # Each entry consumes 12 bytes. Extra data must be aligned to word
         buf[off:off+2] = struct.pack(self.bo+"H",len(ifd.entries))
         off += 2
-        for e in ifd.entries:
+        ifd.entries
+        for e in sorted(ifd.entries):
             extraInc = self.writeTag(e,buf,off,extraDataOff)
             entryMap.append((e[0],off,extraDataOff))
             extraDataOff += extraInc
@@ -419,6 +421,7 @@ class DNG(object):
         return ifd,nextOffset
 
     def encodeTagData(self,tag,extraOffset):
+        #print tag
         itag,itype,icount,data = tag
         if itype==Type.Invalid[0]:
             raise IOError
