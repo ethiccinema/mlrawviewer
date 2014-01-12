@@ -22,7 +22,10 @@ SOFTWARE.
 """
 
 # standard python imports
-import sys,struct,os,math,time,threading,Queue,traceback
+import sys,struct,os,math,time,threading,Queue,traceback,wave
+
+# MlRawViewer imports
+import DNG
 
 haveDemosaic = False
 
@@ -43,28 +46,33 @@ try:
     numpy in case it hasn't been compiled
     """
     import bitunpack
-    if ("__version__" not in dir(bitunpack)) or bitunpack.__version__!="1.4":
+    if ("__version__" not in dir(bitunpack)) or bitunpack.__version__!="1.6":
         print """
 
 !!! Wrong version of bitunpack found !!!
 !!! Please rebuild latest version. !!!
 
 """
-        raise  
-    def unpacks14np16(rawdata,width,height):
-        unpacked,stats = bitunpack.unpack14to16(rawdata)
+        raise
+    def unpacks14np16(rawdata,width,height,byteSwap=0):
+        unpacked,stats = bitunpack.unpack14to16(rawdata,byteSwap)
         return np.frombuffer(unpacked,dtype=np.uint16),stats
-    def demosaic14(rawdata,width,height,black):
-        raw = bitunpack.demosaic14(rawdata,width,height,black)
+    def demosaic14(rawdata,width,height,black,byteSwap=0):
+        raw = bitunpack.demosaic14(rawdata,width,height,black,byteSwap)
+        return np.frombuffer(raw,dtype=np.float32)
+    def demosaic16(rawdata,width,height,black,byteSwap=0):
+        raw = bitunpack.demosaic16(rawdata,width,height,black,byteSwap)
         return np.frombuffer(raw,dtype=np.float32)
     haveDemosaic = True
 except:
     print """Falling back to Numpy for bit unpacking operations.
 Consider compiling bitunpack module for faster conversion and export."""
-    def unpacks14np16(rawdata,width,height):
+    def unpacks14np16(rawdata,width,height,byteSwap=0):
         pixels = width*height
         packed = pixels/8.0*7.0
         rawzero = np.fromstring(rawdata,dtype=np.uint16)
+        if byteSwap:
+            rawzero = rawzero.byteswap()
         packing = rawzero[:packed].reshape((packed/7.0,7))
         unpacked = np.zeros((pixels/8,8),dtype=np.uint16)
         packing0 = packing[:,0]
@@ -84,12 +92,15 @@ Consider compiling bitunpack module for faster conversion and export."""
         unpacked[:,7] = packing6&0x3FFF
         stats = (np.min(unpacked),np.max(unpacked))
         return unpacked,stats
-    def demosaic14(rawdata,width,height,black):
+    def demosaic14(rawdata,width,height,black,byteSwap=0):
+        # No numpy implementation
+        return np.zeros(shape=(width*height,),dtype=np.float32)
+    def demosaic16(rawdata,width,height,black,byteSwap=0):
         # No numpy implementation
         return np.zeros(shape=(width*height,),dtype=np.float32)
 
 class Frame:
-    def __init__(self,rawfile,rawdata,width,height,black):
+    def __init__(self,rawfile,rawdata,width,height,black,byteSwap=0,bitsPerSample=14):
         global haveDemosaic
         #print "opening frame",len(rawdata),width,height
         #print width*height
@@ -98,32 +109,60 @@ class Frame:
         self.rawdata = rawdata
         self.width = width
         self.height = height
-        self.rawdata = rawdata
         self.canDemosaic = haveDemosaic
+        self.rawimage = None
+        self.rgbimage = None
+        self.byteSwap = byteSwap
+        self.bitsPerSample = bitsPerSample
     def convert(self):
-        self.rawimage,self.framestats = unpacks14np16(self.rawdata,self.width,self.height)
+        if self.rawimage != None:
+            return # Done already
+        if self.rawdata != None:
+            if self.bitsPerSample == 14:
+                self.rawimage,self.framestats = unpacks14np16(self.rawdata,self.width,self.height,self.byteSwap)
+            elif self.bitsPerSample == 16:
+                self.rawimage,self.framestats = self.rawdata,(0,0)
+        else:
+            rawimage = np.empty(self.width*self.height,dtype=np.uint16)
+            rawimage.fill(self.black)
+            self.rawimage = rawimage.tostring()
     def demosaic(self):
-		# CPU based demosaic -> SLOW!
-        self.rgbimage = demosaic14(self.rawdata,self.width,self.height,self.black)
+        # CPU based demosaic -> SLOW!
+        if self.rgbimage != None:
+            return # Done already
+        if self.rawdata != None:
+            if self.bitsPerSample == 14:
+                self.rgbimage = demosaic14(self.rawdata,self.width,self.height,self.black,self.byteSwap)
+            elif self.bitsPerSample == 16:
+                self.rgbimage = demosaic16(self.rawdata,self.width,self.height,self.black,byteSwap=0) # Hmm...what about byteSwapping?
+        else:
+            self.rgbimage = np.zeros(self.width*self.height*3,dtype=np.uint16).tostring()
+
 
 def colorMatrix(raw_info):
     vals = np.array(raw_info[-19:-1]).astype(np.float32)
+    print vals
     nom = vals[::2]
     denom = vals[1::2]
     scaled = (nom/denom).reshape((3,3))
-    camToXYZ = np.matrix(scaled).getI()
+    XYZToCam = np.matrix(scaled)
+    camToXYZ = XYZToCam.getI()
     XYZtosRGB = np.matrix([[3.2404542,-1.5371385,-0.4985314],
                            [-0.9692660,1.8760108,0.0415560],
                            [0.0556434,-0.2040259,1.0572252]])
     camToLinearsRGB = XYZtosRGB * camToXYZ
     #print "colorMatrix:",camTosRGB
-    return camToLinearsRGB
+    return XYZToCam
 
 def getRawFileSeries(basename):
     dirname,filename = os.path.split(basename)
     base = filename[:-2]
-    samenamefiles = [n for n in os.listdir(dirname) if n[:-2]==base and n!=filename]
+    ld = os.listdir(dirname)
+    samenamefiles = [n for n in ld if n[:-2]==base and n!=filename]
+    #idxname = base[:-1]+"IDX"
+    #indexfile = [n for n in ld if n==idxname]
     allfiles = [filename]
+    #allfiles.extend(indexfile)
     samenamefiles.sort()
     allfiles.extend(samenamefiles)
     return dirname,allfiles
@@ -133,6 +172,7 @@ ML RAW - need to handle spanning files
 class MLRAW:
     def __init__(self,filename):
         print "Opening MLRAW file",filename
+        self.filename = filename
         dirname,allfiles = getRawFileSeries(filename)
         indexfile = os.path.join(dirname,allfiles[-1])
         self.indexfile = file(indexfile,'rb')
@@ -142,7 +182,7 @@ class MLRAW:
         self.fps = float(self.footer[6])*0.001
         print "FPS:",self.fps
         self.info = struct.unpack("40i",footerdata[8*4:])
-        #print self.footer,self.info
+        print self.footer,self.info
         self.black = self.info[7]
         self.white = self.info[8]
         self.colorMatrix = colorMatrix(self.info)
@@ -154,21 +194,32 @@ class MLRAW:
             framefile.seek(0,os.SEEK_END)
             framefilelen = framefile.tell()
             self.framefiles.append((framefile,framefilelen))
-        self.preloader = threading.Thread(target=self.preloaderMain) 
+        self.firstFrame = self._loadframe(0)
+        self.preloader = threading.Thread(target=self.preloaderMain)
         self.preloaderArgs = Queue.Queue(1)
         self.preloaderResults = Queue.Queue(1)
         self.preloader.daemon = True
         self.preloader.start()
-    def close():
+    def close(self):
         self.indexfile.close()
         for filehandle,filelen in self.framefiles:
             filehandle.close()
+    def indexingStatus(self):
+        return 1.0 # RAW doesn't get indexed. It is sequential
+    def description(self):
+        return self.filename
     def width(self):
         return self.footer[1]
     def height(self):
         return self.footer[2]
     def frames(self):
         return self.footer[4]
+    def make(self):
+        return "Canon"
+    def model(self):
+        return "EOS"
+    def audioFrames(self):
+        return 0
     def preloaderMain(self):
         while 1:
             arg = self.preloaderArgs.get() # Will wait for a job
@@ -180,7 +231,7 @@ class MLRAW:
         preloadedindex = -1
         frame = None
         while preloadedindex!=index:
-            preloadedindex,frame = self.preloaderResults.get() 
+            preloadedindex,frame = self.preloaderResults.get()
             if preloadedindex==index:
                 break
             self.preloadFrame(index)
@@ -205,7 +256,7 @@ class MLRAW:
             return Frame(self,framedata,self.width(),self.height(),self.black)
         return ""
 
- 
+
 """
 ML MLV format - need to handle spanning files
 """
@@ -213,14 +264,14 @@ class MLV:
     class BlockType:
         FileHeader = 0x49564c4d
         VideoFrame = 0x46444956
-        Audio = 0x46445541
+        AudioFrame = 0x46445541
         RawInfo = 0x49574152
         WavInfo = 0x73866587
         ExposureInfo = 0x4f505845
         LensInfo = 0x534e454c
         RealTimeClock = 0x49435452
         Idendity = 0x544e4449
-        XREF = 0x70698288
+        XREF = 0x46455258
         Info = 0x4f464e49
         DualISOInfo = 0x79837368
         Empty = 0x76768578
@@ -229,6 +280,9 @@ class MLV:
         Vignette = 0x78717386
         WhiteBalance = 0x4c414257
         ElectronicLevel = 0x4c564c45
+        Mark = 0x4b52414d
+        Styl = 0x4c595453
+        Wavi = 0x49564157
         Null = 0x4c4c554e
 
     BlockTypeNames = [n for n in dir(BlockType) if n!="__doc__" and n!="__module__"]
@@ -236,32 +290,51 @@ class MLV:
     BlockTypeLookup = dict(zip(BlockTypeValues,BlockTypeNames))
 
     def __init__(self,filename):
+        self.filename = filename
         print "Opening MLV file",filename
         dirname,allfiles = getRawFileSeries(filename)
         mlvfile = file(filename,'rb')
         self.framepos = {}
+        self.audioframepos = {}
         header,raw,parsedTo,size,ts = self.parseFile(mlvfile,self.framepos)
         self.fps = float(header[16])/float(header[17])
         print "FPS:",self.fps
         self.framecount = header[14]
+        self.audioFrameCount = header[15]
         self.preindexed = 0
         self.header = header
         self.raw = raw
         self.ts = ts
         self.files = [(mlvfile,0,header[14],header,parsedTo, size)]
+        self.totalSize = size
+        self.totalParsed = parsedTo
+        self.firstFrame = self._loadframe(0)
         for spanfilename in allfiles[1:]:
             fullspanfile = os.path.join(dirname,spanfilename)
+            #print fullspanfile
             spanfile = file(fullspanfile,'rb')
             header,raw,parsedTo,size,ts = self.parseFile(spanfile,self.framepos)
             self.files.append((spanfile,self.framecount,header[14],header,parsedTo, size))
             self.framecount += header[14]
+            self.audioFrameCount += header[15]
+            self.totalSize += size
+            self.totalParsed += parsedTo
         self.preloader = None
         self.allParsed = False
+        self.preindexing = True
+        self.wav = None
+        print "Audio frame count",self.audioFrameCount
+        self.initPreloader()
+    def indexingStatus(self):
+        if self.preindexing:
+            return float(self.totalParsed)/float(self.totalSize)
+        else:
+            return 1.0
     def initPreloader(self):
         if (self.preloader == None):
-            self.preloader = threading.Thread(target=self.preloaderMain) 
-            self.preloaderArgs = Queue.Queue(1)
-            self.preloaderResults = Queue.Queue(1)
+            self.preloader = threading.Thread(target=self.preloaderMain)
+            self.preloaderArgs = Queue.Queue(2)
+            self.preloaderResults = Queue.Queue(2)
             self.preloader.daemon = True
             self.preloader.start()
     def close(self):
@@ -277,13 +350,15 @@ class MLV:
         ts = None
         while pos<size-8:
             fh.seek(pos)
-            blockType,blockSize = struct.unpack("II",fh.read(8))        
+            blockType,blockSize = struct.unpack("II",fh.read(8))
+            """
             try:
                 blockName = MLV.BlockTypeLookup[blockType]
-                #print blockName,blockSize,pos,size,size-pos
+                print blockName,blockSize,pos,size,size-pos
             except:
                 pass
-                #print "Unknown block type %08x"%blockType
+                print "Unknown block type %08x"%blockType
+            """
             if blockType==MLV.BlockType.FileHeader:
                 header = self.parseFileHeader(fh,pos,blockSize)
             elif blockType==MLV.BlockType.RawInfo:
@@ -292,10 +367,16 @@ class MLV:
                 ts = self.parseRtc(fh,pos,blockSize)
             elif blockType==MLV.BlockType.VideoFrame:
                 videoFrameHeader = self.parseVideoFrame(fh,pos,blockSize)
-                framepos[videoFrameHeader[1]] = (fh,pos) 
+                framepos[videoFrameHeader[1]] = (fh,pos)
                 pos += blockSize
                 break # Only get first frame in this file
                 #print videoFrameHeader[1],pos
+            elif blockType==MLV.BlockType.Wavi:
+                wavi = self.parseWavi(fh,pos,blockSize)
+            elif blockType==MLV.BlockType.XREF:
+                xref = self.parseXref(fh,pos,blockSize)
+            elif blockType==MLV.BlockType.AudioFrame:
+                audio = self.parseAudioFrame(fh,pos,blockSize)
             count += 1
             pos += blockSize
             count += 1
@@ -336,18 +417,63 @@ class MLV:
         rtc = struct.unpack("<Q10H8s",rtcData[:(8+10*2+8)])
         return rtc
         #print "RawInfo:",self.raw
+    def parseWavi(self,fh,pos,size):
+        fh.seek(pos+8)
+        waviData = fh.read(size-8)
+        wavi = struct.unpack("<QHHIIHH",waviData[:(8+4+8+4)])
+        self.wav = wave.open(self.filename[:-3]+"WAV",'w')
+        self.wav.setparams((wavi[2],2,wavi[3],0,'NONE',''))
+        #print "Wavi:",wavi
+        return wavi
+    def parseXref(self,fh,pos,size):
+        """
+        The Xref info is not very useful for us since we still need to
+        read all the chunks in order to find frame numbers
+        """
+        fh.seek(pos+8)
+        xrefData = fh.read(size-8)
+        offset = 8+4+4
+        xref = struct.unpack("<QII",xrefData[:offset])
+        xrefCount = xref[2]
+        xrefs = []
+        for x in range(xrefCount):
+            xrefEntry = struct.unpack("<HHQ",xrefData[offset:offset+12])
+            offset += 12
+            #print xrefEntry
+        #print "Xref:",xref
+        return xref
     def parseVideoFrame(self,fh,pos,size):
         fh.seek(pos+8)
         rawData = fh.read(8+4+2+2+2+2+4+4)
         videoFrameHeader = struct.unpack("<QI4H2I",rawData)
-        #print "VideoFrame:",videoFrameHeader
+        #print "Video frame",videoFrameHeader[1],"at",pos
         return videoFrameHeader
+    def parseAudioFrame(self,fh,pos,size):
+        fh.seek(pos+8)
+        audioData = fh.read(8+4+4)
+        audioFrameHeader = struct.unpack("<QII",audioData)
+        #print "Audio frame",audioFrameHeader[1],"at",pos,audioFrameHeader,size-8-12
+        #self.audioframepos[audioFrameHeader]
+        audiodata = fh.read(size-24)
+        if audioFrameHeader[0]<1 and audioFrameHeader[1]<1:
+            pass # Workaround for bug in mlv_snd
+        elif self.wav != None:
+            self.wav.writeframes(audiodata[audioFrameHeader[2]:])
+        return audioFrameHeader
+    def description(self):
+        return self.filename
     def width(self):
         return self.raw[1]
     def height(self):
         return self.raw[2]
     def frames(self):
         return self.framecount
+    def make(self):
+        return "Canon"
+    def model(self):
+        return "EOS"
+    def audioFrames(self):
+        return self.audioFrameCount
     def nextUnindexedFile(self):
         for fileindex,info in enumerate(self.files):
             fh, firstframe, frames, header, parsedTo, size = info
@@ -356,7 +482,10 @@ class MLV:
         self.allParsed = True
         return None
     def preindex(self):
-        if self.allParsed: 
+        if self.allParsed:
+            self.preindexing = False
+            if self.wav:
+                self.wav.close()
             return
         preindexStep = 10
         indexinfo = self.nextUnindexedFile()
@@ -369,18 +498,34 @@ class MLV:
             return
         index,info = indexinfo
         fh, firstframe, frames, header, pos, size = info
-        while (pos < size) and (preindexStep > 0):
+        while (pos < size) and ((preindexStep > 0) or self.preloaderArgs.empty()):
             fh.seek(pos)
             blockType,blockSize = struct.unpack("II",fh.read(8))
+            """
+            try:
+                blockName = MLV.BlockTypeLookup[blockType]
+                print blockName,blockSize,pos,size,size-pos
+            except:
+                pass
+                print "Unknown block type %08x"%blockType
+            """
+
             if blockType==MLV.BlockType.VideoFrame:
                 videoFrameHeader = self.parseVideoFrame(fh,pos,blockSize)
                 self.framepos[videoFrameHeader[1]] = (fh,pos)
                 #print videoFrameHeader[1],pos
                 preindexStep -= 1
+            elif blockType==MLV.BlockType.AudioFrame:
+                audioFrameHeader = self.parseAudioFrame(fh,pos,blockSize)
+
             pos += blockSize
+            self.totalParsed += blockSize
         self.files[index] = (fh, firstframe, frames, header, pos, size)
 
     def preloaderMain(self):
+        #while self.preindexing:
+        #    self.preindex() # Do some preindexing if still needed
+        # Now we can load frames
         while 1:
             self.preindex() # Do some preindexing if still needed
             arg = self.preloaderArgs.get() # Will wait for a job
@@ -398,7 +543,7 @@ class MLV:
         preloadedindex = -1
         frame = None
         while preloadedindex!=index:
-            preloadedindex,frame = self.preloaderResults.get() 
+            preloadedindex,frame = self.preloaderResults.get()
             if preloadedindex==index:
                 break
             self.preloadFrame(index)
@@ -418,22 +563,26 @@ class MLV:
             # Parse through file until we find frame
             pos = parsedTo
             notFound = True
-            while pos < size: 
+            while pos < size:
                 fh.seek(pos)
                 blockType,blockSize = struct.unpack("II",fh.read(8))
-                try:  
+                """
+                try:
                     blockName = MLV.BlockTypeLookup[blockType]
+                    print blockName,blockSize,pos,size,size-pos
                 except:
                     pass
+                    print "Unknown block type:",blockType
+                """
                 #print blockName,blockSize
                 if blockType==MLV.BlockType.VideoFrame:
                     videoFrameHeader = self.parseVideoFrame(fh,pos,blockSize)
-                    self.framepos[videoFrameHeader[1]] = (fh,pos) 
+                    self.framepos[videoFrameHeader[1]] = (fh,pos)
                     #print videoFrameHeader[1],index,fh,pos
                     if videoFrameHeader[1]==index:
                         pos += blockSize
                         notFound = False
-                        break # Found it 
+                        break # Found it
                 pos += blockSize
                 if pos>=size and notFound:
                     self.files[fileindex] = (fh, firstframe, frames, header, pos, size)
@@ -459,11 +608,17 @@ class MLV:
                     print "FOUND",index
             except:
                 print "FAILED TO FIND FRAME AFTER SCAN",index
+                self.framepos[index] = (None,None)
             return result
     def _loadframe(self,index):
-        fh,framepos = self._getframedata(index)
+        fhframepos = self._getframedata(index)
+        if fhframepos==None: # Return black frame
+            return Frame(self,None,self.width(),self.height(),self.black)
+        fh,framepos = fhframepos
+        if fh==None: # Return black frame
+            return Frame(self,None,self.width(),self.height(),self.black)
         fh.seek(framepos)
-        blockType,blockSize = struct.unpack("II",fh.read(8))         
+        blockType,blockSize = struct.unpack("II",fh.read(8))
         videoFrameHeader = self.parseVideoFrame(fh,framepos,blockSize)
         rawstarts = framepos + 32 + videoFrameHeader[-2]
         rawsize = blockSize - 32 - videoFrameHeader[-2]
@@ -471,10 +626,104 @@ class MLV:
         rawdata = fh.read(rawsize)
         return Frame(self,rawdata,self.width(),self.height(),self.black)
 
+class CDNG:
+    """
+    Treat a directory of DNG files as sequential frames
+    """
+    def __init__(self,filename):
+        print "Opening CinemaDNG",filename
+        if os.path.isdir(filename):
+            self.cdngpath = filename
+        else:
+            self.cdngpath = os.path.dirname(filename)
+        self.dngs = [dng for dng in os.listdir(self.cdngpath) if dng.lower().endswith(".dng") and dng[0]!='.']
+        self.dngs.sort()
+
+        firstDngName = os.path.join(self.cdngpath,self.dngs[0])
+        self.firstDng = fd = DNG.DNG()
+        fd.readFile(firstDngName) # Only parse metadata
+
+        FrameRate = fd.ifds[0].tags[DNG.Tag.FrameRate[0]][3][0]
+        self.fps = float(FrameRate[0])/float(FrameRate[1])
+        print "FPS:",self.fps,FrameRate
+
+        self.black = fd.FULL_IFD.tags[DNG.Tag.BlackLevel[0]][3][0]
+        self.white = fd.FULL_IFD.tags[DNG.Tag.WhiteLevel[0]][3][0]
+        #self.colorMatrix = colorMatrix(self.info)
+        print "Black level:", self.black, "White level:", self.white
+
+        self._width = fd.FULL_IFD.width
+        self._height = fd.FULL_IFD.length
+
+        bps = self.bitsPerSample = fd.FULL_IFD.tags[DNG.Tag.BitsPerSample[0]][3][0]
+        print "BitsPerSample:",bps
+        if bps != 14 and bps != 16:
+            print "Unsupported BitsPerSample = ",bps,"(should be 14 or 16)"
+            raise IOError # Only support 14 or 16 bitsPerSample
+
+        self.firstFrame = self._loadframe(0)
+
+        self.preloader = threading.Thread(target=self.preloaderMain)
+        self.preloaderArgs = Queue.Queue(1)
+        self.preloaderResults = Queue.Queue(1)
+        self.preloader.daemon = True
+        self.preloader.start()
+    def description(self):
+        firstName = self.dngs[0]
+        lastName = self.dngs[-1]
+        name,ext = os.path.splitext(firstName)
+        lastname,ext = os.path.splitext(lastName)
+        return os.path.join(self.cdngpath,"["+name+"-"+lastname+"]"+ext)
+
+    def close(self):
+        self.firstDng.close()
+    def indexingStatus(self):
+        return 1.0
+    def width(self):
+        return self._width
+    def height(self):
+        return self._height
+    def frames(self):
+        return len(self.dngs)
+    def audioFrames(self):
+        return 0
+    def preloaderMain(self):
+        while 1:
+            arg = self.preloaderArgs.get() # Will wait for a job
+            frame = self._loadframe(arg)
+            self.preloaderResults.put((arg,frame))
+    def preloadFrame(self,index):
+        self.preloaderArgs.put(index)
+    def frame(self,index):
+        preloadedindex = -1
+        frame = None
+        while preloadedindex!=index:
+            preloadedindex,frame = self.preloaderResults.get()
+            if preloadedindex==index:
+                break
+            self.preloadFrame(index)
+        return frame
+    def _loadframe(self,index):
+        if index>=0 and index<self.frames():
+            filename = self.dngs[index]
+            dng = DNG.DNG()
+            dng.readFileIn(os.path.join(self.cdngpath,filename))
+            rawdata = dng.FULL_IFD.stripsCombined()
+            dng.close()
+            return Frame(self,rawdata,self.width(),self.height(),self.black,byteSwap=1,bitsPerSample=self.bitsPerSample)
+        return ""
+
 def loadRAWorMLV(filename):
     fl = filename.lower()
     if fl.endswith(".raw"):
         return MLRAW(filename)
     elif fl.endswith(".mlv"):
         return MLV(filename)
+    elif fl.endswith(".dng"):
+        return CDNG(os.path.dirname(filename))
+    elif os.path.isdir(filename):
+        dngfiles = [dng for dng in os.listdir(filename) if dng.lower().endswith(".dng")]
+        if len(dngfiles)>0:
+            return CDNG(filename)
+    return None
 

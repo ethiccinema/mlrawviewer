@@ -1,4 +1,4 @@
-#!/usr/bin/python2
+#!/usr/bin/python2.7
 
 
 # standard python imports. Should not be missing
@@ -42,7 +42,7 @@ class Viewer(GLCompute.GLCompute):
         self.font = Font.Font(os.path.join(root,"data/os.glf"))
         self.time = time.time()
     def onIdle(self):
-        self.display()
+        self.redisplay()
     def windowName(self):
         return "GLF font test"
     def benchmark(self):

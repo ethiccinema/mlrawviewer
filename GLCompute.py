@@ -26,12 +26,11 @@ computation and display using OpenGL FBOs
 """
 
 # standard python imports. Should not be missing
-import sys,urllib,urllib2,json,time
+import sys,time,os
 
 # OpenGL. Could be missing
 try:
     from OpenGL.GL import *
-    from OpenGL.GLUT import *
     from OpenGL.arrays import vbo
     from OpenGL.GL.shaders import compileShader, compileProgram
     from OpenGL.GL.framebufferobjects import *
@@ -71,8 +70,10 @@ class Texture:
         self.id = glGenTextures(1)
         self.width = size[0]
         self.height = size[1]
+        self.fbo = None
         glActiveTexture(GL_TEXTURE0)
         glBindTexture(GL_TEXTURE_2D,self.id)
+        glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
         if hasalpha and not fp:
             glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA,self.width,self.height,0,GL_RGBA,GL_UNSIGNED_BYTE,rgbadata)
         elif hasalpha and fp:
@@ -96,16 +97,19 @@ class Texture:
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST)
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST)
         glBindTexture(GL_TEXTURE_2D,0)
+        self.setupFbo()
+        glBindFramebuffer(GL_FRAMEBUFFER, 0)
+
+    def setupFbo(self):
         self.fbo = glGenFramebuffers(1)
         glBindFramebuffer(GL_FRAMEBUFFER, self.fbo)
         glFramebufferTexture2DEXT(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,self.id, 0)
-        glBindFramebuffer(GL_FRAMEBUFFER, 0)
 
     def addmipmap(self):
         self.mipmap = True
         self.bindtex()
         glGenerateMipmap(GL_TEXTURE_2D)
-        
+
     def update(self,rgbadata=None):
         self.bindtex()
         if self.hasalpha and not self.fp:
@@ -126,7 +130,14 @@ class Texture:
             glGenerateMipmap(GL_TEXTURE_2D)
 
     def bindfbo(self):
-        glBindFramebuffer(GL_FRAMEBUFFER, self.fbo)
+        try:
+            glBindFramebuffer(GL_FRAMEBUFFER, self.fbo)
+            err = glGetError()
+            if err!=0:
+                raise Exception()
+        except:
+            self.setupFbo()
+            glBindFramebuffer(GL_FRAMEBUFFER, self.fbo)
         glViewport(0,0,self.width,self.height)
 
     def bindtex(self,linear=False,texnum=0):
@@ -145,7 +156,7 @@ class Texture:
                 glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST)
             else:
                 glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST_MIPMAP_NEAREST)
-                
+
 
 from datetime import datetime
 def timeInUsec():
@@ -178,89 +189,12 @@ class Scene(object):
     def renderComplete(self):
         pass
 
-class GLCompute(object):
-    def __init__(self,width=640,height=360,**kwds):
-        self.width = width  
-        self.height = height
-        glutInit(sys.argv) 
-        glutInitDisplayMode(GLUT_DOUBLE|GLUT_RGB|GLUT_DEPTH)
-        glutInitWindowSize(width,height)
-        glutInitWindowPosition(0,0)
-        glutCreateWindow(self.windowName())
-        glutSetWindowTitle(self.windowName())  
-        glutDisplayFunc(self.__draw)
-        glutIdleFunc(self.__idle)
-        try: 
-            glutCloseFunc(self.__close)
-            glutSetOption(GLUT_ACTION_ON_WINDOW_CLOSE,GLUT_ACTION_GLUTMAINLOOP_RETURNS)
-        except:
-            pass # Hmm... doesn't work on Mac
-        glutKeyboardFunc(self.key)
-        glutSpecialFunc(self.specialkey)
-        self._isFull = False
-        self._start = time.time()
-        self._frames = 0
-        self._fps = 25
-        self._last = time.time()
-        self.scenes = [] # Render these scenes in order
-        super(GLCompute,self).__init__(**kwds)
-    def run(self):
-        glutMainLoop()
-    def windowName(self):
-        return "GLCompute"
-    def renderScenes(self):
-        for s in self.scenes:
-            s.render(self._frames)
-    def __draw(self):
-        self._last = timeInUsec()
-        self.onFboDraw()
-        glBindFramebuffer(GL_FRAMEBUFFER, 0)
-        w = glutGet(GLUT_WINDOW_WIDTH)
-        h = glutGet(GLUT_WINDOW_HEIGHT)
-        if not self._isFull:
-            self.width = w
-            self.height = h
-        glViewport(0,0,w,h)
-        glClearColor(0.0,0.0,0.0,1)
-        glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT)
-        try:
-            self.onDraw(w,h)
-        except:
-            import traceback
-            traceback.print_exc()
-            glutLeaveMainLoop()
-            return    
-        glutSwapBuffers()
-        self._frames+=1
-    def onFboDraw(self):
-        pass
-    def onDraw(self,width,height):
-        pass
-    def __idle(self):
-        self.onIdle()
-    def redisplay(self):
-        glutPostRedisplay()
-    def onIdle(self):
-        pass
-    def __close(self):
-        try:
-            glutLeaveMainLoop()
-        except:
-            sys.exit(0) # Needed on Mac
-    def key(self,k,x,y):
-        #print "key",ord(k),x,y
-        if ord(k)==27:
-            self.__close()
-        if ord(k)==9:
-            if self._isFull:
-                glutReshapeWindow(self.width,self.height)
-                self._isFull = False
-            else:
-                glutFullScreen()
-                self._isFull = True
-    def specialkey(self,k,x,y):
-        #print "special",k,x,y
-        pass
-
-
-
+try:
+    os.environ['GLFW_LIBRARY'] = './libglfw.so.3'
+    from GLComputeGLFW import GLCompute
+    print "Using GLFW"
+    # Prefer the GFLW version
+except:
+    from GLComputeGLUT import GLCompute
+    print "Using GLUT instead of GLFW. Some features may be disabled."
+    # Fallback, potentially more limited
