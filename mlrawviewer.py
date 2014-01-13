@@ -117,7 +117,8 @@ class Demosaicer(GLCompute.Drawable):
                 frameData.demosaic()
                 after = time.time()
                 self.encoder.demosaicDuration(after-before)
-                self.rgbUploadTex.update(frameData.rgbimage)
+                if (frameData != self.lastFrameData):
+                    self.rgbUploadTex.update(frameData.rgbimage)
                 self.shaderQuality.demosaicPass(self.rgbUploadTex,frameData.black,balance=balance,tonemap=self.settings.tonemap())
                 if self.settings.encoding():
                     self.rgb = glReadPixels(0,0,scene.size[0],scene.size[1],GL_RGB,GL_UNSIGNED_SHORT)
