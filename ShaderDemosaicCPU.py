@@ -43,18 +43,19 @@ void main() {
     fragment_src = """
 varying vec2 texcoord;
 uniform float time;
+uniform float tonemap;
 uniform vec2 black;
 uniform vec3 colourBalance;
 uniform vec4 rawres;
 uniform sampler2D rawtex;
 
 void main() {
-    vec3 col = texture2D(rawtex,texcoord).rgb;
-    col = colourBalance * col;
+    vec3 colour = colourBalance * texture2D(rawtex,texcoord).rgb;
     float levelAdjust = 1.0/(black.y - black.x);
-    col *= levelAdjust;
-    col = col/(col + 1.0);
-    gl_FragColor = vec4(col,1.0);
+    colour *= levelAdjust;
+    vec3 toneMapped = colour/(1.0 + colour);
+    colour = mix(colour,toneMapped,tonemap);
+    gl_FragColor = vec4(colour,1.0);
 }
 """
 

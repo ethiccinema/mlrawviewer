@@ -111,14 +111,14 @@ class Demosaicer(GLCompute.Drawable):
         balance = (rgb[0]*brightness, rgb[1]*brightness, rgb[2]*brightness)
         different = (frameData != self.lastFrameData) or (brightness != self.lastBrightness) or (rgb != self.lastRgb)
         if (frameData and different):
-            if (self.settings.highQuality() or self.settings.encoding()) and (frameData.canDemosaic):
-                # Slow/high quality decode for static view or encoding
+            if (frameData.rgbimage or self.settings.highQuality() or self.settings.encoding()) and (frameData.canDemosaic):
+                # Already rgb available, or else low/high quality decode for static view or encoding
                 before = time.time()
                 frameData.demosaic()
                 after = time.time()
                 self.encoder.demosaicDuration(after-before)
                 self.rgbUploadTex.update(frameData.rgbimage)
-                self.shaderQuality.demosaicPass(self.rgbUploadTex,frameData.black,balance=balance)
+                self.shaderQuality.demosaicPass(self.rgbUploadTex,frameData.black,balance=balance,tonemap=self.settings.tonemap())
                 if self.settings.encoding():
                     self.rgb = glReadPixels(0,0,scene.size[0],scene.size[1],GL_RGB,GL_UNSIGNED_SHORT)
                     self.encoder.encode(frameNumber,self.rgb)
@@ -128,7 +128,7 @@ class Demosaicer(GLCompute.Drawable):
                 if frameData != self.lastFrameData:
                     frameData.convert()
                     self.rawUploadTex.update(frameData.rawimage)
-                self.shaderNormal.demosaicPass(self.rawUploadTex,frameData.black,balance=balance)
+                self.shaderNormal.demosaicPass(self.rawUploadTex,frameData.black,balance=balance,tonemap=self.settings.tonemap())
         self.lastFrameData = frameData
         self.lastFrameNumber = frameNumber
         self.lastBrightness = brightness
@@ -157,7 +157,7 @@ class Display(GLCompute.Drawable):
         self.rgbImage = rgbImage
     def render(self,scene):
         # Now display the RGB image
-        #self.rgbImage.addmipmap()
+        self.rgbImage.addmipmap()
         # Balance now happens in demosaicing shader
         balance = (1.0,1.0,1.0)
         # Scale
@@ -288,6 +288,7 @@ class Viewer(GLCompute.GLCompute):
         self.setting_rgb = (2.0, 1.0, 1.5)
         self.setting_highQuality = False
         self.setting_encoding = False
+        self.setting_tonemap = True
 
     def windowName(self):
         #try:
@@ -353,6 +354,8 @@ class Viewer(GLCompute.GLCompute):
             self.toggleAnamorphic()
         elif k==self.KEY_E:
             self.toggleEncoding()
+        elif k==self.KEY_T:
+            self.toggleToneMapping()
 
         elif k==self.KEY_LEFT: # Left cursor
             self.jump(-self._fps) # Go back 1 second (will wrap)
@@ -378,6 +381,8 @@ class Viewer(GLCompute.GLCompute):
         self.setting_highQuality = not self.setting_highQuality
     def toggleAnamorphic(self):
         self.anamorphic = not self.anamorphic
+    def toggleToneMapping(self):
+        self.setting_tonemap = not self.setting_tonemap
     def onIdle(self):
         if self.needsRefresh and self.paused:
             self.redisplay()
@@ -468,6 +473,8 @@ class Viewer(GLCompute.GLCompute):
         return self.setting_highQuality or (self.paused and self.demosaicAverage < 0.5)
     def encoding(self):
         return self.setting_encoding
+    def tonemap(self):
+        return self.setting_tonemap
 
     # Encoder interface to demosaicing -> frames are returned to here if encoding setting is True
     def demosaicDuration(self, duration):

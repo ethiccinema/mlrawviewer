@@ -42,6 +42,7 @@ void main() {
     fragment_src = """
 varying vec2 texcoord;
 uniform float time;
+uniform float tonemap;
 uniform vec2 black;
 uniform vec3 colourBalance;
 uniform vec4 rawres;
@@ -81,7 +82,8 @@ void main() {
     float levelAdjust = 1.0/(black.y - black.x);
     colour *= levelAdjust;
     vec3 toneMapped = colour/(1.0 + colour);
-    gl_FragColor = vec4(toneMapped,1.0);
+    colour = mix(colour,toneMapped,tonemap);
+    gl_FragColor = vec4(colour,1.0);
 }
 """
 

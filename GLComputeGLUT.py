@@ -61,6 +61,7 @@ class GLCompute(object):
     KEY_A = ord('A')
     KEY_E = ord('E')
     KEY_Q = ord('Q')
+    KEY_T = ord('T')
 
     KEY_LEFT = 100
     KEY_RIGHT = 102

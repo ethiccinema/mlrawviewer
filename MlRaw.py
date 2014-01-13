@@ -100,7 +100,7 @@ Consider compiling bitunpack module for faster conversion and export."""
         return np.zeros(shape=(width*height,),dtype=np.float32)
 
 class Frame:
-    def __init__(self,rawfile,rawdata,width,height,black,byteSwap=0,bitsPerSample=14):
+    def __init__(self,rawfile,rawdata,width,height,black,byteSwap=0,bitsPerSample=14,bayer=True,rgb=False):
         global haveDemosaic
         #print "opening frame",len(rawdata),width,height
         #print width*height
@@ -111,10 +111,15 @@ class Frame:
         self.height = height
         self.canDemosaic = haveDemosaic
         self.rawimage = None
-        self.rgbimage = None
+        if bayer==False and rgb==True:
+            self.rgbimage = rawdata
+        else:
+            self.rgbimage = None
         self.byteSwap = byteSwap
         self.bitsPerSample = bitsPerSample
     def convert(self):
+        if self.rgbimage != None:
+            return # No need to convert anything
         if self.rawimage != None:
             return # Done already
         if self.rawdata != None:
@@ -713,6 +718,98 @@ class CDNG:
             return Frame(self,rawdata,self.width(),self.height(),self.black,byteSwap=1,bitsPerSample=self.bitsPerSample)
         return ""
 
+class TIFFSEQ:
+    """
+    Treat a directory of (e.g. 16bit) TIFF files as sequential frames
+    """
+    def __init__(self,filename):
+        print "Opening TIFF sequence",filename
+        if os.path.isdir(filename):
+            self.path = filename
+        else:
+            self.path = os.path.dirname(filename)
+        self.tiffs = [tiff for tiff in os.listdir(self.path) if (tiff.lower().endswith(".tif") or tiff.lower().endswith(".tiff")) and tiff[0]!='.']
+        self.tiffs.sort()
+
+        firstName = os.path.join(self.path,self.tiffs[0])
+        self.firstTiff = fd = DNG.DNG()
+        fd.readFile(firstName) # Only parse metadata
+
+        self.fps = 25.0 # Hardcoded to 25
+        print "Assumed FPS:",self.fps
+
+        self.black = 0
+        self.white = 65535
+        #self.colorMatrix = colorMatrix(self.info)
+        print "Black level:", self.black, "White level:", self.white
+
+        self._width = fd.ifds[0].width
+        self._height = fd.ifds[0].length
+
+        bps = self.bitsPerSample = fd.ifds[0].tags[DNG.Tag.BitsPerSample[0]][3][0]
+        print "BitsPerSample:",bps
+        if bps != 16:
+            print "Unsupported BitsPerSample = ",bps,"(should be 16)"
+            raise IOError # Only support 16 bitsPerSample
+
+        self.firstFrame = self._loadframe(0)
+
+        self.preloader = threading.Thread(target=self.preloaderMain)
+        self.preloaderArgs = Queue.Queue(1)
+        self.preloaderResults = Queue.Queue(1)
+        self.preloader.daemon = True
+        self.preloader.start()
+    def description(self):
+        firstName = self.tiffs[0]
+        lastName = self.tiffs[-1]
+        name,ext = os.path.splitext(firstName)
+        lastname,ext = os.path.splitext(lastName)
+        return os.path.join(self.path,"["+name+"-"+lastname+"]"+ext)
+
+    def close(self):
+        self.firstTiff.close()
+    def indexingStatus(self):
+        return 1.0
+    def width(self):
+        return self._width
+    def height(self):
+        return self._height
+    def frames(self):
+        return len(self.tiffs)
+    def audioFrames(self):
+        return 0
+    def preloaderMain(self):
+        while 1:
+            arg = self.preloaderArgs.get() # Will wait for a job
+            frame = self._loadframe(arg)
+            self.preloaderResults.put((arg,frame))
+    def preloadFrame(self,index):
+        self.preloaderArgs.put(index)
+    def frame(self,index):
+        preloadedindex = -1
+        frame = None
+        while preloadedindex!=index:
+            preloadedindex,frame = self.preloaderResults.get()
+            if preloadedindex==index:
+                break
+            self.preloadFrame(index)
+        return frame
+    def _loadframe(self,index):
+        if index>=0 and index<self.frames():
+            filename = self.tiffs[index]
+            tiff = DNG.DNG()
+            tiff.readFileIn(os.path.join(self.path,filename))
+            try:
+                rawdata = tiff.ifds[0].stripsCombined()
+            except:
+                import traceback
+                traceback.print_exc()
+                print "Error fetching data from",filename
+                rawdata = np.zeros((self.width()*self.height()*3,),dtype=np.uint16).tostring()
+            tiff.close()
+            return Frame(self,rawdata,self.width(),self.height(),self.black,byteSwap=1,bitsPerSample=self.bitsPerSample,bayer=False,rgb=True)
+        return ""
+
 def loadRAWorMLV(filename):
     fl = filename.lower()
     if fl.endswith(".raw"):
@@ -721,9 +818,15 @@ def loadRAWorMLV(filename):
         return MLV(filename)
     elif fl.endswith(".dng"):
         return CDNG(os.path.dirname(filename))
+    elif fl.endswith(".tif") or fl.endswith(".tiff"):
+        return TIFFSEQ(os.path.dirname(filename))
     elif os.path.isdir(filename):
-        dngfiles = [dng for dng in os.listdir(filename) if dng.lower().endswith(".dng")]
+        filenames = os.listdir(filename)
+        dngfiles = [dng for dng in filenames if dng.lower().endswith(".dng")]
+        tifffiles = [tiff for tiff in filenames if tiff.lower().endswith(".tif") or tiff.lower().endswith(".tiff")]
         if len(dngfiles)>0:
             return CDNG(filename)
+        elif len(tifffiles)>0:
+            return TIFFSEQ(filename)
     return None
 
