@@ -232,6 +232,8 @@ class MLRAW:
             self.preloaderResults.put((arg,frame))
     def preloadFrame(self,index):
         self.preloaderArgs.put(index)
+    def isPreloadedFrameAvailable(self):
+        return not self.preloaderResults.empty()
     def frame(self,index):
         preloadedindex = -1
         frame = None
@@ -544,6 +546,8 @@ class MLV:
     def preloadFrame(self,index):
         self.initPreloader()
         self.preloaderArgs.put(index)
+    def isPreloadedFrameAvailable(self):
+        return not self.preloaderResults.empty()
     def frame(self,index):
         preloadedindex = -1
         frame = None
@@ -699,6 +703,8 @@ class CDNG:
             self.preloaderResults.put((arg,frame))
     def preloadFrame(self,index):
         self.preloaderArgs.put(index)
+    def isPreloadedFrameAvailable(self):
+        return not self.preloaderResults.empty()
     def frame(self,index):
         preloadedindex = -1
         frame = None
@@ -785,6 +791,8 @@ class TIFFSEQ:
             self.preloaderResults.put((arg,frame))
     def preloadFrame(self,index):
         self.preloaderArgs.put(index)
+    def isPreloadedFrameAvailable(self):
+        return not self.preloaderResults.empty()
     def frame(self,index):
         preloadedindex = -1
         frame = None
