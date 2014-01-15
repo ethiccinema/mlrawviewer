@@ -175,7 +175,6 @@ class Frame:
 
 def colorMatrix(raw_info):
     vals = np.array(raw_info[-19:-1]).astype(np.float32)
-    print vals
     nom = vals[::2]
     denom = vals[1::2]
     scaled = (nom/denom).reshape((3,3))
@@ -564,16 +563,19 @@ class MLV:
         #while self.preindexing:
         #    self.preindex() # Do some preindexing if still needed
         # Now we can load frames
-        while 1:
-            self.preindex() # Do some preindexing if still needed
-            arg = self.preloaderArgs.get() # Will wait for a job
-            try:
-                frame = self._loadframe(arg)
-            except Exception,err:
-                print "Error reading frame %d, %s"%(arg,str(err))
-                traceback.print_exc()
-                frame = None
-            self.preloaderResults.put((arg,frame))
+        try:
+            while 1:
+                self.preindex() # Do some preindexing if still needed
+                arg = self.preloaderArgs.get() # Will wait for a job
+                try:
+                    frame = self._loadframe(arg)
+                except Exception,err:
+                    print "Error reading frame %d, %s"%(arg,str(err))
+                    traceback.print_exc()
+                    frame = None
+                self.preloaderResults.put((arg,frame))
+        except:
+            pass # Can happen if shutting down during preindexing
     def preloadFrame(self,index):
         self.initPreloader()
         self.preloaderArgs.put(index)

@@ -71,7 +71,7 @@ On Debian/Ubuntu try "sudo apt-get install python-numpy"
 # Now import our own modules
 import PerformanceLog
 from PerformanceLog import PLOG
-PerformanceLog.PLOG_CONTROL(True) # Enable Performance logging
+PerformanceLog.PLOG_CONTROL(False) # Disable Performance logging
 PLOG_FILE_IO = PerformanceLog.PLOG_TYPE(0,"FILE_IO")
 PLOG_FRAME = PerformanceLog.PLOG_TYPE(1,"FRAME")
 PLOG_CPU = PerformanceLog.PLOG_TYPE(2,"CPU")
