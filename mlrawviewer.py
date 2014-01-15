@@ -629,11 +629,19 @@ class Viewer(GLCompute.GLCompute):
         if self.neededFrame != None:
             #print "looking for neededFrame",self.neededFrame
             # Try to ensure we have a few frames ahead of the currently needed frame
-            for n in range(self.neededFrame,self.neededFrame+5):
-                if n>=self.raw.frames():
-                    n -= self.raw.frames() # Start preloading from beginning
-                if n not in self.frameCache:
-                    self.preloadFrame(n)
+            # First preload +1,+1,+0
+            if self.paused:
+                for n in range(self.neededFrame,self.neededFrame+3):
+                    if n>=self.raw.frames():
+                        n -= self.raw.frames() # Start preloading from beginning
+                    if n not in self.frameCache:
+                        self.preloadFrame(n)
+            else:
+                for n in range(self.neededFrame+5,self.neededFrame-1,-1):
+                    if n>=self.raw.frames():
+                        n -= self.raw.frames() # Start preloading from beginning
+                    if n not in self.frameCache:
+                        self.preloadFrame(n)
 
     def checkForLoadedFrames(self):
         if self.preloadingFrame > 0:
