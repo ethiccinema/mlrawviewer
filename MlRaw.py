@@ -26,6 +26,8 @@ import sys,struct,os,math,time,threading,Queue,traceback,wave
 
 # MlRawViewer imports
 import DNG
+from PerformanceLog import PLOG
+PLOG_CPU = 0
 
 haveDemosaic = False
 
@@ -99,6 +101,24 @@ Consider compiling bitunpack module for faster conversion and export."""
         # No numpy implementation
         return np.zeros(shape=(width*height,),dtype=np.float32)
 
+
+class FrameConverter(threading.Thread):
+    def __init__(self):
+        threading.Thread.__init__(self)
+        self.daemon = True
+        self.iq = Queue.Queue()
+        self.start()
+    def process(self,frame):
+        self.iq.put(frame)
+    def run(self):
+        while 1:
+            nextFrame = self.iq.get()
+            PLOG(PLOG_CPU,"Threaded convert for frame starts")
+            nextFrame.convertQ.put(nextFrame._convert())
+            PLOG(PLOG_CPU,"Threaded convert for frame complete")
+
+FrameConverterThread = FrameConverter()
+
 class Frame:
     def __init__(self,rawfile,rawdata,width,height,black,byteSwap=0,bitsPerSample=14,bayer=True,rgb=False):
         global haveDemosaic
@@ -111,17 +131,25 @@ class Frame:
         self.height = height
         self.canDemosaic = haveDemosaic
         self.rawimage = None
+        self.byteSwap = byteSwap
+        self.bitsPerSample = bitsPerSample
+        self.conversionResult = None
+        self.convertQ = Queue.Queue(1)
         if bayer==False and rgb==True:
             self.rgbimage = rawdata
         else:
             self.rgbimage = None
-        self.byteSwap = byteSwap
-        self.bitsPerSample = bitsPerSample
+            FrameConverterThread.process(self)
     def convert(self):
+        if self.conversionResult == None:
+            self.conversionResult = self.convertQ.get() # Will block until conversion completed
+        return self.conversionResult 
+            
+    def _convert(self):
         if self.rgbimage != None:
-            return # No need to convert anything
+            return True # No need to convert anything
         if self.rawimage != None:
-            return # Done already
+            return True # Done already
         if self.rawdata != None:
             if self.bitsPerSample == 14:
                 self.rawimage,self.framestats = unpacks14np16(self.rawdata,self.width,self.height,self.byteSwap)
@@ -131,6 +159,7 @@ class Frame:
             rawimage = np.empty(self.width*self.height,dtype=np.uint16)
             rawimage.fill(self.black)
             self.rawimage = rawimage.tostring()
+        return True
     def demosaic(self):
         # CPU based demosaic -> SLOW!
         if self.rgbimage != None:
@@ -201,8 +230,8 @@ class MLRAW:
             self.framefiles.append((framefile,framefilelen))
         self.firstFrame = self._loadframe(0)
         self.preloader = threading.Thread(target=self.preloaderMain)
-        self.preloaderArgs = Queue.Queue(1)
-        self.preloaderResults = Queue.Queue(1)
+        self.preloaderArgs = Queue.Queue(2)
+        self.preloaderResults = Queue.Queue(2)
         self.preloader.daemon = True
         self.preloader.start()
     def close(self):
@@ -234,6 +263,8 @@ class MLRAW:
         self.preloaderArgs.put(index)
     def isPreloadedFrameAvailable(self):
         return not self.preloaderResults.empty()
+    def nextFrame(self):
+        return self.preloaderResults.get()
     def frame(self,index):
         preloadedindex = -1
         frame = None
@@ -548,6 +579,8 @@ class MLV:
         self.preloaderArgs.put(index)
     def isPreloadedFrameAvailable(self):
         return not self.preloaderResults.empty()
+    def nextFrame(self):
+        return self.preloaderResults.get()
     def frame(self,index):
         preloadedindex = -1
         frame = None
@@ -673,8 +706,8 @@ class CDNG:
         self.firstFrame = self._loadframe(0)
 
         self.preloader = threading.Thread(target=self.preloaderMain)
-        self.preloaderArgs = Queue.Queue(1)
-        self.preloaderResults = Queue.Queue(1)
+        self.preloaderArgs = Queue.Queue(2)
+        self.preloaderResults = Queue.Queue(2)
         self.preloader.daemon = True
         self.preloader.start()
     def description(self):
@@ -705,6 +738,8 @@ class CDNG:
         self.preloaderArgs.put(index)
     def isPreloadedFrameAvailable(self):
         return not self.preloaderResults.empty()
+    def nextFrame(self):
+        return self.preloaderResults.get()
     def frame(self,index):
         preloadedindex = -1
         frame = None
@@ -761,8 +796,8 @@ class TIFFSEQ:
         self.firstFrame = self._loadframe(0)
 
         self.preloader = threading.Thread(target=self.preloaderMain)
-        self.preloaderArgs = Queue.Queue(1)
-        self.preloaderResults = Queue.Queue(1)
+        self.preloaderArgs = Queue.Queue(2)
+        self.preloaderResults = Queue.Queue(2)
         self.preloader.daemon = True
         self.preloader.start()
     def description(self):
@@ -793,6 +828,8 @@ class TIFFSEQ:
         self.preloaderArgs.put(index)
     def isPreloadedFrameAvailable(self):
         return not self.preloaderResults.empty()
+    def nextFrame(self):
+        return self.preloaderResults.get()
     def frame(self,index):
         preloadedindex = -1
         frame = None

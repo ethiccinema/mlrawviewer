@@ -1,7 +1,7 @@
 #!/usr/bin/python2
 """
 mlrawviewer.py
-(c) Andrew Baldwin 2013
+(c) Andrew Baldwin 2013-2014
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
 this software and associated documentation files (the "Software"), to deal in
@@ -26,7 +26,7 @@ SOFTWARE.
 import sys,struct,os,math,time,datetime,subprocess,signal,threading,Queue
 from threading import Thread
 
-version = "1.0.3 alpha" # Change to
+version = "1.0.4 alpha" # Change to
 
 programpath = os.path.abspath(os.path.split(sys.argv[0])[0])
 if getattr(sys,'frozen',False):
@@ -69,6 +69,14 @@ On Debian/Ubuntu try "sudo apt-get install python-numpy"
     sys.exit(1)
 
 # Now import our own modules
+import PerformanceLog
+from PerformanceLog import PLOG
+PerformanceLog.PLOG_CONTROL(True) # Enable Performance logging
+PLOG_FILE_IO = PerformanceLog.PLOG_TYPE(0,"FILE_IO")
+PLOG_FRAME = PerformanceLog.PLOG_TYPE(1,"FRAME")
+PLOG_CPU = PerformanceLog.PLOG_TYPE(2,"CPU")
+PLOG_GPU = PerformanceLog.PLOG_TYPE(3,"GPU")
+
 import GLCompute
 import MlRaw
 import Font
@@ -120,13 +128,16 @@ class Demosaicer(GLCompute.Drawable):
         if (frameData and different):
             if ((frameData.rgbimage!=None) or self.settings.highQuality() or self.settings.encoding()) and (frameData.canDemosaic):
                 # Already rgb available, or else low/high quality decode for static view or encoding
+                PLOG(PLOG_CPU,"CPU Demosaic started for frame %d"%frameNumber)
                 before = time.time()
                 frameData.demosaic()
+                PLOG(PLOG_CPU,"CPU Demosaic completed for frame %d"%frameNumber)
                 after = time.time()
                 self.encoder.demosaicDuration(after-before)
                 if (frameData != self.lastFrameData) or (self.rgbFrameUploaded != frameNumber):
-                    print "uploading CPU demosaiced",frameNumber
+                    PLOG(PLOG_GPU,"RGB texture upload called for frame %d"%frameNumber)
                     self.rgbUploadTex.update(frameData.rgbimage)
+                    PLOG(PLOG_GPU,"RGB texture upload returned for frame %d"%frameNumber)
                     self.rgbFrameUploaded = frameNumber
                 self.shaderQuality.demosaicPass(self.rgbUploadTex,frameData.black,balance=balance,tonemap=self.settings.tonemap())
                 if self.settings.encoding():
@@ -136,9 +147,13 @@ class Demosaicer(GLCompute.Drawable):
             else:
                 # Fast decode for full speed viewing
                 if frameData != self.lastFrameData:
+                    PLOG(PLOG_CPU,"Bayer 14-16 convert starts for frame %d"%frameNumber)
                     frameData.convert()
+                    PLOG(PLOG_CPU,"Bayer 14-16 convert done for frame %d"%frameNumber)
                     self.rawUploadTex.update(frameData.rawimage)
+                PLOG(PLOG_GPU,"Demosaic shader draw for frame %d"%frameNumber)
                 self.shaderNormal.demosaicPass(self.rawUploadTex,frameData.black,balance=balance,tonemap=self.settings.tonemap())
+                PLOG(PLOG_GPU,"Demosaic shader draw done for frame %d"%frameNumber)
         self.lastFrameData = frameData
         self.lastFrameNumber = frameNumber
         self.lastBrightness = brightness
@@ -167,11 +182,13 @@ class Display(GLCompute.Drawable):
         self.rgbImage = rgbImage
     def render(self,scene):
         # Now display the RGB image
-        self.rgbImage.addmipmap()
+        #self.rgbImage.addmipmap()
         # Balance now happens in demosaicing shader
         balance = (1.0,1.0,1.0)
         # Scale
+        PLOG(PLOG_GPU,"Display shader draw")
         self.displayShader.draw(scene.size[0],scene.size[1],self.rgbImage,balance)
+        PLOG(PLOG_GPU,"Display shader draw done")
         # 1 to 1
         # self.displayShader.draw(self.rgbImage.width,self.rgbImage.height,self.rgbImage,balance)
 
@@ -294,7 +311,8 @@ class Viewer(GLCompute.GLCompute):
         self.drawnFrameNumber = None
         self.playFrame = self.raw.firstFrame
         self.frameCache = {0:self.raw.firstFrame}
-        self.preloadingFrame = None
+        self.preloadingFrame = 0
+        self.preloadingFrames = []
         self.preloadFrame(1) # Immediately try to preload the next frame
         self.fps = raw.fps
         self.paused = False
@@ -329,11 +347,12 @@ class Viewer(GLCompute.GLCompute):
         self._init = True
     def onDraw(self,width,height):
         # First convert Raw to RGB image at same size
-
+        PLOG(PLOG_FRAME,"onDraw start")
         self.init()
         if self.realStartTime == None:
             offset = self.playFrameNumber / self.fps
             self.realStartTime = time.time() - offset
+            PLOG(PLOG_FRAME,"realStartTime set to %f"%self.realStartTime)
         aspectHeight = int((width*self.vidAspectHeight))
         aspectWidth = int((height*self.vidAspectWidth))
         if self.anamorphic == True:
@@ -351,10 +370,17 @@ class Viewer(GLCompute.GLCompute):
             self._frames -= 1
         if self.raw.indexingStatus()<1.0:
             self.refresh()
+        PLOG(PLOG_FRAME,"onDraw end")
     def jump(self,framesToJumpBy):
         #if self.raw.indexingStatus()==1.0:
-        
-        self.realStartTime += framesToJumpBy / self.fps
+        if framesToJumpBy<0 and (-framesToJumpBy) > self.neededFrame:
+            framesToJumpBy = -self.neededFrame # Should only go to start  
+        if (self.neededFrame + framesToJumpBy) >= self.raw.frames():
+            framesToJumpBy = self.raw.frames() - self.neededFrame - 1
+
+        self.realStartTime -= framesToJumpBy / self.fps
+        self.neededFrame += int(framesToJumpBy)
+        PLOG(PLOG_FRAME,"jump by %d frames, now need %d"%(framesToJumpBy,self.neededFrame))
         self.refresh()
     def key(self,k):
         if k==self.KEY_SPACE:
@@ -417,35 +443,42 @@ class Viewer(GLCompute.GLCompute):
     def toggleToneMapping(self):
         self.setting_tonemap = not self.setting_tonemap
     def onIdle(self):
+        PLOG(PLOG_FRAME,"onIdle start")
         self.checkForLoadedFrames()
-        if not self.needsRefresh and self.paused:
+        wrongFrame = self.neededFrame != self.drawnFrameNumber
+        if not self.needsRefresh and self.paused and not wrongFrame:
             time.sleep(0.016) # Sleep for one 60FPS frame -> Avoid burning idle function
-        elif not self.paused:
+        if not self.paused:
             now = time.time()
             elapsed = now - self.realStartTime # Since before first frame drawn 
-            # Is it time for a new frame?
             neededFrame = int(self.fps*elapsed)
+            # Is it time for a new frame?
             if neededFrame >= self.raw.frames():
                 neededFrame = 0 #self.raw.frames() - 1 # End of file
                 self.playFrameNumber = 0
                 self.realStartTime = now
+            newNeeded = neededFrame != self.neededFrame
             self.neededFrame = neededFrame
             #print "neededFrame",neededFrame,elapsed
-            if neededFrame != self.drawnFrameNumber:
-                # Yes it is 
-                # Do we have the needed frame available? 
-                if neededFrame in self.frameCache:
-                    print "using frame",neededFrame
-                    # Yes we do. Update the frame details and queue display
-                    self.playFrameNumber = neededFrame
-                    self.playTime = neededFrame * self.fps
-                    self.playFrame = self.frameCache[neededFrame]
-                    self.needsRefresh = True        
-                    self.redisplay()
-                else:
-                    time.sleep(0.001)
+            if newNeeded:
+                PLOG(PLOG_FRAME,"neededFrame now %d"%neededFrame)
+
+        if self.neededFrame != self.drawnFrameNumber:
+            # Yes it is 
+            # Do we have the needed frame available? 
+            if self.neededFrame in self.frameCache:
+                PLOG(PLOG_FRAME,"Using frame %d"%self.neededFrame)
+                #print "using frame",neededFrame
+                # Yes we do. Update the frame details and queue display
+                self.playFrameNumber = self.neededFrame
+                self.playTime = self.neededFrame * self.fps
+                self.playFrame = self.frameCache[self.neededFrame]
+                self.needsRefresh = True        
+                self.redisplay()
             else:
-                time.sleep(0.001)
+                time.sleep(0.003)
+        else:
+            time.sleep(0.003)
 
             """
             if (now-self._last >= (1.0/self.fps)):
@@ -457,6 +490,7 @@ class Viewer(GLCompute.GLCompute):
         if self.needsRefresh: # and self.paused:
             self.redisplay()
             self.needsRefresh = False
+        PLOG(PLOG_FRAME,"onIdle ends")
 
     def refresh(self):
         self.needsRefresh = True
@@ -566,45 +600,54 @@ class Viewer(GLCompute.GLCompute):
 
     # Manage the frame progression
     def preloadFrame(self,index):
-        print "preloading",index
+        if index in self.preloadingFrames:
+            return # Currently being loaded
         if index in self.frameCache:
             return # Already available in the cache
-        if self.preloadingFrame != None:
-            raise Assertion # Tried to preload a frame while preload outstanding
-        self.preloadingFrame = index
+        if self.preloadingFrame == 2:
+            return # Don't preload more than 2 frames
+        self.preloadingFrame += 1 
+        #print "preloading",index
+        PLOG(PLOG_FRAME,"Calling preload for frame %d"%index)
         self.raw.preloadFrame(index)
+        self.preloadingFrames.append(index)
+        PLOG(PLOG_FRAME,"Returned from preload for frame %d"%index)
     def manageFrameCache(self):
         if len(self.frameCache)>10: # Cache 10 frames at most
-            indexes = self.frameCache.keys()
+            # Don't remove currently showing frame
+            indexes = [k for k in self.frameCache.keys() if k != self.playFrameNumber]
             indexes.sort()
-            if indexes[0] < self.playFrameNumber:
+            #print indexes
+            if indexes[0] < self.neededFrame:
                 # Remove the one furthest behind the current frame number
+                PLOG(PLOG_FRAME,"Calling head %d from frame cache"%indexes[0])
                 del self.frameCache[indexes[0]]
             else: # Otherwise delete the last one
+                PLOG(PLOG_FRAME,"Calling tip %d from frame cache"%indexes[-1])
                 del self.frameCache[indexes[-1]]
     def manageFrameLoading(self):
-        if self.preloadingFrame != None:
-            return
-        print "manageFrameLoading",self.neededFrame
         if self.neededFrame != None:
-            print "looking for neededFrame",self.neededFrame
+            #print "looking for neededFrame",self.neededFrame
             # Try to ensure we have a few frames ahead of the currently needed frame
-            print self.frameCache.keys()
-            for n in range(self.neededFrame+5,self.neededFrame+1,-1):
+            for n in range(self.neededFrame,self.neededFrame+5):
                 if n>=self.raw.frames():
-                    continue
+                    n -= self.raw.frames() # Start preloading from beginning
                 if n not in self.frameCache:
                     self.preloadFrame(n)
-                    break
+
     def checkForLoadedFrames(self):
-        if self.preloadingFrame != None:
+        if self.preloadingFrame > 0:
             if self.raw.isPreloadedFrameAvailable():
-                print "new frame loaded:",self.preloadingFrame
-                preloadedFrame = self.raw.frame(self.preloadingFrame)
+                frameIndex,preloadedFrame = self.raw.nextFrame()
+                expected = self.preloadingFrames.pop(0)
+                if expected != frameIndex:
+                    print "!!! Received frame",frameIndex,"but expected",expected
+                PLOG(PLOG_FRAME,"Received preloaded frame %d"%frameIndex)
+                #print "new frame loaded:",frameIndex
                 # Add it to the cache 
-                self.frameCache[self.preloadingFrame] = preloadedFrame
+                self.frameCache[frameIndex] = preloadedFrame
                 self.manageFrameCache()
-                self.preloadingFrame = None
+                self.preloadingFrame -= 1 
         self.manageFrameLoading()
                 
 
@@ -636,8 +679,9 @@ def main():
         sys.stderr.write('Could not open file %s. Error:%s\n'%(filename,str(err)))
         return 1
     rmc = Viewer(r,outfilename)
-    return rmc.run()
-    return 0
+    ret = rmc.run()
+    PerformanceLog.PLOG_PRINT()
+    return ret
 
 def launchFromGui(rawfile,outfilename=None):
     rmc = Viewer(rawfile,outfilename)
