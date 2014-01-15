@@ -331,7 +331,8 @@ class Viewer(GLCompute.GLCompute):
         self.setting_highQuality = False
         self.setting_encoding = False
         self.setting_tonemap = True
-  
+        self.setting_dropframes = True # Real time playback by default 
+ 
     def windowName(self):
         #try:
         return "MlRawViewer v"+version+" - "+self.raw.description()
@@ -413,6 +414,8 @@ class Viewer(GLCompute.GLCompute):
             self.toggleAnamorphic()
         elif k==self.KEY_E:
             self.toggleEncoding()
+        elif k==self.KEY_D:
+            self.toggleDropFrames()
         elif k==self.KEY_T:
             self.toggleToneMapping()
 
@@ -442,6 +445,11 @@ class Viewer(GLCompute.GLCompute):
         self.anamorphic = not self.anamorphic
     def toggleToneMapping(self):
         self.setting_tonemap = not self.setting_tonemap
+    def toggleDropFrames(self):
+        self.setting_dropframes = not self.setting_dropframes
+        if self.setting_dropframes:
+            offset = self.playFrameNumber / self.fps
+            self.realStartTime = time.time() - offset
     def onIdle(self):
         PLOG(PLOG_FRAME,"onIdle start")
         self.checkForLoadedFrames()
@@ -453,11 +461,14 @@ class Viewer(GLCompute.GLCompute):
             elapsed = now - self.realStartTime # Since before first frame drawn 
             neededFrame = int(self.fps*elapsed)
             # Is it time for a new frame?
+            newNeeded = neededFrame != self.neededFrame
+            if newNeeded and not self.dropframes():
+                # In non-drop-frame mode, only step by 1 frame
+                neededFrame = self.playFrameNumber + 1 
             if neededFrame >= self.raw.frames():
                 neededFrame = 0 #self.raw.frames() - 1 # End of file
                 self.playFrameNumber = 0
                 self.realStartTime = now
-            newNeeded = neededFrame != self.neededFrame
             self.neededFrame = neededFrame
             #print "neededFrame",neededFrame,elapsed
             if newNeeded:
@@ -569,6 +580,8 @@ class Viewer(GLCompute.GLCompute):
         return self.setting_encoding
     def tonemap(self):
         return self.setting_tonemap
+    def dropframes(self):
+        return self.setting_dropframes
 
     # Encoder interface to demosaicing -> frames are returned to here if encoding setting is True
     def demosaicDuration(self, duration):
@@ -630,7 +643,7 @@ class Viewer(GLCompute.GLCompute):
             #print "looking for neededFrame",self.neededFrame
             # Try to ensure we have a few frames ahead of the currently needed frame
             # First preload +1,+1,+0
-            if self.paused:
+            if self.paused or not self.dropframes():
                 for n in range(self.neededFrame,self.neededFrame+3):
                     if n>=self.raw.frames():
                         n -= self.raw.frames() # Start preloading from beginning

@@ -1,6 +1,6 @@
 """
 GLComputeGLFW.py
-(c) Andrew Baldwin 2013
+(c) Andrew Baldwin 2013-2014
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
 this software and associated documentation files (the "Software"), to deal in
@@ -61,6 +61,7 @@ class GLCompute(object):
     KEY_FOUR = glfw.GLFW_KEY_4
 
     KEY_A = glfw.GLFW_KEY_A
+    KEY_D = glfw.GLFW_KEY_D
     KEY_E = glfw.GLFW_KEY_E
     KEY_Q = glfw.GLFW_KEY_Q
     KEY_T = glfw.GLFW_KEY_T
