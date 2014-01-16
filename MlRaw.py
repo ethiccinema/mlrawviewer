@@ -111,11 +111,14 @@ class FrameConverter(threading.Thread):
     def process(self,frame):
         self.iq.put(frame)
     def run(self):
-        while 1:
-            nextFrame = self.iq.get()
-            PLOG(PLOG_CPU,"Threaded convert for frame starts")
-            nextFrame.convertQ.put(nextFrame._convert())
-            PLOG(PLOG_CPU,"Threaded convert for frame complete")
+        try:
+            while 1:
+                nextFrame = self.iq.get()
+                PLOG(PLOG_CPU,"Threaded convert for frame starts")
+                nextFrame.convertQ.put(nextFrame._convert())
+                PLOG(PLOG_CPU,"Threaded convert for frame complete")
+        except:
+            pass # Avoid shutdown errors
 
 FrameConverterThread = FrameConverter()
 

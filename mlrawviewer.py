@@ -71,7 +71,7 @@ On Debian/Ubuntu try "sudo apt-get install python-numpy"
 # Now import our own modules
 import PerformanceLog
 from PerformanceLog import PLOG
-PerformanceLog.PLOG_CONTROL(False) # Disable Performance logging
+PerformanceLog.PLOG_CONTROL(False)
 PLOG_FILE_IO = PerformanceLog.PLOG_TYPE(0,"FILE_IO")
 PLOG_FRAME = PerformanceLog.PLOG_TYPE(1,"FRAME")
 PLOG_CPU = PerformanceLog.PLOG_TYPE(2,"CPU")
@@ -350,7 +350,7 @@ class Viewer(GLCompute.GLCompute):
         # First convert Raw to RGB image at same size
         PLOG(PLOG_FRAME,"onDraw start")
         self.init()
-        if self.realStartTime == None:
+        if self.realStartTime == None or self.raw.indexingStatus()<1.0:
             offset = self.playFrameNumber / self.fps
             self.realStartTime = time.time() - offset
             PLOG(PLOG_FRAME,"realStartTime set to %f"%self.realStartTime)
@@ -456,7 +456,7 @@ class Viewer(GLCompute.GLCompute):
         wrongFrame = self.neededFrame != self.drawnFrameNumber
         if not self.needsRefresh and self.paused and not wrongFrame:
             time.sleep(0.016) # Sleep for one 60FPS frame -> Avoid burning idle function
-        if not self.paused:
+        if not self.paused and self.raw.indexingStatus()==1.0:
             now = time.time()
             elapsed = now - self.realStartTime # Since before first frame drawn 
             neededFrame = int(self.fps*elapsed)
