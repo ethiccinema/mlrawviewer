@@ -307,6 +307,7 @@ class Viewer(GLCompute.GLCompute):
         self.realStartTime = None
         self.playTime = 0
         self.playFrameNumber = 0
+        self.nextFrameNumber = 0
         self.neededFrame = 0
         self.drawnFrameNumber = None
         self.playFrame = self.raw.firstFrame
@@ -381,13 +382,14 @@ class Viewer(GLCompute.GLCompute):
 
         self.realStartTime -= framesToJumpBy / self.fps
         self.neededFrame += int(framesToJumpBy)
+        self.nextFrameNumber += int(framesToJumpBy) # For non-frame dropping case
         PLOG(PLOG_FRAME,"jump by %d frames, now need %d"%(framesToJumpBy,self.neededFrame))
         self.refresh()
     def key(self,k):
         if k==self.KEY_SPACE:
             self.paused = not self.paused
             if self.paused:
-                self.jump(-1) # Redisplay the current frame in high quality
+                #self.jump(-1) # Redisplay the current frame in high quality
                 self.refresh()
             else:
                 offset = self.playFrameNumber / self.fps
@@ -464,7 +466,7 @@ class Viewer(GLCompute.GLCompute):
             newNeeded = neededFrame != self.neededFrame
             if newNeeded and not self.dropframes():
                 # In non-drop-frame mode, only step by 1 frame
-                neededFrame = self.playFrameNumber + 1 
+                neededFrame = self.nextFrameNumber 
             if neededFrame >= self.raw.frames():
                 neededFrame = 0 #self.raw.frames() - 1 # End of file
                 self.playFrameNumber = 0
@@ -482,6 +484,7 @@ class Viewer(GLCompute.GLCompute):
                 #print "using frame",neededFrame
                 # Yes we do. Update the frame details and queue display
                 self.playFrameNumber = self.neededFrame
+                self.nextFrameNumber = self.playFrameNumber + 1
                 self.playTime = self.neededFrame * self.fps
                 self.playFrame = self.frameCache[self.neededFrame]
                 self.needsRefresh = True        
