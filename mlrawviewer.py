@@ -400,12 +400,16 @@ class Viewer(GLCompute.GLCompute):
             self.jump(-1)
 
         elif k==self.KEY_ONE:
+            self.raw.offset(self.raw.off + 1)
             self.changeWhiteBalance(2.0, 1.0, 2.0, "WhiteFluro") # ~WhiteFluro
         elif k==self.KEY_TWO:
+            self.raw.offset(self.raw.off - 1)
             self.changeWhiteBalance(2.0, 1.0, 1.5, "Daylight") # ~Daylight
         elif k==self.KEY_THREE:
+            self.raw.offset(self.raw.off + 256)
             self.changeWhiteBalance(2.5, 1.0, 1.5, "Cloudy.") # ~Cloudy
         elif k==self.KEY_FOUR:
+            self.raw.offset(self.raw.off - 256)
             self.changeWhiteBalance(1.5, 1.0, 2.0, "Tungsten") # ~Tungsten
         elif k==self.KEY_ZERO:
             self.changeWhiteBalance(1.0, 1.0, 1.0, "Passthrough") # =passthrough

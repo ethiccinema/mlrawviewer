@@ -222,6 +222,7 @@ class MLRAW:
         self.black = self.info[7]
         self.white = self.info[8]
         self.colorMatrix = colorMatrix(self.info)
+        print self.colorMatrix
         print "Black level:", self.black, "White level:", self.white
         self.framefiles = []
         for framefilename in allfiles:
@@ -860,6 +861,90 @@ class TIFFSEQ:
             return Frame(self,rawdata,self.width(),self.height(),self.black,byteSwap=1,bitsPerSample=self.bitsPerSample,bayer=False,rgb=True)
         return ""
 
+class BAYER:
+    """
+    Parse a file as raw 14 bit bayer data of a given size 
+    """
+    def __init__(self,filename,width,height):
+        print "Opening BAYER file",filename
+
+        self.fps = 25.0 # Hardcoded to 25
+        print "Assumed FPS:",self.fps
+
+        self.black = 2048
+        self.white = 15000
+        #self.colorMatrix = colorMatrix(self.info)
+        print "Black level:", self.black, "White level:", self.white
+
+        self._width = width
+        self._height = height
+        cm = np.array([[ 0.68440002, -0.0996 ,    -0.0856    ],
+                        [-0.3876,      1.17610002,  0.2396    ],
+                        [-0.0593,      0.1772,     0.61979997]])
+        self.colorMatrix = np.matrix(cm)
+        self.framesize = 0x217000 # width*height*14/8
+        print "framesize: %x"%self.framesize
+        self.bayerfile = file(filename,'rb')
+        self.bayerfile.seek(0,os.SEEK_END)
+        self.end = self.bayerfile.tell()
+        self.framecount = int(self.end / self.framesize)
+        self.off = 0
+        bps = self.bitsPerSample = 14
+        print "BitsPerSample:",bps
+
+        self.firstFrame = self._loadframe(0)
+
+        self.preloader = threading.Thread(target=self.preloaderMain)
+        self.preloaderArgs = Queue.Queue(2)
+        self.preloaderResults = Queue.Queue(2)
+        self.preloader.daemon = True
+        self.preloader.start()
+    def offset(self,val):
+        print "Offset:",val
+        self.off = val
+    def description(self):
+        return ""
+    def close(self):
+        self.bayerfile.close()
+    def indexingStatus(self):
+        return 1.0
+    def width(self):
+        return self._width
+    def height(self):
+        return self._height
+    def frames(self):
+        return self.framecount
+    def audioFrames(self):
+        return 0
+    def preloaderMain(self):
+        while 1:
+            arg = self.preloaderArgs.get() # Will wait for a job
+            frame = self._loadframe(arg)
+            self.preloaderResults.put((arg,frame))
+    def preloadFrame(self,index):
+        self.preloaderArgs.put(index)
+    def isPreloadedFrameAvailable(self):
+        return not self.preloaderResults.empty()
+    def nextFrame(self):
+        return self.preloaderResults.get()
+    def frame(self,index):
+        preloadedindex = -1
+        frame = None
+        while preloadedindex!=index:
+            preloadedindex,frame = self.preloaderResults.get()
+            if preloadedindex==index:
+                break
+            self.preloadFrame(index)
+        return frame
+    def _loadframe(self,index):
+        if index>=0 and index<self.frames():
+            start = index * self.framesize
+            self.bayerfile.seek(self.off + start)
+            rawdata = self.bayerfile.read(self.framesize)
+            return Frame(self,rawdata,self.width(),self.height(),self.black,bitsPerSample=self.bitsPerSample)
+        return ""
+
+
 def loadRAWorMLV(filename):
     fl = filename.lower()
     if fl.endswith(".raw"):
@@ -870,6 +955,8 @@ def loadRAWorMLV(filename):
         return CDNG(os.path.dirname(filename))
     elif fl.endswith(".tif") or fl.endswith(".tiff"):
         return TIFFSEQ(os.path.dirname(filename))
+    elif fl.endswith(".bay"):
+        return BAYER(filename,1728,724)
     elif os.path.isdir(filename):
         filenames = os.listdir(filename)
         dngfiles = [dng for dng in filenames if dng.lower().endswith(".dng")]
