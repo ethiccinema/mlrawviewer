@@ -40,7 +40,7 @@ import sys,os,array,threading,Queue,struct
 
 BLOCK_SIZE = 1024*1024*16
 
-def bayer(buf,index,res,resindex,times=1):
+def bayer(buf,index,res,resindex,times=1,skip=1):
     i = index
     ri = resindex
     while times>0:
@@ -60,8 +60,8 @@ def bayer(buf,index,res,resindex,times=1):
         res[ri+5] = s5>>12 | (s4&0x3FF)<<4
         res[ri+6] = s6>>14 | (s5&0xFFF)<<2
         res[ri+7] = s6&0x3FFF
-        i += 14
-        ri += 8
+        i += 14*skip
+        ri += 8*skip
         times -= 1
 
 def maybe_bayer(buf,index):
@@ -116,7 +116,14 @@ def find_width(buf,pixels):
         width += 8
     resrg.sort()
     resgb.sort()
-    print resrg[:4],resgb[:4]
+    #print resrg[:4],resgb[:4]
+    if resrg[0][1]==resgb[0][1]:
+        return resrg[0][1]
+    elif resrg[0][0]<resgb[0][0]:
+        return resrg[0][1]
+    else:
+        return resgb[0][1]
+        
     #print b
 
 class reader(threading.Thread):
@@ -175,6 +182,11 @@ def rescue_rawm(f,startoffset,rawmoffset):
         traceback.print_exc()
     return -1,0,0,0,"" # Still "unknown"
 
+def rawmheader(width,height,framesize,frames):
+    footer = ('RAWM', width, height, framesize, frames, 1, 23976, 0, -8295664, 1, 71182500, 1268, 2040, 3570, 4526760, 14, 1791, 15000, 0, 0, 1880, 1250, 18, 160, 1268, 2040, 0, 0, 33620224, 1, 4716, 10000, 603, 10000, -830, 10000, -7798, 10000, 15474, 10000, 2480, 10000, -1496, 10000, 1937, 10000, 6651, 10000, 1110)
+    rawm = struct.pack("4shh46i",*footer)
+    return rawm
+
 def copy(fn,start,clen,ofn,prepend,postpend):
     cr = reader(fn,start,clen)
     rf = file(ofn,'wb')
@@ -188,7 +200,112 @@ def copy(fn,start,clen,ofn,prepend,postpend):
     if len(postpend)>0:
         rf.write(postpend)
     rf.close()
- 
+
+def rescue_norawm(f,start,end,fn,tfn):
+    # First, skip any zero bytes at the start
+    # e.g. from empty disk sectors
+    f.seek(start)
+    block = f.read(1024*16)
+    while 1:
+        lastzero = block.rfind("\0")
+        count = block.count("\0",0,lastzero)
+        if lastzero == len(block)-1:
+            start += len(block)
+            block = f.read(1024*16)
+        else:
+            if lastzero==count:
+                start += count+1
+                break
+            else:
+                count2 = block.count("\0",0,count)
+                if count2==lastzero:
+                    start += lastzero+1
+                    break
+                else:
+                    count = 0
+                    for c in block:
+                        if c != "\0":
+                            break
+                        count += 1
+                    start += count
+                    break
+    print "start",start 
+    f.seek(start)
+
+    # Is there bayer data immediately after that?
+    block = f.read(17*14)
+    a = array.array('B',block)
+    res = maybe_bayer(a,0)
+    if res == 0: # Yes, and aligned
+        print "Possible RAW Bayer data found"
+        f.seek(start)
+        biggerblock = f.read((14*10000)/8)
+        a = array.array('B',biggerblock)
+        width = find_width(a,10000)
+        print "Estimated frame width:",width
+
+        # Try to read whole potential frame
+        toread = 14*width*1200/8
+        f.seek(start)
+        wholeframeplus = f.read(toread)
+        a = array.array('B',wholeframeplus)
+        pixels = array.array('H',(0 for i in xrange(width*1200)))
+        bayer(a,0,pixels,0,1200,width/8)
+        frametot = 0.0
+        avcount = 0.0
+        for h in range(400,1198,2):
+            av = 0.0
+            for i in range(8):
+                av += abs(pixels[h*width+i] - pixels[(h+2)*width+i])
+            if avcount>0.0:
+                if av > 8.0*(frametot/avcount):
+                    break
+            frametot += float(av)
+            avcount += 1.0
+        height = h+2
+        print "Estimated frame height:",height
+        framesize = 14*width*height/8
+        diskframesize = (framesize+0x1000)&0xFFFFF000
+        # how many frames in this section?
+        sectionlen = end - start
+        frames = sectionlen/diskframesize
+        partframe = sectionlen%diskframesize
+        appendzero = diskframesize - partframe
+        f.seek(start+diskframesize)
+        block = f.read(17*14)
+        a = array.array('B',block)
+        res = maybe_bayer(a,0)
+        print res
+        postpend = ""
+        if appendzero>0:
+            postpend = "\0"*appendzero
+            frames += 1
+        print "Copying possibly rescued RAW file with %d frames to"%frames,tfn
+        copy(fn,start,end,tfn,"",postpend+rawmheader(width,height,diskframesize,frames))
+
+    return    
+    
+    # Try to find any likely bayer data
+    results = []
+    lastres = None
+    for check in range(start,end,14*1024*32):
+        f.seek(check)
+        block = f.read(17*14)
+        a = array.array('B',block)
+        res = maybe_bayer(a,0)
+        print check,res,
+        results.append((check,res))
+    """
+        if res!=None and res==lastres:
+            c,r = results[-2]
+            f.seek(c+r)
+            biggerblock = f.read((14*10000)/8)
+            a = array.array('B',biggerblock)
+            find_width(a,10000)
+        lastres = res
+    """
+    print results
+
 def recover_file(fn,target):
 
     rescnum = 0
@@ -261,35 +378,17 @@ def recover_file(fn,target):
                 unknown.append((start,end)) 
             end += len(rawmheader)
             start = end
-            
+        if start != flen:
+            unknown.append((start,flen))    
     else:
         print "No Magic Lantern RAW headers found."
         unknown.append((0,flen))
 
     for us,ue in unknown:
         print "Unknown section from",us,"to",ue
-    return 
- 
-    # Try to find any likely bayer data
-    results = []
-    lastres = None
-    for check in range(0,flen,14*1024*32):
-        f.seek(check)
-        block = f.read(17*14)
-        a = array.array('B',block)
-        res = maybe_bayer(a,0)
-        print check,res,
-        results.append((check,res))
-    """
-        if res!=None and res==lastres:
-            c,r = results[-2]
-            f.seek(c+r)
-            biggerblock = f.read((14*10000)/8)
-            a = array.array('B',biggerblock)
-            find_width(a,10000)
-        lastres = res
-    """
-    #print results
+        rn = targroot+"_%03d.RAW"%rescnum
+        rescue_norawm(f,us,ue,fn,rn)
+        rescnum += 1
 
 def recover_dir(dirname,target):
     files = os.listdir(dirname)
