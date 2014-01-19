@@ -283,18 +283,40 @@ def rescue_norawm(f,start,end,fn,tfn):
         print "Copying possibly rescued RAW file with %d frames to"%frames,tfn
         copy(fn,start,end,tfn,"",postpend+rawmheader(width,height,diskframesize,frames))
 
-    return    
+        return    
     
     # Try to find any likely bayer data
     results = []
     lastres = None
+    lastcheck = 0
     for check in range(start,end,14*1024*32):
         f.seek(check)
         block = f.read(17*14)
         a = array.array('B',block)
         res = maybe_bayer(a,0)
-        print check,res,
-        results.append((check,res))
+        if lastres != None and res == lastres:
+            print "Found possible bayer frame"
+            break
+                
+        lastres = res
+        lastcheck = check
+    # Step back on disk boundaries until finding 0
+    check = check&0xFFFFF000
+    lastres = None
+    while 1:
+        f.seek(check)
+        block = f.read(17*14)
+        a = array.array('B',block)
+        res = maybe_bayer(a,0)
+        #print res
+        if lastres == 0 and res == None:
+            print "Found possible start of bayer frame"
+            break
+        check -= 0x1000
+        lastres = res
+    check += 0x1000
+    print "at %x %d"%(check,check)
+    start = check
     """
         if res!=None and res==lastres:
             c,r = results[-2]
@@ -304,7 +326,53 @@ def rescue_norawm(f,start,end,fn,tfn):
             find_width(a,10000)
         lastres = res
     """
-    print results
+    f.seek(start)
+    biggerblock = f.read((14*10000)/8)
+    a = array.array('B',biggerblock)
+    width = find_width(a,10000)
+    print "Estimated frame width:",width
+
+    # Try to read whole potential frame
+    toread = 14*width*1200/8
+    f.seek(start)
+    wholeframeplus = f.read(toread)
+    a = array.array('B',wholeframeplus)
+    pixels = array.array('H',(0 for i in xrange(width*1200)))
+    bayer(a,0,pixels,0,1200,width/8)
+    frametot = 0.0
+    avcount = 0.0
+    for h in range(400,1198,2):
+        av = 0.0
+        for i in range(8):
+            av += abs(pixels[h*width+i] - pixels[(h+2)*width+i])
+        #print h,av,pixels[h*width:h*width+8]
+        if avcount>0.0:
+            if av > 8.0*(frametot/avcount):
+                break
+        frametot += float(av)
+        avcount += 1.0
+    height = h+2
+    print "Estimated frame height:",height
+    framesize = 14*width*height/8
+    diskframesize = (framesize+0x1000)&0xFFFFF000
+    # how many frames in this section?
+    sectionlen = end - start
+    frames = sectionlen/diskframesize
+    partframe = sectionlen%diskframesize
+    appendzero = diskframesize - partframe
+    f.seek(start+diskframesize)
+    block = f.read(17*14)
+    a = array.array('B',block)
+    res = maybe_bayer(a,0)
+    print res
+    postpend = ""
+    if appendzero>0:
+        postpend = "\0"*appendzero
+        frames += 1
+    print "Copying possibly rescued RAW file with %d frames to"%frames,tfn
+    copy(fn,start,end,tfn,"",postpend+rawmheader(width,height,diskframesize,frames))
+
+    return    
 
 def recover_file(fn,target):
 
