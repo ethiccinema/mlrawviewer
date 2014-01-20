@@ -275,6 +275,7 @@ bitunpack_unpack14to16(PyObject* self, PyObject *args)
     short unsigned int* write = (short unsigned int*)baptr;
     //printf("Decoding frame\n");
 
+    Py_BEGIN_ALLOW_THREADS;
     while (i<elements) {
         if (sparebits<14) {
             short unsigned int r = *read++;
@@ -294,6 +295,7 @@ bitunpack_unpack14to16(PyObject* self, PyObject *args)
         acc = (acc&((1<<sparebits)-1))<<16;
         i++;
     }
+    Py_END_ALLOW_THREADS;
     PyObject *stat = Py_BuildValue("II",0,0);
     PyObject *rslt = PyTuple_New(2);
     PyTuple_SetItem(rslt, 0, ba);

@@ -1,22 +1,58 @@
-#!/usr/bin/python
+#!/usr/bin/python2
 
+# python imports
 import os
 import sys
-import multiprocessing
+#import math
+#import struct
+#import time
+#import datetime
+#import subprocess
+#import signal
+import multiprocessing #updated version of threading
 
+# python tkinter imports
 try:
-    import tkinster as tk
+    import Tkinter as tk #python2
 except ImportError:
-    import Tkinter as tk
+    import tkinter as tk #python3
+
 import tkFileDialog
 
+# external imports
+try:
+    import pyaudio
+    noAudio = False
+except ImportError:
+    noAudio = True
+
+try:
+    import OpenGL
+except ImportError:
+    sys.exit(1)
+
+try:
+    import numpy
+except ImportError:
+    sys.exit(1)
+
+# own imports
 import mlrawviewer
+#import GLCompute
 import MlRaw
+#import Font
+#from Matrix import *
+#from ShaderDemosaicNearest import *
+#from ShaderDemosaicBilinear import *
+#from ShaderDemosaicCPU import *
+#from ShaderDisplaySimple import *
+#from ShaderText import *
+
 
 class Application(tk.Frame):
     def __init__(self, master=None):
         tk.Frame.__init__(self, master)
-        self.master.title('MlRawViewer')
+        self.master.title('MlRawGui')# ' + mlrawviewer.version)
 
         self.grid()
         self.createWidgets()
@@ -71,15 +107,24 @@ class Application(tk.Frame):
         self.spinBlue.grid(row=4, column=3)
 
 
+        self.BUTTON = tk.Button(self, text='Ver', command=self.VERSION)
+        self.BUTTON.grid(row=5, column=0, columnspan=1)
         self.BUTTON = tk.Button(self, text='TEST', command=self.TEST)
-        self.BUTTON.grid(row=5, column=1, columnspan=2)
+        self.BUTTON.grid(row=5, column=1, columnspan=1)
+        self.BUTTON = tk.Button(self, text='TEST', command=self.TEST)
+        self.BUTTON.grid(row=5, column=2, columnspan=1)
+        self.BUTTON = tk.Button(self, text='TEST', command=self.TEST)
+        self.BUTTON.grid(row=5, column=3, columnspan=1)
     def TEST(self):
         self.p.toggleAnamorphic()
+    def VERSION(self):
+        print mlrawviewer.version
 
 
     def openFile(self):
-        mlFileTypes = ('*.MLV', '*.mlv', '*.RAW', '*.raw')
-        afile = tkFileDialog.askopenfilename(title='Open ML video...', initialdir='~/Videos', filetypes=[('ML', mlFileTypes)])
+        mlFT1 = ('*.RAW', '*.raw')
+        mlFT2 = ('*.MLV', '*.mlv')
+        afile = tkFileDialog.askopenfilename(title='Open ML video...', initialdir='~/Videos', filetypes=[('ML', mlFT1+mlFT2), ('RAW', mlFT1), ('MLV', mlFT2), ('All', '*.*')])
         if afile != None:
             self.rawFile(afile)
 
@@ -100,12 +145,13 @@ class Application(tk.Frame):
             self.labelFilePath['text'] = 'Could not open file %s. Error:%s\n'%(afile,str(err))
 
     def rawThread(self, r):
+        pass
         #self.p = mlrawviewer.launchFromGui(r)
         #self.p.run()
 
-        self.p = multiprocessing.Process(target=mlrawviewer.launchFromGui, args=(r,))
-        self.p.daemon = True
-        self.p.start()
+        #self.p = multiprocessing.Process(target=mlrawviewer.launchFromGui, args=(r,))
+        #self.p.daemon = True
+        #self.p.start()
         #print self.p.is_alive()
         #self.p.run()
 

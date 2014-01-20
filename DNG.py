@@ -322,6 +322,7 @@ class DNG(object):
 
     class IFD(object):
         def __init__(self,dng):
+            self.log = dng.log
             self.dng = dng
             self.entries = []
             self.tags = {}
@@ -532,7 +533,7 @@ class DNG(object):
         elif itag==Tag.RowsPerStrip[0]:
             ifd.RowsPerStrip = ival
         elif itag==Tag.PlanarConfiguration[0]:
-            ifd.PlanarConfiguration = ival
+            ifd.PlanarConfiguration = values[0]
         elif itag==Tag.BitsPerSample[0]:
             ifd.BitsPerSample = values
 
