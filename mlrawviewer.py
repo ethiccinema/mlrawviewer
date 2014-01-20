@@ -280,20 +280,39 @@ class Audio(object):
     def audioLoop(self):
         print "Audio loop running"
         pa = pyaudio.PyAudio()
+        dataBuffer = None
+        bufferOffset = 0
+        frameSize = 0
+        stream = None
         while 1:
-            command = self.commands.get()
-            commandType,commandData = command
-            if commandType==Audio.INIT:
-                print "Init",commandData
-                sampleRate,sampleWidth,chn = commandData
-                fmt = pa.get_format_from_width(sampleWidth)
-                stream = pa.open(format=fmt,channels=chn,rate=sampleRate,output=True)
-            if commandType==Audio.PLAY:
-                print "Play",len(commandData)
-                stream.write(commandData)
-            elif commandType==Audio.STOP:
-                print "Stop"
-                stream.stop_stream()
+            if self.commands.empty() and dataBuffer != None:
+                bufSize = 1024 * frameSize
+                left = len(dataBuffer)-bufferOffset
+                if left<bufSize:
+                    stream.write(dataBuffer[bufferOffset:])
+                    dataBuffer = None
+                else:
+                    newoffset = bufferOffset+bufSize
+                    stream.write(dataBuffer[bufferOffset:newoffset])
+                    bufferOffset = newoffset
+            else:
+                command = self.commands.get()
+                commandType,commandData = command
+                if commandType==Audio.INIT:
+                    # print "Init",commandData
+                    sampleRate,sampleWidth,chn = commandData
+                    fmt = pa.get_format_from_width(sampleWidth)
+                    stream = pa.open(format=fmt,channels=chn,rate=sampleRate,output=True)
+                    frameSize = sampleWidth * chn
+                if commandType==Audio.PLAY:
+                    # print "Play",len(commandData)
+                    dataBuffer = commandData
+                    bufferOffset = 0
+                elif commandType==Audio.STOP:
+                    # print "Stop"
+                    if stream != None:
+                        stream.stop_stream()
+                        dataBuffer = None
 
 class Viewer(GLCompute.GLCompute):
     def __init__(self,raw,outfilename,wavfilename=None,**kwds):
@@ -394,10 +413,12 @@ class Viewer(GLCompute.GLCompute):
             self.paused = not self.paused
             if self.paused:
                 #self.jump(-1) # Redisplay the current frame in high quality
+                self.audio.stop()
                 self.refresh()
             else:
                 offset = self.playFrameNumber / self.fps
                 self.realStartTime = time.time() - offset
+                self.startAudio(offset)
         elif k==self.KEY_PERIOD: # Nudge forward one frame - best when paused
             self.jump(1)
         elif k==self.KEY_COMMA: # Nudge back on frame - best when paused
@@ -479,6 +500,9 @@ class Viewer(GLCompute.GLCompute):
         if self.setting_dropframes:
             offset = self.playFrameNumber / self.fps
             self.realStartTime = time.time() - offset
+            self.startAudio(offset)
+        else:
+            self.audio.stop()
     def onIdle(self):
         PLOG(PLOG_FRAME,"onIdle start")
         self.handleIndexing()
@@ -499,6 +523,8 @@ class Viewer(GLCompute.GLCompute):
                 neededFrame = 0 #self.raw.frames() - 1 # End of file
                 self.playFrameNumber = 0
                 self.realStartTime = now
+                self.audio.stop()
+                self.startAudio()
             self.neededFrame = neededFrame
             #print "neededFrame",neededFrame,elapsed
             if newNeeded:
@@ -613,11 +639,18 @@ class Viewer(GLCompute.GLCompute):
             return
         if os.path.exists(self.wavname):
             self.wav = wave.open(self.wavname,'r')
-            print "wav",self.wav.getparams()
-            channels,width,framerate,nframe,comptype,compname = self.wav.getparams() 
-            self.audio.init(framerate,width,channels)
-            wavdata = self.wav.readframes(nframe)
-            self.audio.play(wavdata)
+            #print "wav",self.wav.getparams()
+            self.startAudio()
+    def startAudio(self,startTime=0.0):
+        if not self.setting_dropframes: return
+        if not self.wav: return
+        channels,width,framerate,nframe,comptype,compname = self.wav.getparams() 
+        self.audio.init(framerate,width,channels)
+        self.wav.setpos(0)
+        wavdata = self.wav.readframes(nframe)
+        start = int(startTime*framerate)*channels*width
+        self.audio.play(wavdata[start:])
+
     # Settings interface to the scene
     def brightness(self):
         return self.setting_brightness
@@ -750,7 +783,6 @@ def main():
         sys.stderr.write('Could not open file %s. Error:%s\n'%(filename,str(err)))
         return 1
     poswavname = os.path.splitext(filename)[0]+".WAV"
-    print "poswavname:",poswavname
     wavnames = [w for w in os.listdir(os.path.split(filename)[0]) if w.lower()==poswavname]
     if len(wavnames)>0:
         wavfilename = wavnames[0]
@@ -761,9 +793,9 @@ def main():
     PerformanceLog.PLOG_PRINT()
     return ret
 
-#def launchFromGui(rawfile,outfilename=None): ##broken now
-#    rmc = Viewer(rawfile,outfilename)
-#    return rmc.run()
+def launchFromGui(rawfile,outfilename=None): ##broken now
+    rmc = Viewer(rawfile,outfilename)
+    return rmc.run()
 
 if __name__ == '__main__':
     sys.exit(main())
