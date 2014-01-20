@@ -334,6 +334,7 @@ class MLV:
         print "Opening MLV file",filename
         dirname,allfiles = getRawFileSeries(filename)
         mlvfile = file(filename,'rb')
+        self.wav = None
         self.framepos = {}
         self.audioframepos = {}
         header,raw,parsedTo,size,ts = self.parseFile(mlvfile,self.framepos)
@@ -362,7 +363,6 @@ class MLV:
         self.preloader = None
         self.allParsed = False
         self.preindexing = True
-        self.wav = None
         print "Audio frame count",self.audioFrameCount
         self.initPreloader()
     def indexingStatus(self):
@@ -463,7 +463,7 @@ class MLV:
         wavi = struct.unpack("<QHHIIHH",waviData[:(8+4+8+4)])
         self.wav = wave.open(self.filename[:-3]+"WAV",'w')
         self.wav.setparams((wavi[2],2,wavi[3],0,'NONE',''))
-        #print "Wavi:",wavi
+        print "Wavi:",wavi,self.wav
         return wavi
     def parseXref(self,fh,pos,size):
         """
@@ -492,12 +492,14 @@ class MLV:
         fh.seek(pos+8)
         audioData = fh.read(8+4+4)
         audioFrameHeader = struct.unpack("<QII",audioData)
-        #print "Audio frame",audioFrameHeader[1],"at",pos,audioFrameHeader,size-8-12
+        print "Audio frame",audioFrameHeader[1],"at",pos,audioFrameHeader,size-8-12
         #self.audioframepos[audioFrameHeader]
         audiodata = fh.read(size-24)
+        print "audio data",len(audiodata),self.wav
         if audioFrameHeader[0]<1 and audioFrameHeader[1]<1:
             pass # Workaround for bug in mlv_snd
         elif self.wav != None:
+            print "writing frames to wav"
             self.wav.writeframes(audiodata[audioFrameHeader[2]:])
         return audioFrameHeader
     def description(self):

@@ -23,7 +23,7 @@ SOFTWARE.
 """
 
 # standard python imports. Should not be missing
-import sys,struct,os,math,time,datetime,subprocess,signal,threading,Queue
+import sys,struct,os,math,time,datetime,subprocess,signal,threading,Queue,wave
 from threading import Thread
 
 version = "1.0.4 alpha" # Change to
@@ -268,7 +268,7 @@ class Audio(object):
     def init(self,sampleRate,sampleWidth,channels):
         global noAudio
         if not noAudio:
-            self.commands.put((Audio.INIT,(samplerate,sampleWidth,channels)))
+            self.commands.put((Audio.INIT,(sampleRate,sampleWidth,channels)))
     def play(self,data):
         global noAudio
         if not noAudio:
@@ -285,9 +285,9 @@ class Audio(object):
             commandType,commandData = command
             if commandType==Audio.INIT:
                 print "Init",commandData
-                sampleRate,sampleWidth,channels = commandData
-                format = pa.get_format_from_width(sampleWidth)
-                stream = pa.open(format,channels,sampleRate,output=True)
+                sampleRate,sampleWidth,chn = commandData
+                fmt = pa.get_format_from_width(sampleWidth)
+                stream = pa.open(format=fmt,channels=chn,rate=sampleRate,output=True)
             if commandType==Audio.PLAY:
                 print "Play",len(commandData)
                 stream.write(commandData)
@@ -296,7 +296,7 @@ class Audio(object):
                 stream.stop_stream()
 
 class Viewer(GLCompute.GLCompute):
-    def __init__(self,raw,outfilename,**kwds):
+    def __init__(self,raw,outfilename,wavfilename=None,**kwds):
         userWidth = 720
         self.vidAspectHeight = float(raw.height())/(raw.width()) # multiply this number on width to give height in aspect
         self.vidAspectWidth = float(raw.width())/(raw.height()) # multiply this number on height to give height in aspect
@@ -326,6 +326,9 @@ class Viewer(GLCompute.GLCompute):
         self.demosaicTotal = 0.0
         self.demosaicAverage = 0.0
         self.audio = Audio()
+        self.wavname = wavfilename
+        self.wav = None
+        self.indexing = True
         # Shared settings
         self.setting_brightness = 16.0
         self.setting_rgb = (2.0, 1.0, 1.5)
@@ -346,6 +349,7 @@ class Viewer(GLCompute.GLCompute):
         self.display = DisplayScene(self.raw,self.demosaic.rgbImage,self.font,self,size=(0,0))
         self.scenes.append(self.display)
         self.rgbImage = self.demosaic.rgbImage
+        self.initWav()
         self._init = True
     def onDraw(self,width,height):
         # First convert Raw to RGB image at same size
@@ -477,6 +481,7 @@ class Viewer(GLCompute.GLCompute):
             self.realStartTime = time.time() - offset
     def onIdle(self):
         PLOG(PLOG_FRAME,"onIdle start")
+        self.handleIndexing()
         self.checkForLoadedFrames()
         wrongFrame = self.neededFrame != self.drawnFrameNumber
         if not self.needsRefresh and self.paused and not wrongFrame:
@@ -594,6 +599,25 @@ class Viewer(GLCompute.GLCompute):
                 self.paused = True
                 self.refresh()
 
+    def handleIndexing(self):
+        # Do anything we need to do when indexing has completed
+        if self.indexing and self.raw.indexingStatus==1.0:
+            self.indexing = False
+            # Do other events here
+            self.initWav() # WAV file may have been written
+
+    def initWav(self):
+        if self.wav != None: # Already loaded
+            return
+        if not self.wavname:
+            return
+        if os.path.exists(self.wavname):
+            self.wav = wave.open(self.wavname,'r')
+            print "wav",self.wav.getparams()
+            channels,width,framerate,nframe,comptype,compname = self.wav.getparams() 
+            self.audio.init(framerate,width,channels)
+            wavdata = self.wav.readframes(nframe)
+            self.audio.play(wavdata)
     # Settings interface to the scene
     def brightness(self):
         return self.setting_brightness
@@ -725,7 +749,14 @@ def main():
     except Exception, err:
         sys.stderr.write('Could not open file %s. Error:%s\n'%(filename,str(err)))
         return 1
-    rmc = Viewer(r,outfilename)
+    poswavname = os.path.splitext(filename)[0]+".WAV"
+    print "poswavname:",poswavname
+    wavnames = [w for w in os.listdir(os.path.split(filename)[0]) if w.lower()==poswavname]
+    if len(wavnames)>0:
+        wavfilename = wavnames[0]
+    else:
+        wavfilename = poswavname # Expect this to be extracted by indexing of MLV with SND
+    rmc = Viewer(r,outfilename,wavfilename)
     ret = rmc.run()
     PerformanceLog.PLOG_PRINT()
     return ret
