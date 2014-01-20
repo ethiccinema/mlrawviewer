@@ -550,7 +550,7 @@ class Viewer(GLCompute.GLCompute):
                 su.dwFlags |= subprocess.STARTF_USESHOWWINDOW
                 su.wShowWindow = subprocess.SW_HIDE
                 kwargs["startupinfo"] = su
-            args = [exe,"-f","rawvideo","-pix_fmt","rgb48","-s","%dx%d"%(self.raw.width(),self.raw.height()),"-r","%d"%self.fps,"-i","-","-an","-f","mov","-vf","vflip","-vcodec","prores_ks","-profile:v","3","-r","%d"%self.fps,self.outfilename]
+            args = [exe,"-f","rawvideo","-pix_fmt","rgb48","-s","%dx%d"%(self.raw.width(),self.raw.height()),"-r","%.03f"%self.fps,"-i","-","-an","-f","mov","-vf","vflip","-vcodec","prores_ks","-profile:v","3","-r","%.03f"%self.fps,self.outfilename]
             print "Encoder args:",args
             print "Subprocess args:",kwargs
             self.encoderProcess = subprocess.Popen(args,**kwargs)
