@@ -57,6 +57,11 @@ class GLCompute(object):
     KEY_TWO = ord('2')
     KEY_THREE = ord('3')
     KEY_FOUR = ord('4')
+    KEY_FIVE = ord('5')
+    KEY_SIX = ord('6')
+    KEY_SEVEN = ord('7')
+    KEY_EIGHT = ord('8')
+    KEY_NINE = ord('9')
 
     KEY_A = ord('A')
     KEY_D = ord('D')

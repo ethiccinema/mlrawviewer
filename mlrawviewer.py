@@ -399,16 +399,29 @@ class Viewer(GLCompute.GLCompute):
         elif k==self.KEY_COMMA: # Nudge back on frame - best when paused
             self.jump(-1)
 
-        elif k==self.KEY_ONE:
-            self.changeWhiteBalance(2.0, 1.0, 2.0, "WhiteFluro") # ~WhiteFluro
-        elif k==self.KEY_TWO:
-            self.changeWhiteBalance(2.0, 1.0, 1.5, "Daylight") # ~Daylight
-        elif k==self.KEY_THREE:
-            self.changeWhiteBalance(2.5, 1.0, 1.5, "Cloudy.") # ~Cloudy
-        elif k==self.KEY_FOUR:
-            self.changeWhiteBalance(1.5, 1.0, 2.0, "Tungsten") # ~Tungsten
+
         elif k==self.KEY_ZERO:
             self.changeWhiteBalance(1.0, 1.0, 1.0, "Passthrough") # =passthrough
+        elif k==self.KEY_ONE:
+            self.changeWhiteBalance(2.0, 1.0, 2.0, "WhiteFluro")  # ~WhiteFluro
+        elif k==self.KEY_TWO:
+            self.changeWhiteBalance(2.0, 1.0, 1.5, "Daylight")    # ~Daylight
+        elif k==self.KEY_THREE:
+            self.changeWhiteBalance(2.5, 1.0, 1.5, "Cloudy ")     # ~Cloudy
+
+        elif k==self.KEY_FOUR:
+            self.changeWhiteBalance(self.setting_rgb[0]-0.1, self.setting_rgb[1], self.setting_rgb[2], "red-")
+        elif k==self.KEY_SEVEN:
+            self.changeWhiteBalance(self.setting_rgb[0]+0.1, self.setting_rgb[1], self.setting_rgb[2], "red+")
+        elif k==self.KEY_FIVE:
+            self.changeWhiteBalance(self.setting_rgb[0], self.setting_rgb[1]-0.1, self.setting_rgb[2], "green-")
+        elif k==self.KEY_EIGHT:
+            self.changeWhiteBalance(self.setting_rgb[0], self.setting_rgb[1]+0.1, self.setting_rgb[2], "green+")
+        elif k==self.KEY_SIX:
+            self.changeWhiteBalance(self.setting_rgb[0], self.setting_rgb[1], self.setting_rgb[2]-0.1, "blue-")
+        elif k==self.KEY_NINE:
+            self.changeWhiteBalance(self.setting_rgb[0], self.setting_rgb[1], self.setting_rgb[2]+0.1, "blue+")
+
 
         elif k==self.KEY_Q:
             self.toggleQuality()
@@ -437,7 +450,17 @@ class Viewer(GLCompute.GLCompute):
         self.setting_brightness *= scale
         #print "Brightness",self.setting_brightness
         self.refresh()
+    def checkMultiplier(self, N, MAX=8.0, MIN=0.0):
+        if N > MAX:
+            return MAX
+        elif N < MIN:
+            return MIN
+        else:
+            return N
     def changeWhiteBalance(self, R, G, B, Name="WB"):
+        R = self.checkMultiplier(R)
+        G = self.checkMultiplier(G)
+        B = self.checkMultiplier(B)
         self.setting_rgb = (R, G, B)
         print "%s:\t %.1f %.1f %.1f"%(Name, R, G, B)
         self.refresh()
@@ -707,9 +730,9 @@ def main():
     PerformanceLog.PLOG_PRINT()
     return ret
 
-def launchFromGui(rawfile,outfilename=None):
-    rmc = Viewer(rawfile,outfilename)
-    return rmc.run()
+#def launchFromGui(rawfile,outfilename=None): ##broken now
+#    rmc = Viewer(rawfile,outfilename)
+#    return rmc.run()
 
 if __name__ == '__main__':
     sys.exit(main())
