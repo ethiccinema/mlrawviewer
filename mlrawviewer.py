@@ -285,7 +285,7 @@ class Audio(object):
         frameSize = 0
         stream = None
         while 1:
-            if self.commands.empty() and dataBuffer != None:
+            if self.commands.empty() and dataBuffer != None and stream != None:
                 bufSize = 1024 * frameSize
                 left = len(dataBuffer)-bufferOffset
                 if left<bufSize:
@@ -300,10 +300,15 @@ class Audio(object):
                 commandType,commandData = command
                 if commandType==Audio.INIT:
                     # print "Init",commandData
-                    sampleRate,sampleWidth,chn = commandData
-                    fmt = pa.get_format_from_width(sampleWidth)
-                    stream = pa.open(format=fmt,channels=chn,rate=sampleRate,output=True)
-                    frameSize = sampleWidth * chn
+                    try:
+                        sampleRate,sampleWidth,chn = commandData
+                        fmt = pa.get_format_from_width(sampleWidth)
+                        stream = pa.open(format=fmt,channels=chn,rate=sampleRate,output=True)
+                        frameSize = sampleWidth * chn
+                    except:
+                        import traceback
+                        traceback.print_exc()
+                        stream = None
                 if commandType==Audio.PLAY:
                     # print "Play",len(commandData)
                     dataBuffer = commandData
@@ -406,6 +411,10 @@ class Viewer(GLCompute.GLCompute):
         self.realStartTime -= framesToJumpBy / self.fps
         self.neededFrame += int(framesToJumpBy)
         self.nextFrameNumber += int(framesToJumpBy) # For non-frame dropping case
+        self.audio.stop()
+        now = time.time()
+        offset = now - self.realStartTime 
+        self.startAudio(offset)
         PLOG(PLOG_FRAME,"jump by %d frames, now need %d"%(framesToJumpBy,self.neededFrame))
         self.refresh()
     def key(self,k):
@@ -627,10 +636,12 @@ class Viewer(GLCompute.GLCompute):
 
     def handleIndexing(self):
         # Do anything we need to do when indexing has completed
-        if self.indexing and self.raw.indexingStatus==1.0:
+        if self.indexing and self.raw.indexingStatus()==1.0:
+            print "Indexing completed"
             self.indexing = False
             # Do other events here
             self.initWav() # WAV file may have been written
+            self.startAudio()
 
     def initWav(self):
         if self.wav != None: # Already loaded
@@ -640,7 +651,7 @@ class Viewer(GLCompute.GLCompute):
         if os.path.exists(self.wavname):
             self.wav = wave.open(self.wavname,'r')
             #print "wav",self.wav.getparams()
-            self.startAudio()
+            #self.startAudio()
     def startAudio(self,startTime=0.0):
         if not self.setting_dropframes: return
         if not self.wav: return
@@ -764,15 +775,30 @@ def main():
     if not os.path.exists(filename):
         print "Error. Specified filename",filename,"does not exist"
         return -1
-    if len(sys.argv)>2:
-        outfilename = sys.argv[2]
+
+    # Try to pick a sensible default filename for any possible encoding
+    if os.path.isdir(sys.argv[1]): # Dir - probably CDNG
+        outfilename = os.path.abspath(sys.argv[1])+".MOV"
+        print "outfilename for CDNG:",outfilename
+    else: # File
+        outfilename = sys.argv[1]+".MOV"
+
+    poswavname = os.path.splitext(filename)[0]+".WAV"
+    wavnames = [w for w in os.listdir(os.path.split(filename)[0]) if w.lower()==poswavname]
+    if len(wavnames)>0:
+        wavfilename = wavnames[0]
     else:
-        # Try to pick a sensible default filename for any possible encoding
-        if os.path.isdir(sys.argv[1]): # Dir - probably CDNG
-            outfilename = os.path.abspath(sys.argv[1])+".MOV"
-            print "outfilename for CDNG:",outfilename
-        else: # File
-            outfilename = sys.argv[1]+".MOV"
+        wavfilename = poswavname # Expect this to be extracted by indexing of MLV with SND
+
+    if len(sys.argv)==3:
+        # Second arg could be WAV or outfilename
+        if sys.argv[2].lower().endswith(".wav"):
+            wavfilename = sys.argv[2]
+        else:
+            outfilename = sys.argv[2]
+    elif len(sys.argv)>3:
+        wavfilename = sys.argv[2]
+        outfilename = sys.argv[3]
 
     try:
         r = MlRaw.loadRAWorMLV(filename)
@@ -782,12 +808,8 @@ def main():
     except Exception, err:
         sys.stderr.write('Could not open file %s. Error:%s\n'%(filename,str(err)))
         return 1
-    poswavname = os.path.splitext(filename)[0]+".WAV"
-    wavnames = [w for w in os.listdir(os.path.split(filename)[0]) if w.lower()==poswavname]
-    if len(wavnames)>0:
-        wavfilename = wavnames[0]
-    else:
-        wavfilename = poswavname # Expect this to be extracted by indexing of MLV with SND
+
+
     rmc = Viewer(r,outfilename,wavfilename)
     ret = rmc.run()
     PerformanceLog.PLOG_PRINT()

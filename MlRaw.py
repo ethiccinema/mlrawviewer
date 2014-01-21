@@ -391,13 +391,13 @@ class MLV:
         while pos<size-8:
             fh.seek(pos)
             blockType,blockSize = struct.unpack("II",fh.read(8))
-            """
+            """ 
             try:
                 blockName = MLV.BlockTypeLookup[blockType]
                 print blockName,blockSize,pos,size,size-pos
             except:
-                pass
                 print "Unknown block type %08x"%blockType
+                pass
             """
             if blockType==MLV.BlockType.FileHeader:
                 header = self.parseFileHeader(fh,pos,blockSize)
@@ -548,8 +548,8 @@ class MLV:
                 blockName = MLV.BlockTypeLookup[blockType]
                 print blockName,blockSize,pos,size,size-pos
             except:
-                pass
                 print "Unknown block type %08x"%blockType
+                pass
             """
 
             if blockType==MLV.BlockType.VideoFrame:
@@ -559,7 +559,6 @@ class MLV:
                 preindexStep -= 1
             elif blockType==MLV.BlockType.AudioFrame:
                 audioFrameHeader = self.parseAudioFrame(fh,pos,blockSize)
-
             pos += blockSize
             self.totalParsed += blockSize
         self.files[index] = (fh, firstframe, frames, header, pos, size)
