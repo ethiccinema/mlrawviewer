@@ -524,44 +524,47 @@ class MLV:
         self.allParsed = True
         return None
     def preindex(self):
-        if self.allParsed:
-            self.preindexing = False
-            if self.wav:
-                self.wav.close()
-            return
-        preindexStep = 10
-        indexinfo = self.nextUnindexedFile()
-        if indexinfo == None:
-            if len(self.framepos) < self.framecount:
-                print "Set indexed. Frames missing:",self.framecount - len(self.framepos)
-            else:
-                pass
-                #print "Set indexed. No frames missing."
-            return
-        index,info = indexinfo
-        fh, firstframe, frames, header, pos, size = info
-        while (pos < size) and ((preindexStep > 0) or self.preloaderArgs.empty()):
-            fh.seek(pos)
-            blockType,blockSize = struct.unpack("II",fh.read(8))
-            """
-            try:
-                blockName = MLV.BlockTypeLookup[blockType]
-                print blockName,blockSize,pos,size,size-pos
-            except:
-                print "Unknown block type %08x"%blockType
-                pass
-            """
+        while 1:
+            if self.allParsed:
+                self.preindexing = False
+                if self.wav:
+                    self.wav.close()
+                return
+            preindexStep = 10
+            indexinfo = self.nextUnindexedFile()
+            if indexinfo == None:
+                if len(self.framepos) < self.framecount:
+                    print "Set indexed. Frames missing:",self.framecount - len(self.framepos)
+                else:
+                    pass
+                    #print "Set indexed. No frames missing."
+                return
+            index,info = indexinfo
+            fh, firstframe, frames, header, pos, size = info
+            while (pos < size) and ((preindexStep > 0) or self.preloaderArgs.empty()):
+                fh.seek(pos)
+                blockType,blockSize = struct.unpack("II",fh.read(8))
+                """
+                try:
+                    blockName = MLV.BlockTypeLookup[blockType]
+                    print blockName,blockSize,pos,size,size-pos
+                except:
+                    print "Unknown block type %08x"%blockType
+                    pass
+                """
 
-            if blockType==MLV.BlockType.VideoFrame:
-                videoFrameHeader = self.parseVideoFrame(fh,pos,blockSize)
-                self.framepos[videoFrameHeader[1]] = (fh,pos)
-                #print videoFrameHeader[1],pos
-                preindexStep -= 1
-            elif blockType==MLV.BlockType.AudioFrame:
-                audioFrameHeader = self.parseAudioFrame(fh,pos,blockSize)
-            pos += blockSize
-            self.totalParsed += blockSize
-        self.files[index] = (fh, firstframe, frames, header, pos, size)
+                if blockType==MLV.BlockType.VideoFrame:
+                    videoFrameHeader = self.parseVideoFrame(fh,pos,blockSize)
+                    self.framepos[videoFrameHeader[1]] = (fh,pos)
+                    #print videoFrameHeader[1],pos
+                    preindexStep -= 1
+                elif blockType==MLV.BlockType.AudioFrame:
+                    audioFrameHeader = self.parseAudioFrame(fh,pos,blockSize)
+                pos += blockSize
+                self.totalParsed += blockSize
+            self.files[index] = (fh, firstframe, frames, header, pos, size)
+            if not self.preloaderArgs.empty():
+                break
 
     def preloaderMain(self):
         #while self.preindexing:
