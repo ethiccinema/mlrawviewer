@@ -300,15 +300,18 @@ class Audio(object):
                 commandType,commandData = command
                 if commandType==Audio.INIT:
                     # print "Init",commandData
-                    try:
-                        sampleRate,sampleWidth,chn = commandData
-                        fmt = pa.get_format_from_width(sampleWidth)
-                        stream = pa.open(format=fmt,channels=chn,rate=sampleRate,output=True)
-                        frameSize = sampleWidth * chn
-                    except:
-                        import traceback
-                        traceback.print_exc()
-                        stream = None
+                    if stream == None:
+                        try:
+                            sampleRate,sampleWidth,chn = commandData
+                            fmt = pa.get_format_from_width(sampleWidth)
+                            stream = pa.open(format=fmt,channels=chn,rate=sampleRate,output=True,start=False)
+                            frameSize = sampleWidth * chn
+                        except:
+                            import traceback
+                            traceback.print_exc()
+                            stream = None
+                    if stream != None:
+                        stream.start_stream()
                 if commandType==Audio.PLAY:
                     # print "Play",len(commandData)
                     dataBuffer = commandData
