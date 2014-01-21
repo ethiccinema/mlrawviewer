@@ -66,10 +66,14 @@ class GLCompute(object):
     KEY_NINE = glfw.GLFW_KEY_9
 
     KEY_A = glfw.GLFW_KEY_A
+    KEY_B = glfw.GLFW_KEY_B
     KEY_D = glfw.GLFW_KEY_D
     KEY_E = glfw.GLFW_KEY_E
+    KEY_N = glfw.GLFW_KEY_N
+    KEY_M = glfw.GLFW_KEY_M
     KEY_Q = glfw.GLFW_KEY_Q
     KEY_T = glfw.GLFW_KEY_T
+    KEY_V = glfw.GLFW_KEY_V
 
     KEY_LEFT = glfw.GLFW_KEY_LEFT
     KEY_RIGHT = glfw.GLFW_KEY_RIGHT

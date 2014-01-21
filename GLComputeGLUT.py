@@ -64,10 +64,14 @@ class GLCompute(object):
     KEY_NINE = ord('9')
 
     KEY_A = ord('A')
+    KEY_B = ord('B')
     KEY_D = ord('D')
     KEY_E = ord('E')
+    KEY_N = ord('N')
+    KEY_M = ord('M')
     KEY_Q = ord('Q')
     KEY_T = ord('T')
+    KEY_V = ord('V')
 
     KEY_LEFT = 100
     KEY_RIGHT = 102

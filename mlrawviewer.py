@@ -356,6 +356,7 @@ class Viewer(GLCompute.GLCompute):
         self.wavname = wavfilename
         self.wav = None
         self.indexing = True
+        self.audioOffset = 0.0
         # Shared settings
         self.setting_brightness = 16.0
         self.setting_rgb = (2.0, 1.0, 1.5)
@@ -415,9 +416,10 @@ class Viewer(GLCompute.GLCompute):
         self.neededFrame += int(framesToJumpBy)
         self.nextFrameNumber += int(framesToJumpBy) # For non-frame dropping case
         self.audio.stop()
-        now = time.time()
-        offset = now - self.realStartTime 
-        self.startAudio(offset)
+        if not self.paused:
+            now = time.time()
+            offset = now - self.realStartTime 
+            self.startAudio(offset)
         PLOG(PLOG_FRAME,"jump by %d frames, now need %d"%(framesToJumpBy,self.neededFrame))
         self.refresh()
     def key(self,k):
@@ -470,6 +472,16 @@ class Viewer(GLCompute.GLCompute):
             self.toggleDropFrames()
         elif k==self.KEY_T:
             self.toggleToneMapping()
+
+        elif k==self.KEY_V:
+            self.slideAudio(-0.5)
+        elif k==self.KEY_B:
+            self.slideAudio(-0.05)
+        elif k==self.KEY_N:
+            self.slideAudio(0.05)
+        elif k==self.KEY_M:
+            self.slideAudio(0.5)
+    
 
         elif k==self.KEY_LEFT: # Left cursor
             self.jump(-self.fps) # Go back 1 second (will wrap)
@@ -662,8 +674,18 @@ class Viewer(GLCompute.GLCompute):
         self.audio.init(framerate,width,channels)
         self.wav.setpos(0)
         wavdata = self.wav.readframes(nframe)
+        startTime += self.audioOffset
         start = int(startTime*framerate)*channels*width
         self.audio.play(wavdata[start:])
+    def slideAudio(self,slideBy):
+        self.audioOffset += slideBy
+        if self.audioOffset <= 0.0:
+            self.audioOffset = 0.0
+        print "Audio offset = %.02f seconds"%self.audioOffset
+        if not self.paused:
+            now = time.time()
+            offset = now - self.realStartTime 
+            self.startAudio(offset)
 
     # Settings interface to the scene
     def brightness(self):
