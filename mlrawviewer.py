@@ -1,4 +1,4 @@
-#!/usr/bin/python2
+#!/usr/bin/python2.7
 """
 mlrawviewer.py
 (c) Andrew Baldwin 2013-2014
@@ -31,9 +31,12 @@ version = "1.0.4 alpha" # Change to
 programpath = os.path.abspath(os.path.split(sys.argv[0])[0])
 if getattr(sys,'frozen',False):
     programpath = sys._MEIPASS
-    # Assume we have no console, so redirect output to a log file...somewhere
-    sys.stdout = file("mlrawviewer.log","a")
-    sys.stderr = sys.stdout
+    # Assume we have no console, so try to redirect output to a log file...somewhere
+    try:
+        sys.stdout = file("mlrawviewer.log","a")
+        sys.stderr = sys.stdout
+    except:
+        pass
 
 print "MlRawViewer v"+version
 print "(c) Andrew Baldwin & contributors 2013-2014"
