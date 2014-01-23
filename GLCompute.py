@@ -26,7 +26,7 @@ computation and display using OpenGL FBOs
 """
 
 # standard python imports. Should not be missing
-import sys,time,os
+import sys,time,os,os.path
 
 # OpenGL. Could be missing
 try:
@@ -103,7 +103,10 @@ class Texture:
     def setupFbo(self):
         self.fbo = glGenFramebuffers(1)
         glBindFramebuffer(GL_FRAMEBUFFER, self.fbo)
-        glFramebufferTexture2DEXT(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,self.id, 0)
+        try:
+            glFramebufferTexture2DEXT(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,self.id, 0)
+        except:
+	    pass
 
     def addmipmap(self):
         self.mipmap = True
@@ -189,8 +192,16 @@ class Scene(object):
     def renderComplete(self):
         pass
 
+def glfwp(name):
+    return os.path.join(os.path.split(__file__)[0],name)
+
 try:
-    os.environ['GLFW_LIBRARY'] = './libglfw.so.3'
+    candidates = ["libglfw.so.3","glfw3.dll","glfw3.dylib"]
+    for c in candidates:
+	print c,glfwp(c),os.path.exists(glfwp(c))
+        if os.path.exists(glfwp(c)):
+	     os.environ['GLFW_LIBRARY'] = glfwp(c)
+	     break
     from GLComputeGLFW import GLCompute
     print "Using GLFW"
     # Prefer the GFLW version

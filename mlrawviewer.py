@@ -610,6 +610,8 @@ class Viewer(GLCompute.GLCompute):
     def toggleEncoding(self):
         if not self.setting_encoding:
             # Start the encoding process
+            if self.setting_dropframes:
+                self.toggleDropFrames()
             self.setting_encoding = True
             self.lastEncodedFrame = None
             self.paused = False # In case we were paused
