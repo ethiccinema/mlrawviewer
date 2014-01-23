@@ -511,14 +511,17 @@ def glfwGetFramebufferSize(window):
 
 def glfwGetMonitors():
     count = c_int(0)
-    _glfw.glfwGetMonitors.restype = POINTER(POINTER(GLFWmonitort))
+    _glfw.glfwGetMonitors.restype = POINTER(POINTER(GLFWmonitor))
     c_monitors = _glfw.glfwGetMonitors( byref(count) )
+    print "getmonitors ",count.value
     return [c_monitors[i] for i in range(count.value)]
 
 def glfwGetVideoModes(monitor):
+    print "getvidmodes"
     count = c_int(0)
     _glfw.glfwGetVideoModes.restype = POINTER(GLFWvidmode)
     c_modes = _glfw.glfwGetVideoModes( monitor, byref(count) )
+    print "getvidmodes count",count.value
     modes = []
     for i in range(count.value):
         modes.append( (c_modes[i].width,
@@ -541,13 +544,13 @@ def glfwGetMonitorPhysicalSize(monitor):
 
 def glfwGetVideoMode(monitor):
     _glfw.glfwGetVideoMode.restype = POINTER(GLFWvidmode)
-    c_mode = _glfw.glfwGetVideoModes(monitor)
-    return (c_modes.width,
-            c_modes.height,
-            c_modes.redBits,
-            c_modes.blueBits,
-            c_modes.greenBits,
-            c_modes.refreshRate )
+    c_mode = _glfw.glfwGetVideoMode(monitor)
+    return (c_mode[0].width,
+            c_mode[0].height,
+            c_mode[0].redBits,
+            c_mode[0].blueBits,
+            c_mode[0].greenBits,
+            c_mode[0].refreshRate )
 
 def GetGammaRamp(monitor):
     _glfw.glfwGetGammaRamp.restype = POINTER(GLFWgammaramp)

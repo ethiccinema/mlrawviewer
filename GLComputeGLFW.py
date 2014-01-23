@@ -103,7 +103,10 @@ class GLCompute(object):
         glfw.glfwSetKeyCallback(w, self.__key)
     def toggleFullscreen(self):
         if not self._isFull:
-            self.glfwFullscreenWindow = glfw.glfwCreateWindow(self.width,self.height,self.windowName(),self.glfwMonitor,self.glfwWindow)
+            monitors = glfw.glfwGetMonitors()
+            m = monitors[0]
+            mode = glfw.glfwGetVideoMode(m)
+            self.glfwFullscreenWindow = glfw.glfwCreateWindow(mode[0],mode[1],self.windowName(),m,self.glfwWindow)
             self.installCallbacks(self.glfwFullscreenWindow)
             glfw.glfwHideWindow(self.glfwWindow)
             self._isFull = True
@@ -168,8 +171,11 @@ class GLCompute(object):
         # Don't propagate release events
         if action == glfw.GLFW_PRESS or action == glfw.GLFW_REPEAT:
             self.key(key)
+    def exit(self):
+        pass
     def key(self,k):
         if k == self.KEY_ESCAPE:
             glfw.glfwSetWindowShouldClose(self.glfwWindow,1)
+            self.exit()
         if k == self.KEY_TAB:
             self.toggleFullscreen()

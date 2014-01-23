@@ -149,10 +149,13 @@ class GLCompute(object):
     def onIdle(self):
         pass
     def __close(self):
+        self.exit()
         try:
             glutLeaveMainLoop()
         except:
             sys.exit(0) # Needed on Mac
+    def exit(self):
+        pass
     def __key(self,k,x,y):
         k = ord(k)
         # Always map lower case keys to upper case

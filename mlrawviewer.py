@@ -36,7 +36,7 @@ if getattr(sys,'frozen',False):
     sys.stderr = sys.stdout
 
 print "MlRawViewer v"+version
-print "(c) Andrew Baldwin & contributors 2013"
+print "(c) Andrew Baldwin & contributors 2013-2014"
 
 noAudio = True
 try:
@@ -686,6 +686,9 @@ class Viewer(GLCompute.GLCompute):
             now = time.time()
             offset = now - self.realStartTime 
             self.startAudio(offset)
+    def exit(self):
+        print "Stopping Audio"
+        self.audio.stop()
 
     # Settings interface to the scene
     def brightness(self):
