@@ -100,13 +100,16 @@ class Texture:
         self.setupFbo()
         glBindFramebuffer(GL_FRAMEBUFFER, 0)
 
+    def free(self):
+        glDeleteTextures(self.id)
+
     def setupFbo(self):
         self.fbo = glGenFramebuffers(1)
         glBindFramebuffer(GL_FRAMEBUFFER, self.fbo)
         try:
             glFramebufferTexture2DEXT(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,self.id, 0)
         except:
-	    pass
+            pass
 
     def addmipmap(self):
         self.mipmap = True
@@ -199,8 +202,8 @@ try:
     candidates = ["libglfw.so.3","glfw3.dll","libglfw3.dylib"]
     for c in candidates:
         if os.path.exists(glfwp(c)):
-	     os.environ['GLFW_LIBRARY'] = glfwp(c)
-	     break
+         os.environ['GLFW_LIBRARY'] = glfwp(c)
+         break
     from GLComputeGLFW import GLCompute
     print "Using GLFW"
     # Prefer the GFLW version

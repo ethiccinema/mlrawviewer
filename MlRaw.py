@@ -684,6 +684,7 @@ class CDNG:
     """
     def __init__(self,filename):
         print "Opening CinemaDNG",filename
+        self.filename = filename
         if os.path.isdir(filename):
             self.cdngpath = filename
         else:
@@ -775,6 +776,7 @@ class TIFFSEQ:
     """
     def __init__(self,filename):
         print "Opening TIFF sequence",filename
+        self.filename = filename
         if os.path.isdir(filename):
             self.path = filename
         else:
