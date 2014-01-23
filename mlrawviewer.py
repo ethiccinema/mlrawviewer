@@ -139,7 +139,7 @@ class Demosaicer(GLCompute.Drawable):
                     self.rgbUploadTex.update(frameData.rgbimage)
                     PLOG(PLOG_GPU,"RGB texture upload returned for frame %d"%frameNumber)
                     self.rgbFrameUploaded = frameNumber
-                self.shaderQuality.demosaicPass(self.rgbUploadTex,frameData.black,balance=balance,tonemap=self.settings.tonemap())
+                self.shaderQuality.demosaicPass(self.rgbUploadTex,frameData.black,balance=balance,white=frameData.white,tonemap=self.settings.tonemap())
                 if self.settings.encoding():
                     self.rgb = glReadPixels(0,0,scene.size[0],scene.size[1],GL_RGB,GL_UNSIGNED_SHORT)
                     self.encoder.encode(frameNumber,self.rgb)
@@ -152,7 +152,7 @@ class Demosaicer(GLCompute.Drawable):
                     PLOG(PLOG_CPU,"Bayer 14-16 convert done for frame %d"%frameNumber)
                     self.rawUploadTex.update(frameData.rawimage)
                 PLOG(PLOG_GPU,"Demosaic shader draw for frame %d"%frameNumber)
-                self.shaderNormal.demosaicPass(self.rawUploadTex,frameData.black,balance=balance,tonemap=self.settings.tonemap())
+                self.shaderNormal.demosaicPass(self.rawUploadTex,frameData.black,balance=balance,white=frameData.white,tonemap=self.settings.tonemap())
                 PLOG(PLOG_GPU,"Demosaic shader draw done for frame %d"%frameNumber)
         self.lastFrameData = frameData
         self.lastFrameNumber = frameNumber
@@ -362,7 +362,7 @@ class Viewer(GLCompute.GLCompute):
         self.setting_rgb = (2.0, 1.0, 1.5)
         self.setting_highQuality = False
         self.setting_encoding = False
-        self.setting_tonemap = True
+        self.setting_tonemap = 1 # Global tone map, 2 = Log
         self.setting_dropframes = True # Real time playback by default
 
     def windowName(self):
@@ -517,7 +517,7 @@ class Viewer(GLCompute.GLCompute):
     def toggleAnamorphic(self):
         self.anamorphic = not self.anamorphic
     def toggleToneMapping(self):
-        self.setting_tonemap = not self.setting_tonemap
+        self.setting_tonemap = (self.setting_tonemap + 1)%3
     def toggleDropFrames(self):
         self.setting_dropframes = not self.setting_dropframes
         if self.setting_dropframes:

@@ -112,15 +112,18 @@ void main() {
     // Simple highlight recovery
     vec3 ocol = colour;
     colour *= colourBalance;
-    if (ocol.g > 0.5*(black.y-black.x)){
-        //colour.g = mix(0.5*(colour.r+colour.b),colour.g,clamp(((black.y-black.x)-ocol.g)*2.0,0.0,1.0));
+    if (ocol.g > (black.y-black.x)){
         colour.g = 0.5*(colour.r+colour.b);
     }
     float levelAdjust = 1.0/(black.y - black.x);
-    colour *= levelAdjust;// / 16.0;
-    //vec3 toneMapped = log2(1.0+1024.0*clamp(colour,0.0,1.0))/10.0; // colour/(1.0 + colour);
-    vec3 toneMapped = colour/(1.0 + colour);
-    colour = mix(colour,toneMapped,tonemap);
+    colour *= levelAdjust;
+    vec3 toneMapped = colour;
+    if (tonemap==1.0) {
+        toneMapped = colour/(1.0 + colour);
+    } else {
+        toneMapped = log2(1.0+1024.0*clamp(colour/16.0,0.0,1.0))/10.0;
+    }
+    colour = mix(colour,toneMapped,step(0.5,tonemap));
     gl_FragColor = vec4(colour,1.0);
 }
 

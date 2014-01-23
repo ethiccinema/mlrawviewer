@@ -78,11 +78,22 @@ vec3 getColor(vec2 coord) {
 }
 
 void main() {
-    vec3 colour = colourBalance * getColour(texcoord);
+    vec3 colour = getColour(texcoord);
+    // Simple highlight recovery
+    vec3 ocol = colour;
+    colour *= colourBalance;
+    if (ocol.g > (black.y-black.x)){
+        colour.g = 0.5*(colour.r+colour.b);
+    }
     float levelAdjust = 1.0/(black.y - black.x);
     colour *= levelAdjust;
-    vec3 toneMapped = colour/(1.0 + colour);
-    colour = mix(colour,toneMapped,tonemap);
+    vec3 toneMapped = colour;
+    if (tonemap==1.0) {
+        toneMapped = colour/(1.0 + colour);
+    } else {
+        toneMapped = log2(1.0+1024.0*clamp(colour/16.0,0.0,1.0))/10.0;
+    }
+    colour = mix(colour,toneMapped,step(0.5,tonemap));
     gl_FragColor = vec4(colour,1.0);
 }
 """

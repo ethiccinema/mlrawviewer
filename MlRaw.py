@@ -123,12 +123,13 @@ class FrameConverter(threading.Thread):
 FrameConverterThread = FrameConverter()
 
 class Frame:
-    def __init__(self,rawfile,rawdata,width,height,black,byteSwap=0,bitsPerSample=14,bayer=True,rgb=False):
+    def __init__(self,rawfile,rawdata,width,height,black,white,byteSwap=0,bitsPerSample=14,bayer=True,rgb=False):
         global haveDemosaic
         #print "opening frame",len(rawdata),width,height
         #print width*height
         self.rawfile = rawfile
         self.black = black
+        self.white = white
         self.rawdata = rawdata
         self.width = width
         self.height = height
@@ -293,7 +294,7 @@ class MLRAW:
                 framedata += newframedata
                 if needed==0:
                     break
-            return Frame(self,framedata,self.width(),self.height(),self.black)
+            return Frame(self,framedata,self.width(),self.height(),self.black,self.white)
         return ""
 
 
@@ -675,7 +676,7 @@ class MLV:
         rawsize = blockSize - 32 - videoFrameHeader[-2]
         fh.seek(rawstarts)
         rawdata = fh.read(rawsize)
-        return Frame(self,rawdata,self.width(),self.height(),self.black)
+        return Frame(self,rawdata,self.width(),self.height(),self.black,self.white)
 
 class CDNG:
     """
@@ -765,7 +766,7 @@ class CDNG:
             dng.readFileIn(os.path.join(self.cdngpath,filename))
             rawdata = dng.FULL_IFD.stripsCombined()
             dng.close()
-            return Frame(self,rawdata,self.width(),self.height(),self.black,byteSwap=1,bitsPerSample=self.bitsPerSample)
+            return Frame(self,rawdata,self.width(),self.height(),self.black,self.white,byteSwap=1,bitsPerSample=self.bitsPerSample)
         return ""
 
 class TIFFSEQ:
@@ -861,7 +862,7 @@ class TIFFSEQ:
                 print "Error fetching data from",filename
                 rawdata = np.zeros((self.width()*self.height()*3,),dtype=np.uint16).tostring()
             tiff.close()
-            return Frame(self,rawdata,self.width(),self.height(),self.black,byteSwap=1,bitsPerSample=self.bitsPerSample,bayer=False,rgb=True)
+            return Frame(self,rawdata,self.width(),self.height(),self.black,self.white,byteSwap=1,bitsPerSample=self.bitsPerSample,bayer=False,rgb=True)
         return ""
 
 def loadRAWorMLV(filename):
