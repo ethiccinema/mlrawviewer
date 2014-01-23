@@ -20,15 +20,15 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-This is a reasonable bayer->RGB shader 
-which does interpolation in R, G and B. 
+This is a reasonable bayer->RGB shader
+which does interpolation in R, G and B.
 R & B is normal bilinear interpolation
-G is at 45 degreee rotation 
+G is at 45 degreee rotation
 """
 
 import ShaderDemosaic
 
-class ShaderDemosaicBilinear(ShaderDemosaic.ShaderDemosaic): 
+class ShaderDemosaicBilinear(ShaderDemosaic.ShaderDemosaic):
     demosaic_type = "Bilinear"
     vertex_src = """
 attribute vec4 vertex;
@@ -92,7 +92,7 @@ float green(vec2 coord) {
 }
 float blue(vec2 coord) {
     // Return bilinear filtered blue
-    vec2 gridpos = coord*rawres.xy*0.5-0.75; 
+    vec2 gridpos = coord*rawres.xy*0.5-0.75;
     vec2 set = floor(gridpos)*2.0;
     vec2 offset = fract(gridpos);
     float tl = get(set+vec2(1.0,1.0));
@@ -104,13 +104,21 @@ float blue(vec2 coord) {
 }
 
 vec3 getColour(vec2 coord) {
-    return vec3(red(coord),green(coord),blue(coord));    
+    return vec3(red(coord),green(coord),blue(coord));
 }
 
 void main() {
-    vec3 colour = colourBalance * getColour(texcoord);
+    vec3 colour = getColour(texcoord);
+    // Simple highlight recovery
+    vec3 ocol = colour;
+    colour *= colourBalance;
+    if (ocol.g > 0.5*(black.y-black.x)){
+        //colour.g = mix(0.5*(colour.r+colour.b),colour.g,clamp(((black.y-black.x)-ocol.g)*2.0,0.0,1.0));
+        colour.g = 0.5*(colour.r+colour.b);
+    }
     float levelAdjust = 1.0/(black.y - black.x);
-    colour *= levelAdjust;
+    colour *= levelAdjust;// / 16.0;
+    //vec3 toneMapped = log2(1.0+1024.0*clamp(colour,0.0,1.0))/10.0; // colour/(1.0 + colour);
     vec3 toneMapped = colour/(1.0 + colour);
     colour = mix(colour,toneMapped,tonemap);
     gl_FragColor = vec4(colour,1.0);
