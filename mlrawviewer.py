@@ -363,8 +363,8 @@ class Viewer(GLCompute.GLCompute):
         self.setting_highQuality = False
         self.setting_encoding = False
         self.setting_tonemap = True
-        self.setting_dropframes = True # Real time playback by default 
- 
+        self.setting_dropframes = True # Real time playback by default
+
     def windowName(self):
         #try:
         return "MlRawViewer v"+version+" - "+self.raw.description()
@@ -408,7 +408,7 @@ class Viewer(GLCompute.GLCompute):
     def jump(self,framesToJumpBy):
         #if self.raw.indexingStatus()==1.0:
         if framesToJumpBy<0 and (-framesToJumpBy) > self.neededFrame:
-            framesToJumpBy = -self.neededFrame # Should only go to start  
+            framesToJumpBy = -self.neededFrame # Should only go to start
         if (self.neededFrame + framesToJumpBy) >= self.raw.frames():
             framesToJumpBy = self.raw.frames() - self.neededFrame - 1
 
@@ -418,7 +418,7 @@ class Viewer(GLCompute.GLCompute):
         self.audio.stop()
         if not self.paused:
             now = time.time()
-            offset = now - self.realStartTime 
+            offset = now - self.realStartTime
             self.startAudio(offset)
         PLOG(PLOG_FRAME,"jump by %d frames, now need %d"%(framesToJumpBy,self.neededFrame))
         self.refresh()
@@ -481,7 +481,6 @@ class Viewer(GLCompute.GLCompute):
             self.slideAudio(0.05)
         elif k==self.KEY_M:
             self.slideAudio(0.5)
-    
 
         elif k==self.KEY_LEFT: # Left cursor
             self.jump(-self.fps) # Go back 1 second (will wrap)
@@ -536,16 +535,17 @@ class Viewer(GLCompute.GLCompute):
             time.sleep(0.016) # Sleep for one 60FPS frame -> Avoid burning idle function
         if not self.paused and self.raw.indexingStatus()==1.0:
             now = time.time()
-            elapsed = now - self.realStartTime # Since before first frame drawn 
+            elapsed = now - self.realStartTime # Since before first frame drawn
             neededFrame = int(self.fps*elapsed)
             # Is it time for a new frame?
             newNeeded = neededFrame != self.neededFrame
             if newNeeded and not self.dropframes():
                 # In non-drop-frame mode, only step by 1 frame
-                neededFrame = self.nextFrameNumber 
+                neededFrame = self.nextFrameNumber
             if neededFrame >= self.raw.frames():
                 neededFrame = 0 #self.raw.frames() - 1 # End of file
                 self.playFrameNumber = 0
+                self.nextFrameNumber = 0
                 self.realStartTime = now
                 self.audio.stop()
                 self.startAudio()
@@ -555,8 +555,8 @@ class Viewer(GLCompute.GLCompute):
                 PLOG(PLOG_FRAME,"neededFrame now %d"%neededFrame)
 
         if self.neededFrame != self.drawnFrameNumber:
-            # Yes it is 
-            # Do we have the needed frame available? 
+            # Yes it is
+            # Do we have the needed frame available?
             if self.neededFrame in self.frameCache:
                 PLOG(PLOG_FRAME,"Using frame %d"%self.neededFrame)
                 #print "using frame",neededFrame
@@ -565,7 +565,7 @@ class Viewer(GLCompute.GLCompute):
                 self.nextFrameNumber = self.playFrameNumber + 1
                 self.playTime = self.neededFrame * self.fps
                 self.playFrame = self.frameCache[self.neededFrame]
-                self.needsRefresh = True        
+                self.needsRefresh = True
                 self.redisplay()
             else:
                 time.sleep(0.003)
@@ -577,7 +577,7 @@ class Viewer(GLCompute.GLCompute):
                 self.redisplay()
             else:
                 time.sleep(0.001)
-            """    
+            """
 
         if self.needsRefresh: # and self.paused:
             self.redisplay()
@@ -624,13 +624,20 @@ class Viewer(GLCompute.GLCompute):
             if os.path.exists(localexe):
                 exe = localexe
             self.checkoutfile()
+            tempwavname = None
+            if self.wav:
+                tempwavname = self.outfilename + ".WAV"
+                self.tempEncoderWav(tempwavname)
             kwargs = {"stdin":subprocess.PIPE,"stdout":subprocess.PIPE,"stderr":subprocess.STDOUT}
             if subprocess.mswindows:
                 su = subprocess.STARTUPINFO()
                 su.dwFlags |= subprocess.STARTF_USESHOWWINDOW
                 su.wShowWindow = subprocess.SW_HIDE
                 kwargs["startupinfo"] = su
-            args = [exe,"-f","rawvideo","-pix_fmt","rgb48","-s","%dx%d"%(self.raw.width(),self.raw.height()),"-r","%.03f"%self.fps,"-i","-","-an","-f","mov","-vf","vflip","-vcodec","prores_ks","-profile:v","3","-r","%.03f"%self.fps,self.outfilename]
+            if tempwavname != None: # Includes Audio
+                args = [exe,"-f","rawvideo","-pix_fmt","rgb48","-s","%dx%d"%(self.raw.width(),self.raw.height()),"-r","%.03f"%self.fps,"-i","-","-i",tempwavname,"-f","mov","-vf","vflip","-vcodec","prores_ks","-profile:v","3","-r","%.03f"%self.fps,"-acodec","copy",self.outfilename]
+            else: # No audio
+                args = [exe,"-f","rawvideo","-pix_fmt","rgb48","-s","%dx%d"%(self.raw.width(),self.raw.height()),"-r","%.03f"%self.fps,"-i","-","-an","-f","mov","-vf","vflip","-vcodec","prores_ks","-profile:v","3","-r","%.03f"%self.fps,self.outfilename]
             print "Encoder args:",args
             print "Subprocess args:",kwargs
             self.encoderProcess = subprocess.Popen(args,**kwargs)
@@ -672,7 +679,7 @@ class Viewer(GLCompute.GLCompute):
     def startAudio(self,startTime=0.0):
         if not self.setting_dropframes: return
         if not self.wav: return
-        channels,width,framerate,nframe,comptype,compname = self.wav.getparams() 
+        channels,width,framerate,nframe,comptype,compname = self.wav.getparams()
         self.audio.init(framerate,width,channels)
         self.wav.setpos(0)
         wavdata = self.wav.readframes(nframe)
@@ -686,11 +693,30 @@ class Viewer(GLCompute.GLCompute):
         print "Audio offset = %.02f seconds"%self.audioOffset
         if not self.paused:
             now = time.time()
-            offset = now - self.realStartTime 
+            offset = now - self.realStartTime
             self.startAudio(offset)
     def exit(self):
         print "Stopping Audio"
         self.audio.stop()
+    def tempEncoderWav(self,tempname):
+        """
+        Create a temporary wav file starting from the current audioOffset
+        This will be fed as one stream to the external encoder
+        """
+        if not self.wav:
+            return
+        tempwav = wave.open(tempname,'w')
+        tempwav.setparams(self.wav.getparams())
+        channels,width,framerate,nframe,comptype,compname = self.wav.getparams()
+        frameCount = framerate * int(float(self.raw.frames()-self.nextFrameNumber)/float(self.fps))
+        startFrame = int((self.audioOffset+(float(self.nextFrameNumber)/float(self.fps)))*framerate)
+        self.wav.setpos(startFrame)
+        if (startFrame+frameCount)>=(nframe):
+            frames = self.wav.readframes(nframe-startFrame) # All
+        else:
+            frames = self.wav.readframes(frameCount) # Less than all, clipped to end of raw file
+        tempwav.writeframes(frames)
+        tempwav.close()
 
     # Settings interface to the scene
     def brightness(self):
@@ -743,7 +769,7 @@ class Viewer(GLCompute.GLCompute):
             return # Already available in the cache
         if self.preloadingFrame == 2:
             return # Don't preload more than 2 frames
-        self.preloadingFrame += 1 
+        self.preloadingFrame += 1
         #print "preloading",index
         PLOG(PLOG_FRAME,"Calling preload for frame %d"%index)
         self.raw.preloadFrame(index)
@@ -789,12 +815,12 @@ class Viewer(GLCompute.GLCompute):
                     print "!!! Received frame",frameIndex,"but expected",expected
                 PLOG(PLOG_FRAME,"Received preloaded frame %d"%frameIndex)
                 #print "new frame loaded:",frameIndex
-                # Add it to the cache 
+                # Add it to the cache
                 self.frameCache[frameIndex] = preloadedFrame
                 self.manageFrameCache()
-                self.preloadingFrame -= 1 
+                self.preloadingFrame -= 1
         self.manageFrameLoading()
-                
+
 
 
 def main():
