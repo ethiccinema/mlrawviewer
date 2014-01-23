@@ -23,7 +23,7 @@ SOFTWARE.
 """
 
 # standard python imports. Should not be missing
-import sys,time
+import sys,time,os
 
 # OpenGL. Could be missing
 try:
@@ -81,9 +81,11 @@ class GLCompute(object):
     KEY_DOWN = glfw.GLFW_KEY_DOWN
 
     def __init__(self,width=640,height=360,**kwds):
+        cwd = os.getcwd()
         if not glfw.glfwInit():
             print "Could not init GLFW"
             sys.exit(1)
+        os.chdir(cwd) # GLFW changes it, which causes problems
         self.width = width  
         self.height = height
         self.glfwMonitor = glfw.glfwGetPrimaryMonitor()
@@ -106,6 +108,10 @@ class GLCompute(object):
             monitors = glfw.glfwGetMonitors()
             m = monitors[0]
             mode = glfw.glfwGetVideoMode(m)
+            glfw.glfwWindowHint(glfw.GLFW_RED_BITS, 8)
+            glfw.glfwWindowHint(glfw.GLFW_GREEN_BITS, 8)
+            glfw.glfwWindowHint(glfw.GLFW_BLUE_BITS, 8)
+            glfw.glfwWindowHint(glfw.GLFW_ALPHA_BITS, 8)
             self.glfwFullscreenWindow = glfw.glfwCreateWindow(mode[0],mode[1],self.windowName(),m,self.glfwWindow)
             self.installCallbacks(self.glfwFullscreenWindow)
             glfw.glfwHideWindow(self.glfwWindow)

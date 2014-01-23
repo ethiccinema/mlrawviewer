@@ -196,9 +196,8 @@ def glfwp(name):
     return os.path.join(os.path.split(__file__)[0],name)
 
 try:
-    candidates = ["libglfw.so.3","glfw3.dll","glfw3.dylib"]
+    candidates = ["libglfw.so.3","glfw3.dll","libglfw3.dylib"]
     for c in candidates:
-	print c,glfwp(c),os.path.exists(glfwp(c))
         if os.path.exists(glfwp(c)):
 	     os.environ['GLFW_LIBRARY'] = glfwp(c)
 	     break
