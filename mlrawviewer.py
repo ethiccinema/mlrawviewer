@@ -383,17 +383,21 @@ class Viewer(GLCompute.GLCompute):
         newname = os.path.join(path,fl[newOne])
         r = MlRaw.loadRAWorMLV(newname)
         print r.frames()
-        if self.wavname[:-3] == fn[:3]:
+        print self.wavname[:-3],fn[:-3]	
+        if self.wavname[:-3] != fn[:-3]:
             self.wavname = newname[:-3]+".WAV"
         else:
             fn = self.wavname
             path,name = os.path.split(fn) # Correct for files and CDNG dirs
             wv = [f for f in os.listdir(path) if f.lower().endswith(".wav")]
             wv.sort()
-            current = wv.index(name)
-            newOne = (current + step)%len(wv)
-            newname = os.path.join(path,wv[newOne])
-            self.wavname = newname
+            try:
+                current = wv.index(name)
+                newOne = (current + step)%len(wv)
+                newname = os.path.join(path,wv[newOne])
+                self.wavname = newname
+            except:
+                self.wavname = newname[:-3]+".WAV"
         self.audio.stop()
         self.demosaic.free() # Release textures
         self.wav = None
