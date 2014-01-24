@@ -36,7 +36,7 @@ Installation
 Usage
 -----
 
--/mlrawviewer.py <path_to_ML_RAW_or_MLV_base_file> [<output_file_name_for_encoding>]
+-/mlrawviewer.py <path_to_ML_RAW_or_MLV_base_file> [<wav_file_to_play_along_with_video>] [<output_file_name_for_encoding>]
 
 If the Raw file is the first in a numbered set, the other files will be used automatically.
 Playback will happen at around 25FPS or the closest achievable if constrained by disk read speed.
@@ -65,8 +65,16 @@ UP/DOWN CURSOR - Increase/decrease brightness
 
 9, 6 - Change blue multiplier up and down by 0.1
 
+D - Toggle between drop-frame mode allowing synchronised audio playback, or sequential frame mode and no audio
+
 Q - Toggle between fast and high-quality demosaicing for playback (high-quality is used automatically when paused)
 
 A - Toggle anamorphic aspect to take into account the 1.4x squeeze from shooting 50p/60p
 
 E - Start encoding from the current frame. If no file name was supplied, will use the source name with ".MOV" appended.
+
+T - Toggle between linear color, global tone mapping, and log mapping
+
+O/P - Change to previous/next MLV/RAW file in same directory as current file
+
+V/B/N/M - Slide audio file start by -0.5,-0.05,+0.05,+0.5 seconds

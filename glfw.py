@@ -513,15 +513,12 @@ def glfwGetMonitors():
     count = c_int(0)
     _glfw.glfwGetMonitors.restype = POINTER(POINTER(GLFWmonitor))
     c_monitors = _glfw.glfwGetMonitors( byref(count) )
-    print "getmonitors ",count.value
     return [c_monitors[i] for i in range(count.value)]
 
 def glfwGetVideoModes(monitor):
-    print "getvidmodes"
     count = c_int(0)
     _glfw.glfwGetVideoModes.restype = POINTER(GLFWvidmode)
     c_modes = _glfw.glfwGetVideoModes( monitor, byref(count) )
-    print "getvidmodes count",count.value
     modes = []
     for i in range(count.value):
         modes.append( (c_modes[i].width,

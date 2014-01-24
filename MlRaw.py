@@ -665,10 +665,10 @@ class MLV:
     def _loadframe(self,index):
         fhframepos = self._getframedata(index)
         if fhframepos==None: # Return black frame
-            return Frame(self,None,self.width(),self.height(),self.black)
+            return Frame(self,None,self.width(),self.height(),self.black,self.white)
         fh,framepos = fhframepos
         if fh==None: # Return black frame
-            return Frame(self,None,self.width(),self.height(),self.black)
+            return Frame(self,None,self.width(),self.height(),self.black,self.white)
         fh.seek(framepos)
         blockType,blockSize = struct.unpack("II",fh.read(8))
         videoFrameHeader = self.parseVideoFrame(fh,framepos,blockSize)
@@ -684,6 +684,7 @@ class CDNG:
     """
     def __init__(self,filename):
         print "Opening CinemaDNG",filename
+        self.filename = filename
         if os.path.isdir(filename):
             self.cdngpath = filename
         else:
@@ -775,6 +776,7 @@ class TIFFSEQ:
     """
     def __init__(self,filename):
         print "Opening TIFF sequence",filename
+        self.filename = filename
         if os.path.isdir(filename):
             self.path = filename
         else:

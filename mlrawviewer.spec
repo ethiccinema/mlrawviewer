@@ -7,6 +7,7 @@ a = Analysis(['mlrawviewer.py'],
 pyz = PYZ(a.pure)
 a.datas += [('data/os.glf','data/os.glf','DATA')]
 a.binaries += [('ffmpeg', 'ffmpeg', 'DATA')]
+a.binaries += [('libglfw3.dylib', 'libglfw3.dylib', 'DATA')]
 exe = EXE(pyz,
           a.scripts,
           a.binaries,

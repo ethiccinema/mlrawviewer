@@ -1,4 +1,4 @@
-#!/usr/bin/python2
+#!/usr/bin/python2.7
 """
 mlrawviewer.py
 (c) Andrew Baldwin 2013-2014
@@ -31,9 +31,12 @@ version = "1.0.4 alpha" # Change to
 programpath = os.path.abspath(os.path.split(sys.argv[0])[0])
 if getattr(sys,'frozen',False):
     programpath = sys._MEIPASS
-    # Assume we have no console, so redirect output to a log file...somewhere
-    sys.stdout = file("mlrawviewer.log","a")
-    sys.stderr = sys.stdout
+    # Assume we have no console, so try to redirect output to a log file...somewhere
+    try:
+        sys.stdout = file("mlrawviewer.log","a")
+        sys.stderr = sys.stdout
+    except:
+        pass
 
 print "MlRawViewer v"+version
 print "(c) Andrew Baldwin & contributors 2013-2014"
@@ -103,6 +106,7 @@ class Demosaicer(GLCompute.Drawable):
         self.lastRgb = None
         self.frames = frames # Frame fetching interface
         self.rgbFrameUploaded = None
+
     def render(self,scene):
 
         """
@@ -174,6 +178,10 @@ class DemosaicScene(GLCompute.Scene):
         self.drawables.append(self.demosaicer)
     def setTarget(self):
         self.rgbImage.bindfbo()
+    def free(self):
+        self.rawUploadTex.free()
+        self.rgbUploadTex.free()
+        self.rgbImage.free()
 
 class Display(GLCompute.Drawable):
     def __init__(self,rgbImage,**kwds):
@@ -251,7 +259,7 @@ class DisplayScene(GLCompute.Scene):
         if self.raw.indexingStatus()==1.0:
             self.timestamp.geometry = self.textshader.label(self.textshader.font,"%02d:%02d.%03d (%d/%d)"%(minutes,seconds,fsec,frameNumber+1,self.raw.frames()),update=self.timestamp.geometry)
         else:
-            self.timestamp.geometry = self.textshader.label(self.textshader.font,"%02d:%02d.%03d (%d/%d) Indexing: %d%%"%(minutes,seconds,fsec,frameNumber+1,self.raw.frames(),self.raw.indexingStatus()*100.0),update=self.timestamp.geometry)
+            self.timestamp.geometry = self.textshader.label(self.textshader.font,"%02d:%02d.%03d (%d/%d) Indexing %s: %d%%"%(minutes,seconds,fsec,frameNumber+1,self.raw.frames(),self.raw.description(),self.raw.indexingStatus()*100.0),update=self.timestamp.geometry)
         self.timestamp.colour = (0.0,0.0,0.0,1.0)
 
 class Audio(object):
@@ -365,6 +373,51 @@ class Viewer(GLCompute.GLCompute):
         self.setting_tonemap = 1 # Global tone map, 2 = Log
         self.setting_dropframes = True # Real time playback by default
 
+    def loadNewRawSet(self,step):
+        fn = self.raw.filename
+        path,name = os.path.split(fn) # Correct for files and CDNG dirs
+        fl = [f for f in os.listdir(path) if f.lower().endswith(".mlv") or f.lower().endswith(".raw")]
+        fl.sort()
+        current = fl.index(name)
+        newOne = (current + step)%len(fl)
+        newname = os.path.join(path,fl[newOne])
+        r = MlRaw.loadRAWorMLV(newname)
+        print r.frames()
+        print self.wavname[:-3],fn[:-3]	
+        if self.wavname[:-3] != fn[:-3]:
+            self.wavname = newname[:-3]+".WAV"
+        else:
+            fn = self.wavname
+            path,name = os.path.split(fn) # Correct for files and CDNG dirs
+            wv = [f for f in os.listdir(path) if f.lower().endswith(".wav")]
+            wv.sort()
+            try:
+                current = wv.index(name)
+                newOne = (current + step)%len(wv)
+                newname = os.path.join(path,wv[newOne])
+                self.wavname = newname
+            except:
+                self.wavname = newname[:-3]+".WAV"
+        self.audio.stop()
+        self.demosaic.free() # Release textures
+        self.wav = None
+        self.raw = r
+        self.playFrame = self.raw.firstFrame
+        self.frameCache = {0:self.raw.firstFrame}
+        self.preloadingFrame = 0
+        self.preloadingFrames = []
+        self.playTime = 0
+        self.playFrameNumber = 0
+        self.nextFrameNumber = 0
+        self.neededFrame = 0
+        self.drawnFrameNumber = None
+        self.playFrame = self.raw.firstFrame
+        self.preloadFrame(1) # Immediately try to preload the next frame
+        self.indexing = True
+        self._init = False
+        self.init()
+        self.refresh()
+
     def windowName(self):
         #try:
         return "MlRawViewer v"+version+" - "+self.raw.description()
@@ -372,6 +425,7 @@ class Viewer(GLCompute.GLCompute):
         #    return "MlRawViewer v"+version
     def init(self):
         if self._init: return
+        self.scenes = []
         self.demosaic = DemosaicScene(self.raw,self,self,self,size=(self.raw.width(),self.raw.height()))
         self.scenes.append(self.demosaic)
         self.display = DisplayScene(self.raw,self.demosaic.rgbImage,self.font,self,size=(0,0))
@@ -481,6 +535,11 @@ class Viewer(GLCompute.GLCompute):
             self.slideAudio(0.05)
         elif k==self.KEY_M:
             self.slideAudio(0.5)
+
+        elif k==self.KEY_O:
+            self.loadNewRawSet(-1)
+        elif k==self.KEY_P:
+            self.loadNewRawSet(1)
 
         elif k==self.KEY_LEFT: # Left cursor
             self.jump(-self.fps) # Go back 1 second (will wrap)
