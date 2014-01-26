@@ -62,6 +62,58 @@ static u16* raw14to16(int width, int height, u16* bay14, u16* bay16)
     return bay16;
 }
 
+u16 encode(int val)
+{
+    u16 encoded = 0;
+    
+    if(1)
+    {
+        return (val>=0)?val:(0x8000|(-val));
+    }
+    
+    /* positive values dont get encoded, lowest bit is zero */
+    if(val >= 0)
+    {
+        encoded = val<<1;
+    }
+    else
+    {
+        /* negative values get 0x80 set, offset to squeeze one bit more into (we dont need two representations of zero) */
+        val = -val + 1;
+        encoded = 0x0080;
+        encoded |= (val & 0xFF80) << 1;
+        encoded |= (val & 0x007F);
+    }
+    return encoded;
+}
+
+int decode(u16 val)
+{
+    int decoded = 0;
+    
+    if(1)
+    {
+        return (val&0x8000)?(-(val&0x7FFF)):val;
+    }
+   
+    if ((val&0x0080)&&((val&0x0001)))
+    {
+        decoded = -(((val & 0xFF00)>>1)|(val & 0x007F))+1;
+    } 
+    else 
+    {
+        decoded = val >> 1;
+    } 
+    return decoded;
+}
+
+
+void split_bytes(u16 value, u8 *high, u8 *low)
+{
+    *high = value >> 8;
+    *low = value & 0xFF;
+}
+
 static void convertToDiff(int width, int height, u16* raw16, u8* high, u8* low)
 {
     u16* r = raw16;  
@@ -75,23 +127,27 @@ static void convertToDiff(int width, int height, u16* raw16, u8* high, u8* low)
         int gr = r[1];
         int dr = gr-re;
         int dg = gr;
-        int en = (dr>=0)?dr:(0x8000|(-dr));
-        high[0] = (en&0xFF00)>>8;
-        low[0] = en&0xFF;
-        high[1] = (gr&0xFF00)>>8;
-        low[1] = gr&0xFF;
+        //int en = (dr>=0)?dr:(0x8000|(-dr));
+        //high[0] = (en&0xFF00)>>8;
+        //low[0] = en&0xFF;
+        //high[1] = (gr&0xFF00)>>8;
+        //low[1] = gr&0xFF;
+        split_bytes(encode(dr), &high[0], &low[0]);
+        split_bytes(gr, &high[1], &low[1]);
         r += 2; high += 2; low += 2;
         for (x=2;x<width;x+=2) {
             re = r[0];
             gr = r[1];
             dr -= (gr-re); 
             dg -= gr; 
-            en = (dr>=0)?dr:(0x8000|(-dr));
-            high[0] = (en&0xFF00)>>8;
-            low[0] = en&0xFF;
-            en = (dg>=0)?dg:(0x8000|(-dg)); 
-            high[1] = (en&0xFF00)>>8;
-            low[1] = en&0xFF;
+            //en = (dr>=0)?dr:(0x8000|(-dr));
+            //high[0] = (en&0xFF00)>>8;
+            //low[0] = en&0xFF;
+            //en = (dg>=0)?dg:(0x8000|(-dg)); 
+            //high[1] = (en&0xFF00)>>8;
+            //low[1] = en&0xFF;
+            split_bytes(encode(dr), &high[0], &low[0]);
+            split_bytes(encode(dg), &high[1], &low[1]);
             dr = (gr-re);
             dg = gr;
             r += 2; high += 2; low += 2;
@@ -105,23 +161,27 @@ static void convertToDiff(int width, int height, u16* raw16, u8* high, u8* low)
         int bl = r[1];
         int db = gr-bl;
         dg = gr;
-        high[0] = (gr&0xFF00)>>8;
-        low[0] = gr&0xFF;
-        en = (db>=0)?db:(0x8000|(-db));
-        high[1] = (en&0xFF00)>>8;
-        low[1] = en&0xFF;
+        //high[0] = (gr&0xFF00)>>8;
+        //low[0] = gr&0xFF;
+        //en = (db>=0)?db:(0x8000|(-db));
+        //high[1] = (en&0xFF00)>>8;
+        //low[1] = en&0xFF;
+        split_bytes(gr, &high[0], &low[0]);
+        split_bytes(encode(db), &high[1], &low[1]);
         r += 2; high += 2; low += 2;
         for (x=2;x<width;x+=2) {
             gr = r[0];
             bl = r[1];
             db -= (gr-bl); 
             dg -= gr; 
-            en = (dg>=0)?dg:(0x8000|(-dg)); 
-            high[0] = (en&0xFF00)>>8;
-            low[0] = en&0xFF;
-            en = (db>=0)?db:(0x8000|(-db));
-            high[1] = (en&0xFF00)>>8;
-            low[1] = en&0xFF;
+            //en = (dg>=0)?dg:(0x8000|(-dg)); 
+            //high[0] = (en&0xFF00)>>8;
+            //low[0] = en&0xFF;
+            //en = (db>=0)?db:(0x8000|(-db));
+            //high[1] = (en&0xFF00)>>8;
+            //low[1] = en&0xFF;
+            split_bytes(encode(dg), &high[0], &low[0]);
+            split_bytes(encode(db), &high[1], &low[1]);
             db = (gr-bl);
             dg = gr;
             r += 2; high += 2; low += 2;
@@ -143,7 +203,7 @@ Invert convertToDiff
         // to
         // G0-R0=DR0,G0,DR0-DR1,G0-G1,DR1-DR2,G1-G2,... 
         int hl = (high[0]<<8)|low[0];
-        int dr = (hl&0x8000)?(-(hl&0x7FFF)):hl;
+        int dr = decode(hl);
         hl = (high[1]<<8)|low[1];
         int gr = hl;
         int re = gr - dr;
@@ -154,9 +214,9 @@ Invert convertToDiff
         r += 2; high += 2; low += 2;
         for (x=2;x<width;x+=2) {
             hl = (high[0]<<8)|low[0];
-            dr = (hl&0x8000)?(-(hl&0x7FFF)):hl;
+            dr = decode(hl);
             hl = (high[1]<<8)|low[1];
-            int dg = (hl&0x8000)?(-(hl&0x7FFF)):hl;
+            int dg = decode(hl);
             gr = r[-1] - dg;    
             re = dr - hue + gr;
             //printf("%d:%d:%d:%d:%d,",re,dg,dr,hue,gr);
@@ -173,7 +233,7 @@ Invert convertToDiff
         hl = (high[0]<<8)|low[0];
         gr = hl;
         hl = (high[1]<<8)|low[1];
-        int db = (hl&0x8000)?(-(hl&0x7FFF)):hl;
+        int db = decode(hl);
         int bl = gr - db;
         r[0] = gr;
         r[1] = bl;
@@ -182,9 +242,9 @@ Invert convertToDiff
         r += 2; high += 2; low += 2;
         for (x=2;x<width;x+=2) {
             hl = (high[0]<<8)|low[0];
-            int dg = (hl&0x8000)?(-(hl&0x7FFF)):hl;
+            int dg = decode(hl);
             hl = (high[1]<<8)|low[1];
-            db = (hl&0x8000)?(-(hl&0x7FFF)):hl;
+            db = decode(hl);
             gr = r[-2] - dg;    
             bl = db - hue + gr;
             //printf("%d:%d:%d:%d:%d,",re,dg,dr,hue,gr);
