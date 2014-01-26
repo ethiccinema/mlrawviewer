@@ -43,11 +43,10 @@ But it is much, much faster at compression than LZMA.
 typedef unsigned short u16;
 typedef unsigned char u8;
 
-static u16* raw14to16(int width, int height, u16* raw14) 
+static u16* raw14to16(int width, int height, u16* bay14, u16* bay16) 
 {
-    u16* raw16 = (u16*)malloc(width*height*sizeof(u16)); 
-    u16* i = raw14;
-    u16* o = raw16;
+    u16* i = bay14;
+    u16* o = bay16;
     int blocks = (width*height)/8;
     while (blocks--) {
        *o++ = (i[0]>>2)&0x3FFF;
@@ -60,7 +59,7 @@ static u16* raw14to16(int width, int height, u16* raw14)
        *o++ = (i[6]&0x3FFF); 
        i += 7;
     } 
-    return raw16;
+    return bay16;
 }
 
 static void convertToDiff(int width, int height, u16* raw16, u8* high, u8* low)
@@ -108,7 +107,7 @@ static void convertToDiff(int width, int height, u16* raw16, u8* high, u8* low)
         dg = gr;
         high[0] = (gr&0xFF00)>>8;
         low[0] = gr&0xFF;
-        en = (dr>=0)?db:(0x8000|(-db));
+        en = (db>=0)?db:(0x8000|(-db));
         high[1] = (en&0xFF00)>>8;
         low[1] = en&0xFF;
         r += 2; high += 2; low += 2;
@@ -131,44 +130,108 @@ static void convertToDiff(int width, int height, u16* raw16, u8* high, u8* low)
     }
 }
 
-int bayz_encode(int width, int height, unsigned short* bayer, void** bayz)
+static void convertFromDiff(int width, int height, u16* raw16, u8* high, u8* low)
+{
+/*
+Invert convertToDiff
+*/
+    u16* r = raw16;  
+    int y,x;
+    for (y=0;y<height;) {
+        // Convert 
+        // R0,G0,R1,G1,R2,G2
+        // to
+        // G0-R0=DR0,G0,DR0-DR1,G0-G1,DR1-DR2,G1-G2,... 
+        int hl = (high[0]<<8)|low[0];
+        int dr = (hl&0x8000)?(-(hl&0x7FFF)):hl;
+        hl = (high[1]<<8)|low[1];
+        int gr = hl;
+        int re = gr - dr;
+        r[0] = re;
+        r[1] = gr;
+        int hue = gr-re;
+        //printf("%d:%d,",re,gr);
+        r += 2; high += 2; low += 2;
+        for (x=2;x<width;x+=2) {
+            hl = (high[0]<<8)|low[0];
+            dr = (hl&0x8000)?(-(hl&0x7FFF)):hl;
+            hl = (high[1]<<8)|low[1];
+            int dg = (hl&0x8000)?(-(hl&0x7FFF)):hl;
+            gr = r[-1] - dg;    
+            re = dr - hue + gr;
+            //printf("%d:%d:%d:%d:%d,",re,dg,dr,hue,gr);
+            r[0] = re;
+            r[1] = gr;
+            hue = gr - re;
+            r += 2; high += 2; low += 2;
+        }
+        y++;
+        // Convert 
+        // G0,B0,G1,B1,G2,B2
+        // to
+        // G0,G0-B0=DB0,G1,DB0-DB1,G1-G2,DB1-DB2,... 
+        hl = (high[0]<<8)|low[0];
+        gr = hl;
+        hl = (high[1]<<8)|low[1];
+        int db = (hl&0x8000)?(-(hl&0x7FFF)):hl;
+        int bl = gr - db;
+        r[0] = gr;
+        r[1] = bl;
+        hue = gr-bl;
+        //printf("%d:%d,",re,gr);
+        r += 2; high += 2; low += 2;
+        for (x=2;x<width;x+=2) {
+            hl = (high[0]<<8)|low[0];
+            int dg = (hl&0x8000)?(-(hl&0x7FFF)):hl;
+            hl = (high[1]<<8)|low[1];
+            db = (hl&0x8000)?(-(hl&0x7FFF)):hl;
+            gr = r[-2] - dg;    
+            bl = db - hue + gr;
+            //printf("%d:%d:%d:%d:%d,",re,dg,dr,hue,gr);
+            r[0] = gr;
+            r[1] = bl;
+            hue = gr - bl;
+            r += 2; high += 2; low += 2;
+        }
+        y++;
+    }
+}
+
+unsigned short* bayz_convert14to16(int width, int height, unsigned short* bay14)
+{
+    u16* bay16 = (u16*)malloc(width*height*sizeof(u16)); 
+    if (bay16 != NULL) {
+        raw14to16(width,height,bay14,bay16);
+    }
+    return bay16;
+}
+
+int bayz_encode14(int width, int height, unsigned short* bay14, void** bayz)
+{
+    u16* bay16 = (u16*)malloc(width*height*sizeof(u16)); 
+    raw14to16(width,height,bay14,bay16);
+    int ret = bayz_encode16(width,height,bay16,bayz);
+    free(bay16);
+    return ret;
+}
+
+int bayz_encode16(int width, int height, unsigned short* bay16, void** bayz)
 {
     //printf("bayz_encode: width=%d, height=%d\n",width,height);
-    u16* raw16 = raw14to16(width,height,bayer);
-    /*u16* r = raw16;
-    int i = 64;
-    while (i--) {
-        printf("%04x,",*r++);
-    }
-    r+=width-64;
-    i = 64;
-    while (i--) {
-        printf("%04x,",*r++);
-    }
-    printf("\n");*/
+    const int headersize = 5*sizeof(int);
     u8* high = (u8*)malloc(width*height*2);
-    u8* low = high + (width*height);
-    convertToDiff(width,height,raw16,high,low);
-    /*u8* u = high;
-    u8* v = low;
-    i = 64;
-    while (i--) {
-        printf("%02x/%02x,",*u++,*v++);
-    }
-    u+=width-64;
-    v+=width-64;
-    i = 64;
-    while (i--) {
-        printf("%02x/%02x,",*u++,*v++);
-    }
-    printf("\n");*/
-    int headersize = 5*sizeof(int);
     int fsesize = FSE_compressBound(width*height*2)+headersize;
     void* out = (void*)malloc(fsesize);
+    if ((high==NULL)||(out==NULL)) {
+        free(high);
+        free(out);
+        return BAYZ_ERROR_NO_MEMORY;
+    }
+    u8* low = high + (width*height);
+    convertToDiff(width,height,bay16,high,low);
     int highsize = FSE_compress(out+headersize,high,width*height);
     int lowsize = FSE_compress(out+highsize+headersize,low,width*height);
     //printf("uncomp 16bit: %d,highbits:%d,lowbits:%d,total:%d\n",width*height*2,highsize,lowsize,highsize+lowsize);
-    free(raw16);
     free(high);
     int* head = (int*)out;
     head[0] = 0xBA7E9214; // Sig
@@ -181,7 +244,7 @@ int bayz_encode(int width, int height, unsigned short* bayer, void** bayz)
     return headersize+highsize+lowsize;
 }
 
-int bayz_decode(void* bayz, int* width, int* height, unsigned short** bayer)
+int bayz_decode16(void* bayz, int* width, int* height, unsigned short** bayer)
 {
     int* in = (int*)bayz;
     if (in[0] != 0xBA7E9214) {
@@ -191,9 +254,19 @@ int bayz_decode(void* bayz, int* width, int* height, unsigned short** bayer)
     *height = in[2];
     int bufsize = (*width) * (*height) * sizeof(u16);
     *bayer = (u16*)malloc(bufsize);  
-    if (*bayer==0) {
+    int size = (*width)*(*height);
+    u8* high = (u8*)malloc(size*2);
+    if ((*bayer==NULL)||(high==NULL)) {
+        free(bayer);
+        *bayer = NULL;
+        free(high);
         return BAYZ_ERROR_NO_MEMORY;
     }
-    printf("bayz_decode: width=%d, height=%d\n",*width,*height);
+    u8* low = high+(size);
+    int highsize = FSE_decompress(high,size,&in[5]);
+    int lowsize = FSE_decompress(low,size,((u8*)(&in[5]))+highsize);
+    convertFromDiff(*width,*height,*bayer,high,low);
+    free(high);
+    printf("bayz_decode: width=%d, height=%d, hs=%d, ls=%d, ohs=%d, ols=%d\n",*width,*height,highsize,lowsize,in[3],in[4]);
     return bufsize;
 }

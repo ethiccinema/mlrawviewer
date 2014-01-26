@@ -43,12 +43,20 @@ enum {
 Take 14bit packed in 16bit LE words as input
 Ouput compressed stream including header
 */
-int bayz_encode14(int width, int height, unsigned short* bayer, void** bayz);
+int bayz_encode14(int width, int height, unsigned short* bay14, void** bayz);
+/* 
+Convert packed 14bit bayer data to unpacked 16bit
+*/
+unsigned short* bayz_convert14to16(int width, int height, unsigned short* bay14);
+/* 
+Take 14bit values unpacked into 16bit LE words as input
+Ouput compressed stream including header
+*/
+int bayz_encode16(int width, int height, unsigned short* bay16, void** bayz);
 /* 
 Take compressed stream as input
 Return 14bit values in unpacked 16bit LE words
 */
-int bayz_decode14as16(void* bayz, int* width, int* height, unsigned short** bayer);
-
+int bayz_decode16(void* bayz, int* width, int* height, unsigned short** bay16);
 
 

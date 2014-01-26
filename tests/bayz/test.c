@@ -50,7 +50,6 @@ Read first frame from a RAW file
     l = fread(&raw14[0],size14,1,fh); 
     return raw14;
 }
-//14 2+12 4+10 6+8 8+6 10+4 12+2 14 = 14 bytes = 8 pixels
 
 int main(int argc, char** argv)
 {
@@ -67,12 +66,27 @@ int main(int argc, char** argv)
         printf("Could not open RAW file\n");
         return -1;
     }
+    unsigned short* bay16;
+    bay16 = bayz_convert14to16(w,h,bayer);
     void* bayz;
-    int e = bayz_encode(w,h,bayer,&bayz);
+    int e = bayz_encode16(w,h,bay16,&bayz);
     printf("encode returned = %d\n",e);
     unsigned short* decodedbayer;
-    int d = bayz_decode(bayz,&w,&h,&decodedbayer);
+    int d = bayz_decode16(bayz,&w,&h,&decodedbayer);
     printf("decode returned = %d\n",d);
+    /* Compare encoded and decoded */
+    int same = 0;
+    int diff = 0;
+    int error = 0;
+    int i;
+    for (i=0;i<(w*h);i++) {
+        if (bay16[i] != decodedbayer[i]) {
+            diff++;
+            error += (bay16[i] - decodedbayer[i]);
+            printf("(%d)%d=%d,",i,bay16[i],decodedbayer[i]);
+        } else { same++; }
+    }
+    printf("Comparison: same=%d, different=%d, error=%d\n",same,diff,error);
     }
     return 0;
 }
