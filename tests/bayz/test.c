@@ -51,29 +51,15 @@ Read first frame from a RAW file
     return raw14;
 }
 
-int main(int argc, char** argv)
+int test_compress16_frame(int w, int h,unsigned short* bay16)
 {
-    int i; 
-    for (i=0;i<argc;i++) {
-        printf("argument: %s\n",argv[i]);    
-    }
-    int f;
-    for (f=0;f<20;f++) {
-    int w;
-    int h;
-    unsigned short* bayer = read_raw_frame(argv[1],f,&w,&h);
-    if (bayer==NULL) {
-        printf("Could not open RAW file\n");
-        return -1;
-    }
-    unsigned short* bay16;
-    bay16 = bayz_convert14to16(w,h,bayer);
     void* bayz;
     int e = bayz_encode16(w,h,bay16,&bayz);
     printf("encode returned = %d\n",e);
     unsigned short* decodedbayer;
     int d = bayz_decode16(bayz,&w,&h,&decodedbayer);
     printf("decode returned = %d\n",d);
+    printf("Compression ratio vs 14bit packed: %.03f%%\n",100.0f*(float)e/(float)(d)*16.0/14.0);
     /* Compare encoded and decoded */
     int same = 0;
     int diff = 0;
@@ -83,10 +69,51 @@ int main(int argc, char** argv)
         if (bay16[i] != decodedbayer[i]) {
             diff++;
             error += (bay16[i] - decodedbayer[i]);
-            printf("(%d)%d=%d,",i,bay16[i],decodedbayer[i]);
+            if (diff<10) printf("(%d)%d!=%d\n",i,bay16[i],decodedbayer[i]);
         } else { same++; }
     }
-    printf("Comparison: same=%d, different=%d, error=%d\n",same,diff,error);
+    printf("Comparison: same=%d, different=%d, error=%d\n\n",same,diff,error);
+    return diff;
+}
+
+int main(int argc, char** argv)
+{
+    printf("Test with 100%% black frame:\n");
+    unsigned short* synthFrame = (unsigned short*)calloc(256*256,2);
+    if (test_compress16_frame(256,256,synthFrame)) return -1;
+    printf("Test with 100%% white frame:\n");
+    int i;
+    for (i=0;i<(256*256);i++) { synthFrame[i] = (1<<14)-1; }
+    if (test_compress16_frame(256,256,synthFrame)) return -1;
+    printf("Test with synthetic gradient frame:\n");
+    for (i=0;i<(256*256);i++) {
+        int x = i%256; int y = i>>8; int c=i%2;
+        synthFrame[i] = c?x<<6:y<<6; 
+    }
+    if (test_compress16_frame(256,256,synthFrame)) return -1;
+    printf("Test with pseudo random frame:\n");
+    // Test with pseudo random content
+    for (i=0;i<(256*256);i++) {
+        synthFrame[i] = rand()&0x3FFF; 
+    }
+    if (test_compress16_frame(256,256,synthFrame)) return -1;
+    if (argc>1) {
+        printf("Test with real raw file frames:\n");
+        int f;
+        for (f=0;f<20;f++) {
+            int w;
+            int h;
+            unsigned short* bayer = read_raw_frame(argv[1],f,&w,&h);
+            if (bayer==NULL) {
+                printf("Could not open RAW file\n");
+                return -1;
+            }
+            printf("Width: %d, Height: %d\n",w,h);
+            unsigned short* bay16;
+            bay16 = bayz_convert14to16(w,h,bayer);
+            if (test_compress16_frame(w,h,bay16)) return -1;
+            free(bay16);
+        }
     }
     return 0;
 }

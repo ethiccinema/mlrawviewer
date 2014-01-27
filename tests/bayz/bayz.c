@@ -311,6 +311,6 @@ int bayz_decode16(void* bayz, int* width, int* height, unsigned short** bayer)
     int lowsize = FSE_decompress(low,size,((u8*)(&in[5]))+highsize);
     convertFromDiff(*width,*height,*bayer,high,low);
     free(high);
-    printf("bayz_decode: width=%d, height=%d, hs=%d, ls=%d, ohs=%d, ols=%d\n",*width,*height,highsize,lowsize,in[3],in[4]);
+    //printf("bayz_decode: width=%d, height=%d, hs=%d, ls=%d, ohs=%d, ols=%d\n",*width,*height,highsize,lowsize,in[3],in[4]);
     return bufsize;
 }
