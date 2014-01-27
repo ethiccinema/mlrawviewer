@@ -65,45 +65,75 @@ static u16* raw14to16(int width, int height, u16* bay14, u16* bay16)
 u16 encode(int val)
 {
     u16 encoded = 0;
-    
-    if(1)
+
+    if(0)
     {
         return (val>=0)?val:(0x8000|(-val));
     }
-    
-    /* positive values dont get encoded, lowest bit is zero */
-    if(val >= 0)
+
+    if(0)
     {
-        encoded = val<<1;
-    }
-    else
-    {
-        /* negative values get 0x80 set, offset to squeeze one bit more into (we dont need two representations of zero) */
-        val = -val + 1;
-        encoded = 0x0080;
+        /* positive values dont get encoded, lowest bit is zero */
+        if(val < 0)
+        {
+            /* negative values get 0x80 set, offset to squeeze one bit more into (we dont need two representations of zero) */
+            val = -val - 1;
+            encoded |= 0x0080;
+        }
+
         encoded |= (val & 0xFF80) << 1;
         encoded |= (val & 0x007F);
     }
+
+    if(1)
+    {
+        /* positive values dont get encoded, lowest bit is zero */
+        if(val < 0)
+        {
+            /* negative values get lowest bit set, offset to squeeze one bit more into (we dont need two representations of zero) */
+            val = -val - 1;
+            encoded |= 0x0001;
+        }
+
+        encoded |= val << 1;
+    }
+
     return encoded;
 }
 
 int decode(u16 val)
 {
-    int decoded = 0;
+    int decoded ;
     
-    if(1)
+    if (0)
     {
         return (val&0x8000)?(-(val&0x7FFF)):val;
     }
-   
-    if ((val&0x0080)&&((val&0x0001)))
+
+    if (0) 
+    {   
+        if (val&0x0080)
+        {
+            decoded = -1-(((val & 0xFF00)>>1)|(val & 0x007F));
+        } 
+        else 
+        {
+            decoded = ((val & 0xFF00) >> 1)|(val & 0x7F);
+        }
+    }
+
+    if (1)
     {
-        decoded = -(((val & 0xFF00)>>1)|(val & 0x007F))+1;
-    } 
-    else 
-    {
-        decoded = val >> 1;
-    } 
+        if (val&0x1)
+        {
+            decoded = -1-((val & 0xFFFE)>>1);
+        } 
+        else 
+        {
+            decoded = (val & 0xFFFE) >> 1;
+        }
+    }
+
     return decoded;
 }
 
