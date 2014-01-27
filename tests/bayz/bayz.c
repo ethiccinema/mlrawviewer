@@ -149,70 +149,40 @@ static void convertToDiff(int width, int height, u16* raw16, u8* high, u8* low)
     u16* r = raw16;  
     int y,x;
     for (y=0;y<height;) {
-        // Convert 
-        // R0,G0,R1,G1,R2,G2
-        // to
-        // G0-R0=DR0,G0,DR0-DR1,G0-G1,DR1-DR2,G1-G2,... 
         int re = r[0];
         int gr = r[1];
-        int dr = gr-re;
+        int dr = re;
         int dg = gr;
-        //int en = (dr>=0)?dr:(0x8000|(-dr));
-        //high[0] = (en&0xFF00)>>8;
-        //low[0] = en&0xFF;
-        //high[1] = (gr&0xFF00)>>8;
-        //low[1] = gr&0xFF;
         split_bytes(encode(dr), &high[0], &low[0]);
         split_bytes(gr, &high[1], &low[1]);
         r += 2; high += 2; low += 2;
         for (x=2;x<width;x+=2) {
             re = r[0];
             gr = r[1];
-            dr -= (gr-re); 
+            dr -= re; 
             dg -= gr; 
-            //en = (dr>=0)?dr:(0x8000|(-dr));
-            //high[0] = (en&0xFF00)>>8;
-            //low[0] = en&0xFF;
-            //en = (dg>=0)?dg:(0x8000|(-dg)); 
-            //high[1] = (en&0xFF00)>>8;
-            //low[1] = en&0xFF;
             split_bytes(encode(dr), &high[0], &low[0]);
             split_bytes(encode(dg), &high[1], &low[1]);
-            dr = (gr-re);
+            dr = (re);
             dg = gr;
             r += 2; high += 2; low += 2;
         }
         y++;
-        // Convert 
-        // G0,B0,G1,B1,G2,B2
-        // to
-        // G0,G0-B0=DB0,G1,DB0-DB1,G1-G2,DB1-DB2,... 
         gr = r[0];
         int bl = r[1];
-        int db = gr-bl;
+        int db = bl;
         dg = gr;
-        //high[0] = (gr&0xFF00)>>8;
-        //low[0] = gr&0xFF;
-        //en = (db>=0)?db:(0x8000|(-db));
-        //high[1] = (en&0xFF00)>>8;
-        //low[1] = en&0xFF;
         split_bytes(gr, &high[0], &low[0]);
         split_bytes(encode(db), &high[1], &low[1]);
         r += 2; high += 2; low += 2;
         for (x=2;x<width;x+=2) {
             gr = r[0];
             bl = r[1];
-            db -= (gr-bl); 
+            db -= bl; 
             dg -= gr; 
-            //en = (dg>=0)?dg:(0x8000|(-dg)); 
-            //high[0] = (en&0xFF00)>>8;
-            //low[0] = en&0xFF;
-            //en = (db>=0)?db:(0x8000|(-db));
-            //high[1] = (en&0xFF00)>>8;
-            //low[1] = en&0xFF;
             split_bytes(encode(dg), &high[0], &low[0]);
             split_bytes(encode(db), &high[1], &low[1]);
-            db = (gr-bl);
+            db = bl;
             dg = gr;
             r += 2; high += 2; low += 2;
         }
@@ -228,19 +198,13 @@ Invert convertToDiff
     u16* r = raw16;  
     int y,x;
     for (y=0;y<height;) {
-        // Convert 
-        // R0,G0,R1,G1,R2,G2
-        // to
-        // G0-R0=DR0,G0,DR0-DR1,G0-G1,DR1-DR2,G1-G2,... 
         int hl = (high[0]<<8)|low[0];
         int dr = decode(hl);
         hl = (high[1]<<8)|low[1];
         int gr = hl;
-        int re = gr - dr;
+        int re = dr;
         r[0] = re;
         r[1] = gr;
-        int hue = gr-re;
-        //printf("%d:%d,",re,gr);
         r += 2; high += 2; low += 2;
         for (x=2;x<width;x+=2) {
             hl = (high[0]<<8)|low[0];
@@ -248,27 +212,19 @@ Invert convertToDiff
             hl = (high[1]<<8)|low[1];
             int dg = decode(hl);
             gr = r[-1] - dg;    
-            re = dr - hue + gr;
-            //printf("%d:%d:%d:%d:%d,",re,dg,dr,hue,gr);
+            re = r[-2] - dr;
             r[0] = re;
             r[1] = gr;
-            hue = gr - re;
             r += 2; high += 2; low += 2;
         }
         y++;
-        // Convert 
-        // G0,B0,G1,B1,G2,B2
-        // to
-        // G0,G0-B0=DB0,G1,DB0-DB1,G1-G2,DB1-DB2,... 
         hl = (high[0]<<8)|low[0];
         gr = hl;
         hl = (high[1]<<8)|low[1];
         int db = decode(hl);
-        int bl = gr - db;
+        int bl = db;
         r[0] = gr;
         r[1] = bl;
-        hue = gr-bl;
-        //printf("%d:%d,",re,gr);
         r += 2; high += 2; low += 2;
         for (x=2;x<width;x+=2) {
             hl = (high[0]<<8)|low[0];
@@ -276,11 +232,9 @@ Invert convertToDiff
             hl = (high[1]<<8)|low[1];
             db = decode(hl);
             gr = r[-2] - dg;    
-            bl = db - hue + gr;
-            //printf("%d:%d:%d:%d:%d,",re,dg,dr,hue,gr);
+            bl = r[-1] - db;
             r[0] = gr;
             r[1] = bl;
-            hue = gr - bl;
             r += 2; high += 2; low += 2;
         }
         y++;
