@@ -137,56 +137,51 @@ int decode(u16 val)
     return decoded;
 }
 
-
 void split_bytes(u16 value, u8 *high, u8 *low)
 {
     *high = value >> 8;
     *low = value & 0xFF;
 }
 
+u16 combine_bytes(u8 *high, u8 *low)
+{
+    return (*high << 8)|(*low & 0xFF);
+}
+
+
 static void convertToDiff(int width, int height, u16* raw16, u8* high, u8* low)
 {
     u16* r = raw16;  
     int y,x;
     for (y=0;y<height;) {
-        int re = r[0];
-        int gr = r[1];
-        int dr = re;
-        int dg = gr;
-        split_bytes(encode(dr), &high[0], &low[0]);
-        split_bytes(gr, &high[1], &low[1]);
-        r += 2; high += 2; low += 2;
-        for (x=2;x<width;x+=2) {
-            re = r[0];
-            gr = r[1];
-            dr -= re; 
-            dg -= gr; 
-            split_bytes(encode(dr), &high[0], &low[0]);
-            split_bytes(encode(dg), &high[1], &low[1]);
-            dr = (re);
-            dg = gr;
-            r += 2; high += 2; low += 2;
+        int last_h = 0;
+        int last_g = 0;
+        // First 2 columns encode delta downwards
+        if (y>0) last_g = r[-width-1];
+        if (y>1) last_h = r[-(width<<1)];
+        for (x=0;x<width;x+=2) {
+            int h = r[x];
+            int g = r[x+1];
+            split_bytes(encode(h - last_h), &high[x], &low[x]);
+            split_bytes(encode(g - last_g), &high[x+1], &low[x+1]);
+            last_h = h;
+            last_g = g;            
         }
-        y++;
-        gr = r[0];
-        int bl = r[1];
-        int db = bl;
-        dg = gr;
-        split_bytes(gr, &high[0], &low[0]);
-        split_bytes(encode(db), &high[1], &low[1]);
-        r += 2; high += 2; low += 2;
-        for (x=2;x<width;x+=2) {
-            gr = r[0];
-            bl = r[1];
-            db -= bl; 
-            dg -= gr; 
-            split_bytes(encode(dg), &high[0], &low[0]);
-            split_bytes(encode(db), &high[1], &low[1]);
-            db = bl;
-            dg = gr;
-            r += 2; high += 2; low += 2;
+        y++; high += width; low += width; r += width;
+        last_h = 0;
+        last_g = 0;
+        // First 2 columns encode delta downwards
+        if (y>0) last_g = r[-width+1];
+        if (y>1) last_h = r[-(width<<1)];
+        for (x=0;x<width;x+=2) {
+            int g = r[x];
+            int h = r[x+1];
+            split_bytes(encode(g - last_g), &high[x], &low[x]);
+            split_bytes(encode(h - last_h), &high[x+1], &low[x+1]);
+            last_h = h;
+            last_g = g;            
         }
-        y++;
+        y++; high += width; low += width; r += width;
     }
 }
 
@@ -198,46 +193,38 @@ Invert convertToDiff
     u16* r = raw16;  
     int y,x;
     for (y=0;y<height;) {
-        int hl = (high[0]<<8)|low[0];
-        int dr = decode(hl);
-        hl = (high[1]<<8)|low[1];
-        int gr = hl;
-        int re = dr;
-        r[0] = re;
-        r[1] = gr;
-        r += 2; high += 2; low += 2;
-        for (x=2;x<width;x+=2) {
-            hl = (high[0]<<8)|low[0];
-            dr = decode(hl);
-            hl = (high[1]<<8)|low[1];
-            int dg = decode(hl);
-            gr = r[-1] - dg;    
-            re = r[-2] - dr;
-            r[0] = re;
-            r[1] = gr;
-            r += 2; high += 2; low += 2;
+        int last_g = 0;
+        int last_h = 0;
+        // First 2 columns encode delta downwards
+        if (y>0) last_g = r[-width-1];
+        if (y>1) last_h = r[-(width<<1)];
+        for (x=0;x<width;x+=2) {
+            int dh = decode(combine_bytes(&high[x],&low[x]));
+            int dg = decode(combine_bytes(&high[x+1],&low[x+1]));
+            u16 h = last_h + dh;
+            u16 g = last_g + dg;
+            r[x] = h;
+            r[x+1] = g;
+            last_h = h;
+            last_g = g; 
         }
-        y++;
-        hl = (high[0]<<8)|low[0];
-        gr = hl;
-        hl = (high[1]<<8)|low[1];
-        int db = decode(hl);
-        int bl = db;
-        r[0] = gr;
-        r[1] = bl;
-        r += 2; high += 2; low += 2;
-        for (x=2;x<width;x+=2) {
-            hl = (high[0]<<8)|low[0];
-            int dg = decode(hl);
-            hl = (high[1]<<8)|low[1];
-            db = decode(hl);
-            gr = r[-2] - dg;    
-            bl = r[-1] - db;
-            r[0] = gr;
-            r[1] = bl;
-            r += 2; high += 2; low += 2;
+        y++; r += width; high += width; low += width;
+        last_g = 0;
+        last_h = 0;
+        // First 2 columns encode delta downwards
+        if (y>0) last_g = r[-width+1];
+        if (y>1) last_h = r[-(width<<1)];
+        for (x=0;x<width;x+=2) {
+            int dg = decode(combine_bytes(&high[x],&low[x]));
+            int dh = decode(combine_bytes(&high[x+1],&low[x+1]));
+            u16 g = last_g + dg;
+            u16 h = last_h + dh;
+            r[x] = g;
+            r[x+1] = h;
+            last_g = g; 
+            last_h = h;
         }
-        y++;
+        y++; r += width; high += width; low += width;
     }
 }
 
