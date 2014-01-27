@@ -24,6 +24,7 @@ SOFTWARE.
 
 #include "stdlib.h"
 #include "stdio.h"
+#include "time.h"
 #include "bayz.h"
 
 unsigned short* read_raw_frame(char* filename, int frame, int* width, int* height)
@@ -54,10 +55,21 @@ Read first frame from a RAW file
 int test_compress16_frame(int w, int h,unsigned short* bay16)
 {
     void* bayz;
+    int bloops = 30;
+    int encoded = w*h*2*bloops;
+    clock_t start = clock();
+    while (bloops--) {
+        bayz_encode16(w,h,bay16,&bayz);
+        free(bayz);
+    }
+    clock_t end = clock();
+    float took = (float)(end-start)/CLOCKS_PER_SEC;
+    printf("Encode speed: %d bytes ook %.03f seconds. %.00f bytes/second.\n",encoded,took,(float)encoded/took);
     int e = bayz_encode16(w,h,bay16,&bayz);
     printf("encode returned = %d\n",e);
     unsigned short* decodedbayer;
     int d = bayz_decode16(bayz,&w,&h,&decodedbayer);
+    free(bayz);
     printf("decode returned = %d\n",d);
     printf("Compression ratio vs 14bit packed: %.03f%%\n",100.0f*(float)e/(float)(d)*16.0/14.0);
     /* Compare encoded and decoded */
@@ -72,6 +84,7 @@ int test_compress16_frame(int w, int h,unsigned short* bay16)
             if (diff<10) printf("(%d)%d!=%d\n",i,bay16[i],decodedbayer[i]);
         } else { same++; }
     }
+    free(decodedbayer);
     printf("Comparison: same=%d, different=%d, error=%d\n\n",same,diff,error);
     return diff;
 }
