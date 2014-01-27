@@ -256,6 +256,7 @@ int bayz_encode16(int width, int height, unsigned short* bay16, void** bayz)
     if ((high==NULL)||(out==NULL)) {
         free(high);
         free(out);
+        *bayz = NULL;
         return BAYZ_ERROR_NO_MEMORY;
     }
     u8* low = high + (width*height);
@@ -278,6 +279,7 @@ int bayz_encode16(int width, int height, unsigned short* bay16, void** bayz)
 int bayz_decode16(void* bayz, int* width, int* height, unsigned short** bayer)
 {
     int* in = (int*)bayz;
+    *bayer = NULL;
     if (in[0] != 0xBA7E9214) {
         return BAYZ_ERROR_BAD_SIGNATURE;
     }
@@ -288,14 +290,16 @@ int bayz_decode16(void* bayz, int* width, int* height, unsigned short** bayer)
     int size = (*width)*(*height);
     u8* high = (u8*)malloc(size*2);
     if ((*bayer==NULL)||(high==NULL)) {
-        free(bayer);
+        free(*bayer);
         *bayer = NULL;
         free(high);
         return BAYZ_ERROR_NO_MEMORY;
     }
     u8* low = high+(size);
     int highsize = FSE_decompress(high,size,&in[5]);
+    if (highsize != in[3]) { free(high); free(*bayer); *bayer=NULL; return BAYZ_ERROR_CORRUPT_HIGH; }
     int lowsize = FSE_decompress(low,size,((u8*)(&in[5]))+highsize);
+    if (lowsize != in[4]) { free(high); free(*bayer); *bayer=NULL; return BAYZ_ERROR_CORRUPT_LOW; }
     convertFromDiff(*width,*height,*bayer,high,low);
     free(high);
     //printf("bayz_decode: width=%d, height=%d, hs=%d, ls=%d, ohs=%d, ols=%d\n",*width,*height,highsize,lowsize,in[3],in[4]);

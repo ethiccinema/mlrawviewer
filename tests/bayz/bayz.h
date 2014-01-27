@@ -37,6 +37,8 @@ But it is much, much faster at compression than LZMA.
 enum {
     BAYZ_ERROR_BAD_SIGNATURE = -1,
     BAYZ_ERROR_NO_MEMORY = -2,
+    BAYZ_ERROR_CORRUPT_HIGH = -3,
+    BAYZ_ERROR_CORRUPT_LOW = -4,
 };
 
 /* 

@@ -69,8 +69,9 @@ int test_compress16_frame(int w, int h,unsigned short* bay16)
     printf("encode returned = %d\n",e);
     unsigned short* decodedbayer;
     int d = bayz_decode16(bayz,&w,&h,&decodedbayer);
-    free(bayz);
     printf("decode returned = %d\n",d);
+    if (d<0) return -1;
+    free(bayz);
     printf("Compression ratio vs 14bit packed: %.03f%%\n",100.0f*(float)e/(float)(d)*16.0/14.0);
     /* Compare encoded and decoded */
     int same = 0;
