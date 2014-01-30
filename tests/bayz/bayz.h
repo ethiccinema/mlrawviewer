@@ -39,26 +39,31 @@ enum {
     BAYZ_ERROR_NO_MEMORY = -2,
     BAYZ_ERROR_CORRUPT_HIGH = -3,
     BAYZ_ERROR_CORRUPT_LOW = -4,
+    BAYZ_ERROR_CORRUPT_SHAPE = -5,
 };
 
 /* 
 Take 14bit packed in 16bit LE words as input
 Ouput compressed stream including header
 */
-int bayz_encode14(int width, int height, unsigned short* bay14, void** bayz);
+int bayz_encode14(int width, int height, unsigned short* bay14, void** bayz,int blacklevel,int accuracy,int recovery);
 /* 
 Convert packed 14bit bayer data to unpacked 16bit
 */
 unsigned short* bayz_convert14to16(int width, int height, unsigned short* bay14);
 /* 
+Convert unpacked (16bit) bayer data to packed 14bit
+*/
+unsigned short* bayz_convert16to14(int width, int height, unsigned short* bay16);
+/* 
 Take 14bit values unpacked into 16bit LE words as input
 Ouput compressed stream including header
 */
-int bayz_encode16(int width, int height, unsigned short* bay16, void** bayz);
+int bayz_encode16(int width, int height, unsigned short* bay16, void** bayz,int blacklevel,int accuracy,int recovery);
 /* 
 Take compressed stream as input
 Return 14bit values in unpacked 16bit LE words
 */
-int bayz_decode16(void* bayz, int* width, int* height, unsigned short** bay16);
+int bayz_decode16(void* bayz, int* width, int* height, unsigned short** bay16,int blacklevel);
 
 
