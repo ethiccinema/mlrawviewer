@@ -71,6 +71,10 @@ class Texture:
         self.width = size[0]
         self.height = size[1]
         self.fbo = None
+        self.atlas = []
+        self.atlasuh = 0 # Atlas is full down to this row
+        self.atlasfh = 0 # Atlas is being filled down to here
+        self.atlasfw = 0 # Atlas is being filled along to here
         glActiveTexture(GL_TEXTURE0)
         glBindTexture(GL_TEXTURE_2D,self.id)
         glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
@@ -116,22 +120,67 @@ class Texture:
         self.bindtex()
         glGenerateMipmap(GL_TEXTURE_2D)
 
-    def update(self,rgbadata=None):
+    def atlasadd(self,rgbadata,width,height):
+        """
+        Add given image as subimage within this texture
+        Remember the coordinates for use later
+        Return None if there wasn't space in this texture
+        else returns index of this atlas item
+        Atlas filling is not very optimised, just filling a current row until it needs to start the next one
+        Will work best with identical sized frames and a texture optimised for a multiple of those
+        """
+        if (self.atlasuh + height) > self.height:
+            return None # Too high for current row
+        if width > self.width:
+            return None # Too wide for current texture
+        yoff = self.atlasuh
+        xoff = self.atlasfw
+        newuh = self.atlasuh
+        newfw = self.atlasfw + width
+        newfh = self.atlasfh
+        if (self.atlasuh + height) > newfh: 
+            newfh = self.atlasuh + height # Expand the current row height
+        if newfw > self.width:
+            if (self.atlasfh + height) > self.height:
+                return None # Too high for new row
+            newfw = width
+            xoff = 0 
+            yoff = self.atlasfh
+            newuh = self.atlasfh
+            newfh = newuh + height
+        # Update the texture
+        self.update(rgbadata,xoff,yoff,width,height)
+        # Only gets here if texture update did not raise exception
+        # Remember coordinates for texture and add to atlas. (x,y,w,h) in texture space
+        self.atlas.append((float(xoff)/float(self.width),float(yoff)/float(self.height),float(width)/float(self.width),float(height)/float(self.height)))
+        self.atlasuh = newuh
+        self.atlasfh = newfh
+        self.atlasfw = newfw
+        return len(self.atlas)-1
+        
+    def update(self,rgbadata=None,xoff=0,yoff=0,width=None,height=None):
+        w = width
+        if (w==None):
+            w = self.width
+        h = height
+        if (h==None):
+            h = self.height
+
         self.bindtex()
         if self.hasalpha and not self.fp:
-            glTexSubImage2D(GL_TEXTURE_2D,0,0,0,self.width,self.height,GL_RGBA,GL_UNSIGNED_BYTE,rgbadata)
+            glTexSubImage2D(GL_TEXTURE_2D,0,xoff,yoff,w,h,GL_RGBA,GL_UNSIGNED_BYTE,rgbadata)
         elif self.hasalpha and self.fp:
-            glTexSubImage2D(GL_TEXTURE_2D,0,0,0,self.width,self.height,GL_RGBA,GL_FLOAT,rgbadata)
+            glTexSubImage2D(GL_TEXTURE_2D,0,xoff,yoff,w,h,GL_RGBA,GL_FLOAT,rgbadata)
         elif not self.hasalpha and not self.mono and self.fp:
-            glTexSubImage2D(GL_TEXTURE_2D,0,0,0,self.width,self.height,GL_RGB,GL_FLOAT,rgbadata)
+            glTexSubImage2D(GL_TEXTURE_2D,0,xoff,yoff,w,h,GL_RGB,GL_FLOAT,rgbadata)
         elif self.mono and not self.sixteen:
-            glTexSubImage2D(GL_TEXTURE_2D,0,0,0,self.width,self.height,GL_RED,GL_UNSIGNED_BYTE,rgbadata)
+            glTexSubImage2D(GL_TEXTURE_2D,0,xoff,yoff,w,h,GL_RED,GL_UNSIGNED_BYTE,rgbadata)
         elif self.sixteen and self.mono:
-            glTexSubImage2D(GL_TEXTURE_2D,0,0,0,self.width,self.height,GL_RED,GL_UNSIGNED_SHORT,rgbadata)
+            glTexSubImage2D(GL_TEXTURE_2D,0,xoff,yoff,w,h,GL_RED,GL_UNSIGNED_SHORT,rgbadata)
         elif self.sixteen and not self.mono:
-            glTexSubImage2D(GL_TEXTURE_2D,0,0,0,self.width,self.height,GL_RGB,GL_UNSIGNED_SHORT,rgbadata)
+            glTexSubImage2D(GL_TEXTURE_2D,0,xoff,yoff,w,h,GL_RGB,GL_UNSIGNED_SHORT,rgbadata)
         else:
-            glTexSubImage2D(GL_TEXTURE_2D,0,0,0,self.width,self.height,GL_RGB,GL_UNSIGNED_BYTE,rgbadata)
+            glTexSubImage2D(GL_TEXTURE_2D,0,xoff,yoff,w,h,GL_RGB,GL_UNSIGNED_BYTE,rgbadata)
         if self.mipmap:
             glGenerateMipmap(GL_TEXTURE_2D)
 
