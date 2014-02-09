@@ -170,12 +170,47 @@ class Frame:
             return # Done already
         if self.rawdata != None:
             if self.bitsPerSample == 14:
+                print "demosaic14"
                 self.rgbimage = demosaic14(self.rawdata,self.width,self.height,self.black,self.byteSwap)
             elif self.bitsPerSample == 16:
                 self.rgbimage = demosaic16(self.rawdata,self.width,self.height,self.black,byteSwap=0) # Hmm...what about byteSwapping?
         else:
             self.rgbimage = np.zeros(self.width*self.height*3,dtype=np.uint16).tostring()
-
+    def thumb(self):
+        """
+        Try to make a thumbnail from the data we have
+        """
+        if self.rgbimage!=None:
+            # Subsample the rgbimage at about 1/8th size
+            nrgb = self.rgbimage.reshape((self.height,self.width,3)).astype(np.float32)
+            # Random brightness and colour balance
+            ssnrgb = ((64.0/65536.0)*np.array([2.0,1.0,2.0]))*nrgb[::8,::8,:]
+            # Tone map
+            ssnrgb = ssnrgb/(1.0 + ssnrgb)
+            # Map to 16bit uint range
+            return (ssnrgb*65536.0).astype(np.uint16)
+        if self.rawdata and self.bitsPerSample==14:
+            # Extract low-quality downscaled RGB image 
+            # from packed 14bit bayer data
+            # Take first 2 14bit values from every block of 8 
+            # (packed into 14 bytes) on 2 out of 8 rows. 
+            # That gives R,G1,G2,B values. Make 1 pixel from those
+            h = 8*(self.height/8)
+            bayer = np.fromstring(self.rawdata,dtype=np.uint16).reshape(self.height,(self.width*7)/8)[:h,:].astype(np.uint16) # Clip to height divisible by 8
+            r1 = bayer[::8,::7]
+            r2 = bayer[::8,1::7]
+            b1 = bayer[1::8,::7]
+            b2 = bayer[1::8,1::7]
+            nrgb = np.zeros(shape=(self.height/8,self.width/8,3),dtype=np.uint16)+self.black
+            nrgb[:,:,0] = r1>>2
+            nrgb[:,:,1] = ((r1&0x3)<<12) | (r2>>4)
+            nrgb[:,:,2] = ((b1&0x3)<<12) | (b2>>4)
+            # Random brightness and colour balance
+            ssnrgb = ((64.0/65536.0)*np.array([2.0,1.0,2.0]))*(nrgb.astype(np.float32)-self.black)
+            # Tone map
+            ssnrgb = ssnrgb/(1.0 + ssnrgb)
+            # Map to 16bit uint range
+            return (ssnrgb*65536.0).astype(np.uint16)
 
 def colorMatrix(raw_info):
     vals = np.array(raw_info[-19:-1]).astype(np.float32)
@@ -207,7 +242,7 @@ def getRawFileSeries(basename):
 ML RAW - need to handle spanning files
 """
 class MLRAW:
-    def __init__(self,filename):
+    def __init__(self,filename,preindex=False):
         print "Opening MLRAW file",filename
         self.filename = filename
         dirname,allfiles = getRawFileSeries(filename)
@@ -330,7 +365,7 @@ class MLV:
     BlockTypeValues = [getattr(BlockType,n) for n in BlockTypeNames]
     BlockTypeLookup = dict(zip(BlockTypeValues,BlockTypeNames))
 
-    def __init__(self,filename):
+    def __init__(self,filename,preindex=True):
         self.filename = filename
         print "Opening MLV file",filename
         dirname,allfiles = getRawFileSeries(filename)
@@ -363,7 +398,7 @@ class MLV:
             self.totalParsed += parsedTo
         self.preloader = None
         self.allParsed = False
-        self.preindexing = True
+        self.preindexing = preindex
         print "Audio frame count",self.audioFrameCount
         self.initPreloader()
     def indexingStatus(self):
@@ -525,6 +560,8 @@ class MLV:
         self.allParsed = True
         return None
     def preindex(self):
+        if not self.preindexing:
+            return
         while 1:
             if self.allParsed:
                 self.preindexing = False
@@ -682,7 +719,7 @@ class CDNG:
     """
     Treat a directory of DNG files as sequential frames
     """
-    def __init__(self,filename):
+    def __init__(self,filename,preindex=False):
         print "Opening CinemaDNG",filename
         self.filename = filename
         if os.path.isdir(filename):
@@ -774,7 +811,7 @@ class TIFFSEQ:
     """
     Treat a directory of (e.g. 16bit) TIFF files as sequential frames
     """
-    def __init__(self,filename):
+    def __init__(self,filename,preindex=False):
         print "Opening TIFF sequence",filename
         self.filename = filename
         if os.path.isdir(filename):
@@ -867,23 +904,23 @@ class TIFFSEQ:
             return Frame(self,rawdata,self.width(),self.height(),self.black,self.white,byteSwap=1,bitsPerSample=self.bitsPerSample,bayer=False,rgb=True)
         return ""
 
-def loadRAWorMLV(filename):
+def loadRAWorMLV(filename,preindex=True):
     fl = filename.lower()
     if fl.endswith(".raw"):
-        return MLRAW(filename)
+        return MLRAW(filename,preindex)
     elif fl.endswith(".mlv"):
-        return MLV(filename)
+        return MLV(filename,preindex)
     elif fl.endswith(".dng"):
-        return CDNG(os.path.dirname(filename))
+        return CDNG(os.path.dirname(filename),preindex)
     elif fl.endswith(".tif") or fl.endswith(".tiff"):
-        return TIFFSEQ(os.path.dirname(filename))
+        return TIFFSEQ(os.path.dirname(filename),preindex)
     elif os.path.isdir(filename):
         filenames = os.listdir(filename)
         dngfiles = [dng for dng in filenames if dng.lower().endswith(".dng")]
         tifffiles = [tiff for tiff in filenames if tiff.lower().endswith(".tif") or tiff.lower().endswith(".tiff")]
         if len(dngfiles)>0:
-            return CDNG(filename)
+            return CDNG(filename,preindex)
         elif len(tifffiles)>0:
-            return TIFFSEQ(filename)
+            return TIFFSEQ(filename,preindex)
     return None
 

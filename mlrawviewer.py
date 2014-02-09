@@ -26,7 +26,7 @@ SOFTWARE.
 import sys,struct,os,math,time,datetime,subprocess,signal,threading,Queue,wave
 from threading import Thread
 
-version = "1.0.4 alpha" # Change to
+version = "1.1.0" 
 
 programpath = os.path.abspath(os.path.split(sys.argv[0])[0])
 if getattr(sys,'frozen',False):
@@ -235,9 +235,9 @@ class DisplayScene(GLCompute.Scene):
         m2 = Matrix4x4()
         width,height = self.size
         m2.viewport(width,height)
-        m2.translate(7.-float(width)/2.0,7.-float(height)/2.0)
-        rectHeight = 0.075/(float(width)/540.0)
-        rectWidth = 2.0 - 2.0*(14.0/float(width))
+        m2.translate(-width*0.48,-height*0.5+10)
+        rectWidth = width * 0.96
+        rectHeight = 20
         self.progressBackground.geometry = self.textshader.rectangle(rectWidth*self.raw.indexingStatus(),rectHeight,rgba=(1.0-0.8*self.raw.indexingStatus(),0.2,0.2,0.2),update=self.progressBackground.geometry)
         #if self.raw.indexingStatus()==1.0:
         self.progress.geometry = self.textshader.rectangle((float(frameNumber)/float(self.raw.frames()-1))*rectWidth,rectHeight,rgba=(1.0,1.0,0.2,0.2),update=self.progress.geometry)
@@ -247,9 +247,9 @@ class DisplayScene(GLCompute.Scene):
         self.progress.matrix = m2
         m = Matrix4x4()
         m.viewport(width,height)
+        m.translate(-width*0.48+3,-height*0.5+13)
         if height>0:
-            m.scale(40.0*(1.0/(64.0*float(height)*(float(width)/float(height)))))
-        m.translate(10.-float(width)/2.0,10.-float(height)/2.0)
+            m.scale(10.0/30.0)
         self.timestamp.matrix = m
         totsec = float(frameNumber)/self.raw.fps
         minutes = int(totsec/60.0)

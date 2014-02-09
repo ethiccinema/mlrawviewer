@@ -91,8 +91,10 @@ class Texture:
             try: glTexImage2D(GL_TEXTURE_2D,0,GL_R16,self.width,self.height,0,GL_RED,GL_UNSIGNED_SHORT,rgbadata)
             except GLError: glTexImage2D(GL_TEXTURE_2D,0,GL_RGB16,self.width,self.height,0,GL_RED,GL_UNSIGNED_SHORT,rgbadata)
         elif not mono and sixteen:
-            try: glTexImage2D(GL_TEXTURE_2D,0,GL_RGB32F,self.width,self.height,0,GL_RGB,GL_UNSIGNED_SHORT,rgbadata)
-            except GLError: glTexImage2D(GL_TEXTURE_2D,0,GL_RGB16,self.width,self.height,0,GL_RGB,GL_UNSIGNED_SHORT,rgbadata)
+            try: 
+                glTexImage2D(GL_TEXTURE_2D,0,GL_RGB32F,self.width,self.height,0,GL_RGB,GL_UNSIGNED_SHORT,rgbadata)
+            except GLError: 
+                glTexImage2D(GL_TEXTURE_2D,0,GL_RGB16,self.width,self.height,0,GL_RGB,GL_UNSIGNED_SHORT,rgbadata)
         else:
             glTexImage2D(GL_TEXTURE_2D,0,GL_RGB,self.width,self.height,0,GL_RGB,GL_UNSIGNED_BYTE,rgbadata)
         if mipmap:
@@ -152,7 +154,11 @@ class Texture:
         self.update(rgbadata,xoff,yoff,width,height)
         # Only gets here if texture update did not raise exception
         # Remember coordinates for texture and add to atlas. (x,y,w,h) in texture space
-        self.atlas.append((float(xoff)/float(self.width),float(yoff)/float(self.height),float(width)/float(self.width),float(height)/float(self.height)))
+        uvx = float(xoff)/float(self.width)
+        uvy = float(yoff)/float(self.height)
+        uvw = float(width)/float(self.width)
+        uvh = float(height)/float(self.height)
+        self.atlas.append((uvx,uvy,uvw,uvh))
         self.atlasuh = newuh
         self.atlasfh = newfh
         self.atlasfw = newfw

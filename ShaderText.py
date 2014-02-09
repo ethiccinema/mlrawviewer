@@ -54,8 +54,10 @@ varying vec4 ctmg;
 uniform vec4 urgba;
 
 void main() {
-    float t = texture2D(tex,texcoord).r;
-    vec4 col = ctmg.x*rgba + ctmg.y*vec4(t) + ctmg.z*t*rgba;
+    vec4 t = texture2D(tex,texcoord).rgba;
+    vec4 tr = vec4(t.r);
+    t = mix(tr,t,ctmg.y);
+    vec4 col = ctmg.x*rgba + t + ctmg.z*t*rgba;
     gl_FragColor = urgba*pow(col,vec4(ctmg.w));
 }
 """
@@ -91,23 +93,25 @@ void main() {
         glDisable(GL_BLEND)
         
         vertices.unbind()
-    def rectangle(self,width,height,rgba=(1.0,1.0,1.0,1.0),update=(None,None)):
+    def rectangle(self,width,height,rgba=(1.0,1.0,1.0,1.0),update=(None,None),uv=(0.0,0.0,1.0,1.0),solid=1.0,tex=0.0,tint=0.0):
         oldvbo = None
         if update:
             oldvbo = update[1]
         triangles = 2
         v = np.zeros(shape=(triangles*3,12),dtype=np.float32)
         v[:,4:8] = rgba
-        v[:,8] = 1.0 # Use colour only
-        v[:,11] = 0.8 # Gamma = 1.0
+        v[:,8] = solid # Use colour only
+        v[:,9] = tex # Use texture
+        v[:,10] = tint # Use tint
+        v[:,11] = 0.8 # Gamma
         x0 = 0.0
         y0 = 0.0
         x1 = float(width)
         y1 = float(height)
-        u0 = 0.0
-        v0 = 0.0
-        u1 = 1.0
-        v1 = 1.0
+        u0 = uv[0]
+        v0 = uv[1]
+        u1 = uv[0]+uv[2]
+        v1 = uv[1]+uv[3]
         vp = 0 
         v[vp,:4] = [x0,y0,u0,v1]  
         vp += 1

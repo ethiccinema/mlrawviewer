@@ -59,7 +59,6 @@ class Viewer(GLCompute.GLCompute):
         self.benchmark()
         self._init = True
     def onDraw(self,width,height):
-        # First convert Raw to RGB image at same size
         self.init()
         self.rotmat = Matrix4x4()
         dt = datetime.datetime.now()
@@ -67,8 +66,9 @@ class Viewer(GLCompute.GLCompute):
         for i in range(20):
             self.matrix.identity()
             self.matrix.viewport(width,height)
-            self.matrix.scale(64.0*(1.0/(64.0*width)))
-            self.matrix.translate(-float(width)/2.0+i*float(width)/20.0,-float(height)/2.0+i*float(height)/20.0)
+            self.matrix.translate(-400+float(i)*30.0,-200+float(i)*10.0)
+            self.matrix.rotation(float(i)/3.14159+(dt.microsecond+dt.second*1000000.0)/1000000.0)
+            self.matrix.scale(10.0/20.0)
             self.shader.draw(timestamp,self.matrix,(float(i)/20.0,1.0-float(i)/20.0,1.0,1.0))
 
 def main(): 
