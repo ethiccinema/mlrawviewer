@@ -123,7 +123,7 @@ class FrameConverter(threading.Thread):
 FrameConverterThread = FrameConverter()
 
 class Frame:
-    def __init__(self,rawfile,rawdata,width,height,black,white,byteSwap=0,bitsPerSample=14,bayer=True,rgb=False):
+    def __init__(self,rawfile,rawdata,width,height,black,white,byteSwap=0,bitsPerSample=14,bayer=True,rgb=False,convert=True):
         global haveDemosaic
         #print "opening frame",len(rawdata),width,height
         #print width*height
@@ -138,13 +138,21 @@ class Frame:
         self.byteSwap = byteSwap
         self.bitsPerSample = bitsPerSample
         self.conversionResult = None
+        self.convertQueued = False
         self.convertQ = Queue.Queue(1)
         if bayer==False and rgb==True:
             self.rgbimage = rawdata
         else:
             self.rgbimage = None
-            FrameConverterThread.process(self)
+            if convert:
+                self.convertQueued = True
+                FrameConverterThread.process(self)
+                
     def convert(self):
+        if not self.convertQueued:
+            self.convertQueued = True
+            FrameConverterThread.process(self)
+
         if self.conversionResult == None:
             self.conversionResult = self.convertQ.get() # Will block until conversion completed
         return self.conversionResult 
@@ -180,6 +188,7 @@ class Frame:
         """
         Try to make a thumbnail from the data we have
         """
+        PLOG(PLOG_CPU,"Frame thumb gen starts")
         if self.rgbimage!=None:
             # Subsample the rgbimage at about 1/8th size
             nrgb = self.rgbimage.reshape((self.height,self.width,3)).astype(np.float32)
@@ -188,6 +197,7 @@ class Frame:
             # Tone map
             ssnrgb = ssnrgb/(1.0 + ssnrgb)
             # Map to 16bit uint range
+            PLOG(PLOG_CPU,"Frame thumb gen done")
             return (ssnrgb*65536.0).astype(np.uint16)
         if self.rawdata and self.bitsPerSample==14:
             # Extract low-quality downscaled RGB image 
@@ -206,11 +216,14 @@ class Frame:
             nrgb[:,:,1] = ((r1&0x3)<<12) | (r2>>4)
             nrgb[:,:,2] = ((b1&0x3)<<12) | (b2>>4)
             # Random brightness and colour balance
-            ssnrgb = ((64.0/65536.0)*np.array([2.0,1.0,2.0]))*(nrgb.astype(np.float32)-self.black)
+            ssnrgb = ((64.0/65536.0)*np.array([2.0,1.0,1.5]))*(nrgb.astype(np.float32)-self.black)
+            ssnrgb = np.clip(ssnrgb,0.0,1000000.0)
             # Tone map
             ssnrgb = ssnrgb/(1.0 + ssnrgb)
             # Map to 16bit uint range
+            PLOG(PLOG_CPU,"Frame thumb gen done")
             return (ssnrgb*65536.0).astype(np.uint16)
+        PLOG(PLOG_CPU,"Frame thumb gen done")
 
 def colorMatrix(raw_info):
     vals = np.array(raw_info[-19:-1]).astype(np.float32)
@@ -266,7 +279,7 @@ class MLRAW:
             framefile.seek(0,os.SEEK_END)
             framefilelen = framefile.tell()
             self.framefiles.append((framefile,framefilelen))
-        self.firstFrame = self._loadframe(0)
+        self.firstFrame = self._loadframe(0,convert=False)
         self.preloader = threading.Thread(target=self.preloaderMain)
         self.preloaderArgs = Queue.Queue(2)
         self.preloaderResults = Queue.Queue(2)
@@ -312,7 +325,7 @@ class MLRAW:
                 break
             self.preloadFrame(index)
         return frame
-    def _loadframe(self,index):
+    def _loadframe(self,index,convert=True):
         if index>=0 and index<self.frames():
             offset = index*self.footer[3]
             needed = self.footer[3]
@@ -324,12 +337,14 @@ class MLRAW:
                 filecontains = filelen-offset
                 needfromfile = min(filecontains,needed)
                 filehandle.seek(offset)
+                PLOG(PLOG_CPU,"Reading frame %d size %d"%(index,needfromfile))
                 newframedata = filehandle.read(needfromfile)
+                PLOG(PLOG_CPU,"Read frame %d size %d"%(index,needfromfile))
                 needed -= len(newframedata)
                 framedata += newframedata
                 if needed==0:
                     break
-            return Frame(self,framedata,self.width(),self.height(),self.black,self.white)
+            return Frame(self,framedata,self.width(),self.height(),self.black,self.white,convert=convert)
         return ""
 
 
@@ -385,7 +400,7 @@ class MLV:
         self.files = [(mlvfile,0,header[14],header,parsedTo, size)]
         self.totalSize = size
         self.totalParsed = parsedTo
-        self.firstFrame = self._loadframe(0)
+        self.firstFrame = self._loadframe(0,convert=False)
         for spanfilename in allfiles[1:]:
             fullspanfile = os.path.join(dirname,spanfilename)
             #print fullspanfile
@@ -427,7 +442,9 @@ class MLV:
         while pos<size-8:
             fh.seek(pos)
             blockType,blockSize = struct.unpack("II",fh.read(8))
-            """ 
+            if blockSize <= 0:
+                break # Corrupt! 
+            """
             try:
                 blockName = MLV.BlockTypeLookup[blockType]
                 print blockName,blockSize,pos,size,size-pos
@@ -699,7 +716,7 @@ class MLV:
                 print "FAILED TO FIND FRAME AFTER SCAN",index
                 self.framepos[index] = (None,None)
             return result
-    def _loadframe(self,index):
+    def _loadframe(self,index,convert=True):
         fhframepos = self._getframedata(index)
         if fhframepos==None: # Return black frame
             return Frame(self,None,self.width(),self.height(),self.black,self.white)
@@ -712,8 +729,10 @@ class MLV:
         rawstarts = framepos + 32 + videoFrameHeader[-2]
         rawsize = blockSize - 32 - videoFrameHeader[-2]
         fh.seek(rawstarts)
+        PLOG(PLOG_CPU,"Reading frame %d size %d"%(index,rawsize))
         rawdata = fh.read(rawsize)
-        return Frame(self,rawdata,self.width(),self.height(),self.black,self.white)
+        PLOG(PLOG_CPU,"Read frame %d size %d"%(index,rawsize))
+        return Frame(self,rawdata,self.width(),self.height(),self.black,self.white,convert=convert)
 
 class CDNG:
     """
@@ -751,7 +770,7 @@ class CDNG:
             print "Unsupported BitsPerSample = ",bps,"(should be 14 or 16)"
             raise IOError # Only support 14 or 16 bitsPerSample
 
-        self.firstFrame = self._loadframe(0)
+        self.firstFrame = self._loadframe(0,convert=False)
 
         self.preloader = threading.Thread(target=self.preloaderMain)
         self.preloaderArgs = Queue.Queue(2)
@@ -797,14 +816,14 @@ class CDNG:
                 break
             self.preloadFrame(index)
         return frame
-    def _loadframe(self,index):
+    def _loadframe(self,index,convert=True):
         if index>=0 and index<self.frames():
             filename = self.dngs[index]
             dng = DNG.DNG()
             dng.readFileIn(os.path.join(self.cdngpath,filename))
             rawdata = dng.FULL_IFD.stripsCombined()
             dng.close()
-            return Frame(self,rawdata,self.width(),self.height(),self.black,self.white,byteSwap=1,bitsPerSample=self.bitsPerSample)
+            return Frame(self,rawdata,self.width(),self.height(),self.black,self.white,byteSwap=1,bitsPerSample=self.bitsPerSample,convert=convert)
         return ""
 
 class TIFFSEQ:
@@ -842,7 +861,7 @@ class TIFFSEQ:
             print "Unsupported BitsPerSample = ",bps,"(should be 16)"
             raise IOError # Only support 16 bitsPerSample
 
-        self.firstFrame = self._loadframe(0)
+        self.firstFrame = self._loadframe(0,convert=False)
 
         self.preloader = threading.Thread(target=self.preloaderMain)
         self.preloaderArgs = Queue.Queue(2)
@@ -888,7 +907,7 @@ class TIFFSEQ:
                 break
             self.preloadFrame(index)
         return frame
-    def _loadframe(self,index):
+    def _loadframe(self,index,convert=True):
         if index>=0 and index<self.frames():
             filename = self.tiffs[index]
             tiff = DNG.DNG()
@@ -901,7 +920,7 @@ class TIFFSEQ:
                 print "Error fetching data from",filename
                 rawdata = np.zeros((self.width()*self.height()*3,),dtype=np.uint16).tostring()
             tiff.close()
-            return Frame(self,rawdata,self.width(),self.height(),self.black,self.white,byteSwap=1,bitsPerSample=self.bitsPerSample,bayer=False,rgb=True)
+            return Frame(self,rawdata,self.width(),self.height(),self.black,self.white,byteSwap=1,bitsPerSample=self.bitsPerSample,bayer=False,rgb=True,convert=convert)
         return ""
 
 def loadRAWorMLV(filename,preindex=True):

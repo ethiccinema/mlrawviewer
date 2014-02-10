@@ -494,7 +494,7 @@ def glfwGetWindowPos(window):
     return xpos.value, ypos.value
 
 def glfwGetCursorPos(window):
-    xpos, ypos = c_int(0), c_int(0)
+    xpos, ypos = c_double(0), c_double(0)
     _glfw.glfwGetCursorPos(window, byref(xpos), byref(ypos))
     return xpos.value, ypos.value
 

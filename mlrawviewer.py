@@ -553,6 +553,9 @@ class Viewer(GLCompute.GLCompute):
         else:
             super(Viewer,self).key(k) # Inherit standard behaviour
 
+    def input2d(self,x,y,buttons):
+        pass
+
     def scaleBrightness(self,scale):
         self.setting_brightness *= scale
         #print "Brightness",self.setting_brightness

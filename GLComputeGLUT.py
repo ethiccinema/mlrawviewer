@@ -95,6 +95,11 @@ class GLCompute(object):
     KEY_UP = 101
     KEY_DOWN = 103
 
+    BUTTON_DOWN = 1
+    BUTTON_UP = 0
+    BUTTON_LEFT = 0
+    BUTTON_RIGHT = 1
+
     def __init__(self,width=640,height=360,**kwds):
         self.width = width  
         self.height = height
@@ -105,6 +110,9 @@ class GLCompute(object):
         glutCreateWindow(self.windowName())
         glutSetWindowTitle(self.windowName())  
         glutDisplayFunc(self.__draw)
+        glutMouseFunc(self.__mousefunc)
+        glutMotionFunc(self.__motionfunc)
+        glutPassiveMotionFunc(self.__passivemotionfunc)
         glutIdleFunc(self.__idle)
         try: 
             glutCloseFunc(self.__close)
@@ -119,6 +127,7 @@ class GLCompute(object):
         self._fps = 25
         self._last = time.time()
         self.scenes = [] # Render these scenes in order
+        self.buttons = [self.BUTTON_UP,self.BUTTON_UP]
         super(GLCompute,self).__init__(**kwds)
     def toggleFullscreen(self):
         if self._isFull:
@@ -186,3 +195,17 @@ class GLCompute(object):
             self.__close()
         if k==self.KEY_TAB:
             self.toggleFullscreen()
+    def __mousefunc(self,button,state,x,y):
+        if state==GLUT_DOWN: state = self.BUTTON_DOWN
+        else: state = self.BUTTON_UP
+        if button==GLUT_LEFT_BUTTON: button = self.BUTTON_LEFT
+        elif button==GLUT_RIGHT_BUTTON: button = self.BUTTON_RIGHT
+        else: return # Don't support middle button
+        self.buttons[button] = state
+        self.input2d(x,y,self.buttons)
+    def __motionfunc(self,x,y):
+        self.input2d(x,y,self.buttons)
+    def __passivemotionfunc(self,x,y):
+        self.input2d(x,y,self.buttons)
+    def input2d(self,x,y,buttons):
+        print "input2d",x,y,buttons

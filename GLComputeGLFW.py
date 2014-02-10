@@ -96,7 +96,12 @@ class GLCompute(object):
     KEY_RIGHT = glfw.GLFW_KEY_RIGHT
     KEY_UP = glfw.GLFW_KEY_UP
     KEY_DOWN = glfw.GLFW_KEY_DOWN
-
+    
+    BUTTON_DOWN = 1
+    BUTTON_UP = 0
+    BUTTON_LEFT = 0
+    BUTTON_RIGHT = 1
+    
     def __init__(self,width=640,height=360,**kwds):
         cwd = os.getcwd()
         if not glfw.glfwInit():
@@ -116,10 +121,13 @@ class GLCompute(object):
         self._last = time.time()
         self._drawNeeded = True
         self.scenes = [] # Render these scenes in order
+        self.buttons = [self.BUTTON_UP,self.BUTTON_UP]
         super(GLCompute,self).__init__(**kwds)
     def installCallbacks(self,w):
         glfw.glfwSetWindowRefreshCallback(w,self.redisplay)
         glfw.glfwSetKeyCallback(w, self.__key)
+        glfw.glfwSetCursorPosCallback(w, self.__motionfunc)
+        glfw.glfwSetMouseButtonCallback(w, self.__mousefunc)
     def toggleFullscreen(self):
         if not self._isFull:
             monitors = glfw.glfwGetMonitors()
@@ -202,3 +210,16 @@ class GLCompute(object):
             self.exit()
         if k == self.KEY_TAB:
             self.toggleFullscreen()
+    def __mousefunc(self,window,button,action,mods):
+        x,y = glfw.glfwGetCursorPos(window)
+        if action==glfw.GLFW_PRESS: state = self.BUTTON_DOWN
+        else: action = self.BUTTON_UP
+        if button==glfw.GLFW_MOUSE_BUTTON_LEFT: button = self.BUTTON_LEFT
+        elif button==glfw.GLFW_MOUSE_BUTTON_RIGHT: button = self.BUTTON_RIGHT
+        else: return # Don't support middle button
+        self.buttons[button] = action
+        self.input2d(x,y,self.buttons)
+    def __motionfunc(self,window,x,y):
+        self.input2d(x,y,self.buttons)
+    def input2d(self,x,y,button,state):
+        print "input2d",x,y,buttons
