@@ -221,5 +221,5 @@ class GLCompute(object):
         self.input2d(x,y,self.buttons)
     def __motionfunc(self,window,x,y):
         self.input2d(x,y,self.buttons)
-    def input2d(self,x,y,button,state):
+    def input2d(self,x,y,buttons):
         print "input2d",x,y,buttons
