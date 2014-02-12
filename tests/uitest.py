@@ -31,6 +31,7 @@ On Debian/Ubuntu try "sudo apt-get install python-numpy"
 
 # Now import our own modules
 import GLCompute
+import GLComputeUI as ui
 import Font
 from ShaderText import *
 from Matrix import *

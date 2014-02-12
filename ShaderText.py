@@ -1,6 +1,6 @@
 """
 ShaderText.py
-(c) Andrew Baldwin 2013
+(c) Andrew Baldwin 2013-2014
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
 this software and associated documentation files (the "Software"), to deal in
@@ -133,11 +133,11 @@ void main() {
             vbov = vbo.VBO(v)
         return (None,vbov)
  
-    def label(self,font,text,rgba=(1.0,1.0,1.0,1.0),update=(None,None)):
+    def label(self,text,rgba=(1.0,1.0,1.0,1.0),update=(None,None)):
         oldvbo = None
         if update:
             oldvbo = update[1]
-        f = font
+        f = self.font
         kerning = 0
         pi = None
         x = 0

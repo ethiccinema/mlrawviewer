@@ -81,6 +81,7 @@ PLOG_CPU = PerformanceLog.PLOG_TYPE(2,"CPU")
 PLOG_GPU = PerformanceLog.PLOG_TYPE(3,"GPU")
 
 import GLCompute
+import GLComputeUI as ui
 import MlRaw
 import Font
 from Matrix import *
@@ -200,27 +201,15 @@ class Display(GLCompute.Drawable):
         # 1 to 1
         # self.displayShader.draw(self.rgbImage.width,self.rgbImage.height,self.rgbImage,balance)
 
-class Geometry(GLCompute.Drawable):
-    def __init__(self,shader,**kwds):
-        super(Geometry,self).__init__(**kwds)
-        self.textshader = shader
-        self.geometry = None
-        self.matrix = Matrix4x4()
-        self.colour = (1.0,1.0,1.0,1.0)
-    def render(self,scene):
-        if self.geometry:
-            self.textshader.draw(self.geometry,self.matrix,self.colour)
-
 class DisplayScene(GLCompute.Scene):
-    def __init__(self,raw,rgbImage,font,frames,**kwds):
+    def __init__(self,raw,rgbImage,frames,**kwds):
         super(DisplayScene,self).__init__(**kwds)
         self.raw = raw
-        self.textshader = ShaderText(font)
         self.rgbImage = rgbImage
         self.display = Display(rgbImage)
-        self.progressBackground = Geometry(shader=self.textshader)
-        self.progress = Geometry(shader=self.textshader)
-        self.timestamp = Geometry(shader=self.textshader)
+        self.progressBackground = ui.Geometry()
+        self.progress = ui.Geometry()
+        self.timestamp = ui.Geometry()
         self.drawables.extend([self.display,self.progressBackground,self.progress,self.timestamp])
         self.frames = frames # Frames interface
 
@@ -238,9 +227,9 @@ class DisplayScene(GLCompute.Scene):
         m2.translate(-width*0.48,-height*0.5+10)
         rectWidth = width * 0.96
         rectHeight = 20
-        self.progressBackground.geometry = self.textshader.rectangle(rectWidth*self.raw.indexingStatus(),rectHeight,rgba=(1.0-0.8*self.raw.indexingStatus(),0.2,0.2,0.2),update=self.progressBackground.geometry)
+        self.progressBackground.rectangle(rectWidth*self.raw.indexingStatus(),rectHeight,rgba=(1.0-0.8*self.raw.indexingStatus(),0.2,0.2,0.2),update=self.progressBackground.geometry)
         #if self.raw.indexingStatus()==1.0:
-        self.progress.geometry = self.textshader.rectangle((float(frameNumber)/float(self.raw.frames()-1))*rectWidth,rectHeight,rgba=(1.0,1.0,0.2,0.2),update=self.progress.geometry)
+        self.progress.rectangle((float(frameNumber)/float(self.raw.frames()-1))*rectWidth,rectHeight,rgba=(1.0,1.0,0.2,0.2),update=self.progress.geometry)
         #else:
         #    self.progress.geometry = self.textshader.rectangle((self.raw.indexingStatus())*rectWidth,rectHeight,rgba=(1.0,1.0,0.2,0.2),update=self.progress.geometry)
         self.progressBackground.matrix = m2
@@ -257,9 +246,9 @@ class DisplayScene(GLCompute.Scene):
         fsec = (totsec - int(totsec))*1000.0
         # NOTE: We use one-based numbering for the frame number display because it is more natural -> ends on last frame
         if self.raw.indexingStatus()==1.0:
-            self.timestamp.geometry = self.textshader.label(self.textshader.font,"%02d:%02d.%03d (%d/%d)"%(minutes,seconds,fsec,frameNumber+1,self.raw.frames()),update=self.timestamp.geometry)
+            self.timestamp.label(self.textshader.font,"%02d:%02d.%03d (%d/%d)"%(minutes,seconds,fsec,frameNumber+1,self.raw.frames()),update=self.timestamp.geometry)
         else:
-            self.timestamp.geometry = self.textshader.label(self.textshader.font,"%02d:%02d.%03d (%d/%d) Indexing %s: %d%%"%(minutes,seconds,fsec,frameNumber+1,self.raw.frames(),self.raw.description(),self.raw.indexingStatus()*100.0),update=self.timestamp.geometry)
+            self.timestamp.label(self.textshader.font,"%02d:%02d.%03d (%d/%d) Indexing %s: %d%%"%(minutes,seconds,fsec,frameNumber+1,self.raw.frames(),self.raw.description(),self.raw.indexingStatus()*100.0),update=self.timestamp.geometry)
         self.timestamp.colour = (0.0,0.0,0.0,1.0)
 
 class Audio(object):
@@ -338,7 +327,6 @@ class Viewer(GLCompute.GLCompute):
         self.raw = raw
         super(Viewer,self).__init__(width=userWidth,height=int(userWidth*self.vidAspectHeight),**kwds)
         self._init = False
-        self.font = Font.Font(os.path.join(programpath,"data/os.glf"))
         self.realStartTime = None
         self.playTime = 0
         self.playFrameNumber = 0
@@ -428,7 +416,7 @@ class Viewer(GLCompute.GLCompute):
         self.scenes = []
         self.demosaic = DemosaicScene(self.raw,self,self,self,size=(self.raw.width(),self.raw.height()))
         self.scenes.append(self.demosaic)
-        self.display = DisplayScene(self.raw,self.demosaic.rgbImage,self.font,self,size=(0,0))
+        self.display = DisplayScene(self.raw,self.demosaic.rgbImage,self,size=(0,0))
         self.scenes.append(self.display)
         self.rgbImage = self.demosaic.rgbImage
         self.initWav()
