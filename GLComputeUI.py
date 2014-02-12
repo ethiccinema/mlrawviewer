@@ -62,9 +62,9 @@ class Geometry(GLCompute.Drawable):
         self.geometry = None
         self.matrix = Matrix4x4()
         self.colour = (1.0,1.0,1.0,1.0)
-    def rectangle(*args,**kwargs):
+    def rectangle(self,*args,**kwargs):
         self.geometry = self.shader.rectangle(*args,**kwargs)
-    def label(*args,**kwargs):
+    def label(self,*args,**kwargs):
         self.geometry = self.shader.label(*args,**kwargs)
     def render(self,scene):
         if self.geometry:

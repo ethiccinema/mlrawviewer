@@ -246,9 +246,9 @@ class DisplayScene(GLCompute.Scene):
         fsec = (totsec - int(totsec))*1000.0
         # NOTE: We use one-based numbering for the frame number display because it is more natural -> ends on last frame
         if self.raw.indexingStatus()==1.0:
-            self.timestamp.label(self.textshader.font,"%02d:%02d.%03d (%d/%d)"%(minutes,seconds,fsec,frameNumber+1,self.raw.frames()),update=self.timestamp.geometry)
+            self.timestamp.label("%02d:%02d.%03d (%d/%d)"%(minutes,seconds,fsec,frameNumber+1,self.raw.frames()),update=self.timestamp.geometry)
         else:
-            self.timestamp.label(self.textshader.font,"%02d:%02d.%03d (%d/%d) Indexing %s: %d%%"%(minutes,seconds,fsec,frameNumber+1,self.raw.frames(),self.raw.description(),self.raw.indexingStatus()*100.0),update=self.timestamp.geometry)
+            self.timestamp.label("%02d:%02d.%03d (%d/%d) Indexing %s: %d%%"%(minutes,seconds,fsec,frameNumber+1,self.raw.frames(),self.raw.description(),self.raw.indexingStatus()*100.0),update=self.timestamp.geometry)
         self.timestamp.colour = (0.0,0.0,0.0,1.0)
 
 class Audio(object):
