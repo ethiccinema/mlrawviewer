@@ -223,11 +223,11 @@ class DisplayScene(ui.Scene):
         width,height = self.size
         rectWidth = width * 0.96
         rectHeight = 20
-        self.progressBackground.setPos(10,height-10)
+        self.progressBackground.setPos(width*0.02,height-26)
         self.progressBackground.rectangle(rectWidth*self.raw.indexingStatus(),rectHeight,rgba=(1.0-0.8*self.raw.indexingStatus(),0.2,0.2,0.2),update=self.progressBackground.geometry)
-        self.progress.setPos(10,height-10)
-        self.progress.rectangle((float(frameNumber)/float(self.raw.frames()-1))*rectWidth,rectHeight,rgba=(1.0,1.0,0.2,0.2),update=self.progress.geometry)
-        self.timestamp.setPos(12,height-12)
+        self.progress.setPos(width*0.02,height-26)
+        self.progress.rectangle((float(frameNumber)/float(self.raw.frames()-1))*rectWidth,rectHeight,rgba=(0.2,0.2,0.01,0.2),update=self.progress.geometry)
+        self.timestamp.setPos(width*0.02+2,height-26)
         self.timestamp.setScale(10.0/30.0)
         totsec = float(frameNumber)/self.raw.fps
         minutes = int(totsec/60.0)

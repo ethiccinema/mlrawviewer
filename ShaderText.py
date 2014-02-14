@@ -72,7 +72,7 @@ void main() {
     def draw(self,label,matrix,rgba=(1.0,1.0,1.0,1.0)):
         texture,vertices = label
         self.use()
-        vertices.bind() 
+        vertices.bind()
         glEnableVertexAttribArray(self.axyuv)
         glVertexAttribPointer(self.axyuv,4,GL_FLOAT,GL_FALSE,48,vertices)
         glEnableVertexAttribArray(self.argba)
@@ -87,11 +87,12 @@ void main() {
         glUniform4f(self.uniforms["urgba"], rgba[0],rgba[1],rgba[2],rgba[3])
         glUniformMatrix4fv(self.uniforms["matrix"], 1, 0, matrix.m.tolist())
         glUniform1i(self.uniforms["tex"], 0)
-        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+        #glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+        glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA)
         glEnable(GL_BLEND)
         glDrawArrays(GL_TRIANGLES, 0, len(vertices)/12)
         glDisable(GL_BLEND)
-        
+
         vertices.unbind()
     def rectangle(self,width,height,rgba=(1.0,1.0,1.0,1.0),update=(None,None),uv=(0.0,0.0,1.0,1.0),solid=1.0,tex=0.0,tint=0.0):
         oldvbo = None
@@ -112,18 +113,18 @@ void main() {
         v0 = uv[1]
         u1 = uv[0]+uv[2]
         v1 = uv[1]+uv[3]
-        vp = 0 
-        v[vp,:4] = [x0,y0,u0,v1]  
+        vp = 0
+        v[vp,:4] = [x0,y0,u0,v1]
         vp += 1
-        v[vp,:4] = [x1,y0,u1,v1]  
+        v[vp,:4] = [x1,y0,u1,v1]
         vp += 1
-        v[vp,:4] = [x0,y1,u0,v0]  
+        v[vp,:4] = [x0,y1,u0,v0]
         vp += 1
-        v[vp,:4] = [x0,y1,u0,v0]  
+        v[vp,:4] = [x0,y1,u0,v0]
         vp += 1
-        v[vp,:4] = [x1,y0,u1,v1]  
+        v[vp,:4] = [x1,y0,u1,v1]
         vp += 1
-        v[vp,:4] = [x1,y1,u1,v0]  
+        v[vp,:4] = [x1,y1,u1,v0]
         vp += 1
         v = v.reshape((v.shape[0]*v.shape[1],))
         if oldvbo:
@@ -132,7 +133,7 @@ void main() {
         else:
             vbov = vbo.VBO(v)
         return (None,vbov)
- 
+
     def label(self,text,rgba=(1.0,1.0,1.0,1.0),update=(None,None)):
         oldvbo = None
         if update:
@@ -146,24 +147,26 @@ void main() {
         y0 = 0
         v = np.zeros(shape=(len(text)*6,12),dtype=np.float32)
         v[:,4:8] = rgba
-        v[:,10] = 1.0 # Use texture only
-        v[:,11] = 0.8 # Gamma = 1.0
+        v[:,8] = 0 # Use colour only
+        v[:,9] = 0 # Red (font gray) only 
+        v[:,10] = 0 # Use tint
+        v[:,11] = 0.8 # Gamma
 
         vp = 0
         k = f.kerning
         g = f.geometry
         for c in text:
             ci = ord(c)
-            if ci>0xFF: 
+            if ci>0xFF:
                 continue
             if pi:
-                kernkey = (pi<<8) + ci 
-                kerning = k.get(kernkey,0)/64.0     
+                kernkey = (pi<<8) + ci
+                kerning = k.get(kernkey,0)/64.0
                 #print kernkey,kerning
-            # oy,ox,h,w,l,t,ax,ay = 
-            #g = f.geometry[:,ci] 
+            # oy,ox,h,w,l,t,ax,ay =
+            #g = f.geometry[:,ci]
             #oy,ox,h,w,l,t,ax,ay = g[:,ci]
-            
+
             oy = g.item((0,ci))
             ox = g.item((1,ci))
             h = g.item((2,ci))
@@ -172,7 +175,7 @@ void main() {
             t = g.item((5,ci))
             ax = g.item((6,ci))
             ay = g.item((7,ci))
-            
+
             #print ci,f.geometry[:,ci]
             """
             x0 = x + l + kerning - ox + 2.0
@@ -183,51 +186,51 @@ void main() {
             ty = (64.0*(ci/16)+2.0)/1024.0
             """
             x0 = x + l + kerning - 4.0
-            y0 = y - h + t - 4.0
+            y0 = y + (50 - t) - 4.0
             x1 = x0 + w + 8.0
             y1 = y0 + h + 8.0
             tx = (64.0*(ci%16)+ox-4.0)/1024.0
             ty = (64.0*(ci/16)+oy-4.0)/1024.0
 
-            u0 = tx 
-            v0 = ty
+            u0 = tx
+            v1 = ty
             u1 = tx + (w+8.0)/1024.0
-            v1 = ty + (h+8.0)/1024.0 
+            v0 = ty + (h+8.0)/1024.0
 #            u1 = tx + (60.0)/1024.0
-#            v1 = ty + (60.0)/1024.0   
+#            v1 = ty + (60.0)/1024.0
             #print x0,y0,u0,v0,x1,y1,u1,v1,ax/64.0,ay/64.0,kerning
             v[vp,0] = x0
             v[vp,1] = y0
             v[vp,2] = u0
-            v[vp,3] = v1  
+            v[vp,3] = v1
             vp += 1
             v[vp,0] = x1
             v[vp,1] = y0
             v[vp,2] = u1
-            v[vp,3] = v1  
+            v[vp,3] = v1
             vp += 1
             v[vp,0] = x0
             v[vp,1] = y1
             v[vp,2] = u0
-            v[vp,3] = v0  
+            v[vp,3] = v0
             vp += 1
             v[vp,0] = x0
             v[vp,1] = y1
             v[vp,2] = u0
-            v[vp,3] = v0  
+            v[vp,3] = v0
             vp += 1
             v[vp,0] = x1
             v[vp,1] = y0
             v[vp,2] = u1
-            v[vp,3] = v1  
+            v[vp,3] = v1
             vp += 1
             v[vp,0] = x1
             v[vp,1] = y1
             v[vp,2] = u1
-            v[vp,3] = v0  
+            v[vp,3] = v0
             vp += 1
-            x += ax/64.0 + kerning 
-            y += ay/64.0 
+            x += ax/64.0 + kerning
+            y += ay/64.0
             pi = ci
         v = v.reshape((v.shape[0]*v.shape[1],))
         if oldvbo:

@@ -66,7 +66,7 @@ class Viewer(GLCompute.GLCompute):
         self.hw = ui.Geometry()
         self.hw.label("Hello World!")
         self.hw.setScale(1.0)
-        self.scene.drawables.append(self.hw)
+        self.childbox.children.append(self.hw)
         self.box.children.append(self.childbox)
         self.scene.drawables.append(self.box)
         self._init = True
