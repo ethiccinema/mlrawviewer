@@ -110,9 +110,9 @@ void main() {
         x1 = float(width)
         y1 = float(height)
         u0 = uv[0]
-        v0 = uv[1]
+        v1 = uv[1]
         u1 = uv[0]+uv[2]
-        v1 = uv[1]+uv[3]
+        v0 = uv[1]+uv[3]
         vp = 0
         v[vp,:4] = [x0,y0,u0,v1]
         vp += 1
