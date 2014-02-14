@@ -53,8 +53,37 @@ FONT = Font.Font(os.path.join(os.path.split(__file__)[0],"data/os.glf"))
 
 shaders = {}
 
+class Drawable(object):
+    def __init__(self):
+        pass
+    def render(self,scene,matrix):
+        pass
 
-class Geometry(GLCompute.Drawable):
+class Scene(object):
+    def __init__(self,size=(0,0)):
+        self.drawables = []
+        self.size = size
+        self.position = (0, 0)
+        self.matrix = Matrix4x4()
+    def setTarget(self):
+        glBindFramebuffer(GL_FRAMEBUFFER, 0)
+        glViewport(self.position[0],self.position[1],self.size[0],self.size[1])
+    def render(self,frame):
+        self.frame = frame
+        self.prepareToRender()
+        self.setTarget()
+        self.matrix.identity()
+        self.matrix.viewport(*self.size)
+        self.matrix.translate(-self.size[0]*0.5,-self.size[1]*0.5)
+        for d in self.drawables:
+            d.render(self,self.matrix)
+        self.renderComplete()
+    def prepareToRender(self):
+        pass
+    def renderComplete(self):
+        pass
+
+class Geometry(Drawable):
     def __init__(self,**kwds):
         super(Geometry,self).__init__(**kwds)
         global shaders
@@ -62,11 +91,34 @@ class Geometry(GLCompute.Drawable):
         self.geometry = None
         self.matrix = Matrix4x4()
         self.colour = (1.0,1.0,1.0,1.0)
+        self.pos = (0.0,0.0)
+        self.transformOffset = (0.0,0.0)
+        self.scale = 1.0
+        self.rotation = 0.0
+        self.children = []
+    def setTransformOffset(self,x,y):
+        self.transformOffset = (x,y)
+    def setPos(self,x,y):
+        self.pos = (x,y)    
+    def setScale(self,scale):
+        self.scale = scale    
     def rectangle(self,*args,**kwargs):
         self.geometry = self.shader.rectangle(*args,**kwargs)
     def label(self,*args,**kwargs):
         self.geometry = self.shader.label(*args,**kwargs)
-    def render(self,scene):
+    def render(self,scene,matrix):
         if self.geometry:
+            # Update matrix
+            self.matrix.identity()
+            self.matrix.translate(self.pos[0],self.pos[1])
+            if self.rotation != 0.0:
+                self.matrix.rotation(2.0*3.1415927*self.rotation/360.0)    
+            self.matrix.translate(-self.transformOffset[0],-self.transformOffset[1])
+            if self.scale != 1.0:
+                self.matrix.scale(self.scale)
+            #if self.rotation != 0.0:
+            #    self.matrix.rotation(2.0*3.1415927*self.rotation/360.0)    
+            self.matrix.mult(matrix);
             self.shader.draw(self.geometry,self.matrix,self.colour)
-
+        for c in self.children:
+            c.render(scene,self.matrix) # Relative to parent

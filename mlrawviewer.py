@@ -91,7 +91,7 @@ from ShaderDemosaicCPU import *
 from ShaderDisplaySimple import *
 from ShaderText import *
 
-class Demosaicer(GLCompute.Drawable):
+class Demosaicer(ui.Drawable):
     def __init__(self,raw,rawUploadTex,rgbUploadTex,settings,encoder,frames,**kwds):
         super(Demosaicer,self).__init__(**kwds)
         self.shaderNormal = ShaderDemosaicBilinear()
@@ -108,7 +108,7 @@ class Demosaicer(GLCompute.Drawable):
         self.frames = frames # Frame fetching interface
         self.rgbFrameUploaded = None
 
-    def render(self,scene):
+    def render(self,scene,matrix):
 
         """
         f = scene.frame
@@ -164,7 +164,7 @@ class Demosaicer(GLCompute.Drawable):
         self.lastBrightness = brightness
         self.lastRgb = rgb
 
-class DemosaicScene(GLCompute.Scene):
+class DemosaicScene(ui.Scene):
     def __init__(self,raw,settings,encoder,frames,**kwds):
         super(DemosaicScene,self).__init__(**kwds)
         self.raw = raw
@@ -184,12 +184,12 @@ class DemosaicScene(GLCompute.Scene):
         self.rgbUploadTex.free()
         self.rgbImage.free()
 
-class Display(GLCompute.Drawable):
+class Display(ui.Drawable):
     def __init__(self,rgbImage,**kwds):
         super(Display,self).__init__(**kwds)
         self.displayShader = ShaderDisplaySimple()
         self.rgbImage = rgbImage
-    def render(self,scene):
+    def render(self,scene,matrix):
         # Now display the RGB image
         #self.rgbImage.addmipmap()
         # Balance now happens in demosaicing shader
@@ -201,7 +201,7 @@ class Display(GLCompute.Drawable):
         # 1 to 1
         # self.displayShader.draw(self.rgbImage.width,self.rgbImage.height,self.rgbImage,balance)
 
-class DisplayScene(GLCompute.Scene):
+class DisplayScene(ui.Scene):
     def __init__(self,raw,rgbImage,frames,**kwds):
         super(DisplayScene,self).__init__(**kwds)
         self.raw = raw
@@ -220,26 +220,15 @@ class DisplayScene(GLCompute.Scene):
         """
         frameNumber = self.frames.currentFrameNumber()
         frameTime = self.frames.currentTime()
-
-        m2 = Matrix4x4()
         width,height = self.size
-        m2.viewport(width,height)
-        m2.translate(-width*0.48,-height*0.5+10)
         rectWidth = width * 0.96
         rectHeight = 20
+        self.progressBackground.setPos(10,height-10)
         self.progressBackground.rectangle(rectWidth*self.raw.indexingStatus(),rectHeight,rgba=(1.0-0.8*self.raw.indexingStatus(),0.2,0.2,0.2),update=self.progressBackground.geometry)
-        #if self.raw.indexingStatus()==1.0:
+        self.progress.setPos(10,height-10)
         self.progress.rectangle((float(frameNumber)/float(self.raw.frames()-1))*rectWidth,rectHeight,rgba=(1.0,1.0,0.2,0.2),update=self.progress.geometry)
-        #else:
-        #    self.progress.geometry = self.textshader.rectangle((self.raw.indexingStatus())*rectWidth,rectHeight,rgba=(1.0,1.0,0.2,0.2),update=self.progress.geometry)
-        self.progressBackground.matrix = m2
-        self.progress.matrix = m2
-        m = Matrix4x4()
-        m.viewport(width,height)
-        m.translate(-width*0.48+3,-height*0.5+13)
-        if height>0:
-            m.scale(10.0/30.0)
-        self.timestamp.matrix = m
+        self.timestamp.setPos(12,height-12)
+        self.timestamp.setScale(10.0/30.0)
         totsec = float(frameNumber)/self.raw.fps
         minutes = int(totsec/60.0)
         seconds = int(totsec%60.0)

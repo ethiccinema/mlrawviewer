@@ -11,6 +11,10 @@ class Matrix4x4(object):
         self.width = 2.0
         self.height = 2.0   
         self.identity()
+    def copy(self,other):
+        self.m = other.m
+        self.width = other.width
+        self.height = other.height
     def reset(self):
         self.identity()
     def identity(self):
@@ -22,7 +26,7 @@ class Matrix4x4(object):
         self.width = 2.0
         self.height = 2.0   
     def viewport(self,width,height):
-        proj = create_orthogonal_view_matrix(0.0,width,height,0.0,0.0,1.0)
+        proj = create_orthogonal_view_matrix(0.0,width,0.0,height,0.0,1.0)
         self.m = multiply(proj,self.m)
         self.width = float(width)
         self.height = float(height)

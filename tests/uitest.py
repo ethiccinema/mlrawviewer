@@ -54,24 +54,37 @@ class Viewer(GLCompute.GLCompute):
         self.pos = (0.0,0.0)
         self.left = 0.0
         self.right = 0.0
-        self.box = self.shader.rectangle(100,100,rgba=(1.0,1.0,1.0,1.0))
+        self.scene = ui.Scene()
+        self.scenes.append(self.scene)
+        self.box = ui.Geometry()
+        self.box.rectangle(100,100,rgba=(1.0,1.0,1.0,1.0))
+        self.childbox = ui.Geometry()
+        self.childbox.rectangle(50,50,rgba=(1.0,1.0,1.0,1.0))
+        self.childbox.colour = (0.0,1.0,0.0,0.5)
+        self.childbox.setTransformOffset(25.0,25.0)
+        self.childbox.setPos(50.0,50.0)
+        self.hw = ui.Geometry()
+        self.hw.label("Hello World!")
+        self.hw.setScale(1.0)
+        self.scene.drawables.append(self.hw)
+        self.box.children.append(self.childbox)
+        self.scene.drawables.append(self.box)
         self._init = True
     def onDraw(self,width,height):
         self.init()
-        self.matrix.identity()
-        self.matrix.viewport(width,height)
-        self.matrix.translate(-width/2+self.pos[0],height/2-self.pos[1])
-        self.shader.draw(self.box,self.matrix,(self.left,self.right,1.0,1.0))
+        self.box.colour = (self.left,self.right,1.0,1.0)
+        self.scene.size = (width,height)
+        self.childbox.rotation += 1.0
+        self.box.rotation -= 0.5
+        self.renderScenes()
     def input2d(self,x,y,buttons):
         print "input2d",x,y,buttons
-        self.pos = (x,y)
+        self.box.setPos(x,y)
         if buttons[self.BUTTON_LEFT]==self.BUTTON_DOWN: self.left = 1.0
         else: self.left = 0.0
         if buttons[self.BUTTON_RIGHT]==self.BUTTON_DOWN: self.right = 1.0
         else: self.right = 0.0
-    
-    
-
+        self.box.setScale(1.0+self.left+self.right)
 
 def main(): 
     rmc = Viewer()   

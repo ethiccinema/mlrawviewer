@@ -224,32 +224,6 @@ def timeInUsec():
     dt = datetime.now()
     return dt.day*3600.0*24.0+dt.hour*3600.0+dt.minute*60.0+dt.second+0.000001*dt.microsecond
 
-class Drawable(object):
-    def __init__(self):
-        pass
-    def render(self,scene):
-        pass
-
-class Scene(object):
-    def __init__(self,size):
-        self.drawables = []
-        self.size = size
-        self.position = (0, 0)
-    def setTarget(self):
-        glBindFramebuffer(GL_FRAMEBUFFER, 0)
-        glViewport(self.position[0],self.position[1],self.size[0],self.size[1])
-    def render(self,frame):
-        self.frame = frame
-        self.prepareToRender()
-        self.setTarget()
-        for d in self.drawables:
-            d.render(self)
-        self.renderComplete()
-    def prepareToRender(self):
-        pass
-    def renderComplete(self):
-        pass
-
 def glfwp(name):
     return os.path.join(os.path.split(__file__)[0],name)
 
