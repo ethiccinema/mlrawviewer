@@ -94,7 +94,7 @@ void main() {
         glDisable(GL_BLEND)
 
         vertices.unbind()
-    def rectangle(self,width,height,rgba=(1.0,1.0,1.0,1.0),update=(None,None),uv=(0.0,0.0,1.0,1.0),solid=1.0,tex=0.0,tint=0.0):
+    def rectangle(self,width,height,rgba=(1.0,1.0,1.0,1.0),update=(None,None),uv=(0.0,0.0,1.0,1.0),solid=1.0,tex=0.0,tint=0.0,texture=None):
         oldvbo = None
         if update:
             oldvbo = update[1]
@@ -132,7 +132,7 @@ void main() {
             vbov = oldvbo
         else:
             vbov = vbo.VBO(v)
-        return (None,vbov)
+        return (texture,vbov)
 
     def label(self,text,rgba=(1.0,1.0,1.0,1.0),update=(None,None)):
         oldvbo = None
