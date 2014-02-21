@@ -48,6 +48,12 @@ class Viewer(GLCompute.GLCompute):
         self.redisplay()
     def windowName(self):
         return "UI test"
+    def boxClick(self,lx,ly):
+        print "box clicked!"
+        if self.box.colour[0]==1.0:
+            self.box.colour = (0.0,0.0,1.0,1.0)
+        else:
+            self.box.colour = (1.0,0.0,1.0,1.0)
     def init(self):
         if self._init: return
         self.fonttex = GLCompute.Texture((1024,1024),rgbadata=self.font.atlas,hasalpha=False,mono=True,sixteen=False,mipmap=True)
@@ -60,7 +66,7 @@ class Viewer(GLCompute.GLCompute):
         self.scene = ui.Scene()
         self.scenes.append(self.scene)
         
-        self.box = ui.Geometry()
+        self.box = ui.Button(100,100,self.boxClick)
         self.box.rectangle(100,100,rgba=(1.0,1.0,1.0,1.0))
         self.childbox = ui.Geometry()
         self.childbox.rectangle(50,50,rgba=(1.0,1.0,1.0,1.0))
@@ -92,21 +98,23 @@ class Viewer(GLCompute.GLCompute):
         self.init()
         self.scene.size = (width,height)
         
-        self.box.colour = (self.left,self.right,1.0,1.0)
+        self.box.rotation -= 0.1
+        """
         self.childbox.rotation += 1.0
-        self.box.rotation -= 0.5
         for index,icon in enumerate(self.iconitems):
             icon.rotation += (1.0+float(index))*0.2
-        
+        """
         self.renderScenes()
     def input2d(self,x,y,buttons):
-        print "input2d",x,y,buttons
-        self.box.setPos(x,y)
+        #print "input2d",x,y,buttons
+        handled = self.scene.input2d(x,y,buttons)
+        if handled: return
+        self.box.setPos(200,400)
         if buttons[self.BUTTON_LEFT]==self.BUTTON_DOWN: self.left = 1.0
         else: self.left = 0.0
         if buttons[self.BUTTON_RIGHT]==self.BUTTON_DOWN: self.right = 1.0
         else: self.right = 0.0
-        self.box.setScale(1.0+self.left+self.right)
+        #self.box.setScale(1.0+self.left+self.right)
         
 def main(): 
     rmc = Viewer()   

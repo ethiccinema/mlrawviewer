@@ -44,5 +44,9 @@ class Matrix4x4(object):
         self.m = multiply(rot,self.m)
     def mult(self,matrix):
         self.m *= matrix.m 
-
+    def multvec(self,x,y):
+        return apply_to_vector(self.m,(x,y,0.0))
+    def multveci(self,x,y):
+        return apply_to_vector(inverse(self.m),(x,y,0.0))
+    
 
