@@ -290,6 +290,7 @@ def rescue_norawm(f,start,end,fn,tfn):
     lastres = None
     lastcheck = 0
     for check in range(start,end,14*1024*32):
+        print check
         f.seek(check)
         block = f.read(17*14)
         a = array.array('B',block)
@@ -304,6 +305,7 @@ def rescue_norawm(f,start,end,fn,tfn):
     check = check&0xFFFFF000
     lastres = None
     while 1:
+        print f,check
         f.seek(check)
         block = f.read(17*14)
         a = array.array('B',block)
@@ -314,6 +316,8 @@ def rescue_norawm(f,start,end,fn,tfn):
             break
         check -= 0x1000
         lastres = res
+        if check<0:
+            break
     check += 0x1000
     print "at %x %d"%(check,check)
     start = check
@@ -403,10 +407,17 @@ def recover_file(fn,target):
                 #print "RAWM (o)",rawpos+o
         p = 0
         while 1:
-            rawpos = v.find("RAWM",p)        
+            rawpos = v.find("RAWM",p)      
+            # Does it look like a valid RAWM header?
+            footer = struct.unpack("hhiiiiii",v[rawpos+4:rawpos+8*4])
+            israwm = True
+            if footer[0]>4000: israwm = False  
+            if footer[1]>2000: israwm = False  
+            if footer[3]>((footer[0]*footer[1]*10)/8+4096): israwm = False
             if rawpos == -1:
                 break
-            rawm.append(o+rawpos)
+            if israwm:
+                rawm.append(o+rawpos)
             #print "RAWM",rawpos+o
             p = rawpos+1
         lastv = v
