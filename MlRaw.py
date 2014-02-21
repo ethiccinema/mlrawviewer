@@ -178,7 +178,6 @@ class Frame:
             return # Done already
         if self.rawdata != None:
             if self.bitsPerSample == 14:
-                print "demosaic14"
                 self.rgbimage = demosaic14(self.rawdata,self.width,self.height,self.black,self.byteSwap)
             elif self.bitsPerSample == 16:
                 self.rgbimage = demosaic16(self.rawdata,self.width,self.height,self.black,byteSwap=0) # Hmm...what about byteSwapping?

@@ -23,7 +23,7 @@ SOFTWARE.
 """
 
 # standard python imports. Should not be missing
-import sys,struct,os,math,time,datetime,subprocess,signal,threading,Queue,wave
+import sys,struct,os,math,time,datetime,subprocess,signal,threading,Queue,wave,zlib
 from threading import Thread
 
 version = "1.1.0" 
@@ -83,7 +83,6 @@ PLOG_GPU = PerformanceLog.PLOG_TYPE(3,"GPU")
 import GLCompute
 import GLComputeUI as ui
 import MlRaw
-import Font
 from Matrix import *
 from ShaderDemosaicNearest import *
 from ShaderDemosaicBilinear import *
@@ -204,19 +203,33 @@ class Display(ui.Drawable):
 class DisplayScene(ui.Scene):
     def __init__(self,raw,rgbImage,frames,**kwds):
         super(DisplayScene,self).__init__(**kwds)
+        self.icons = zlib.decompress(file(os.path.join(programpath,"data/icons.z"),'rb').read())
+        self.iconsz = int(math.sqrt(len(self.icons)))
+        self.icontex = GLCompute.Texture((self.iconsz,self.iconsz),rgbadata=self.icons,hasalpha=False,mono=True,sixteen=False,mipmap=True)
         self.raw = raw
         self.rgbImage = rgbImage
         self.display = Display(rgbImage)
         self.progressBackground = ui.Geometry()
         self.progress = ui.Button(0,0,self.progressClick)
+        self.play = self.newIcon(0,0,128,128,0,self.progressClick)
         self.timestamp = ui.Geometry()
-        self.drawables.extend([self.display,self.progressBackground,self.progress,self.timestamp])
+        self.drawables.extend([self.display,self.progressBackground,self.progress,self.timestamp,self.play])
         self.frames = frames # Frames interface
-
     def progressClick(self,x,y):
         targetFrame = self.raw.frames()*(float(x)/float(self.progress.size[0]))
         #print "Progress click",x,y,"targetFrame",targetFrame
         self.frames.jumpto(targetFrame)
+
+    def newIcon(self,x,y,w,h,idx,cb):
+        icon = ui.Button(w,h,cb)
+        ix = idx%(self.iconsz/128)
+        iy = idx/(self.iconsz/128)
+        s = 128.0/float(self.iconsz)
+        r = icon.rectangle(w,h,uv=(ix*s,iy*s,s,s),solid=0.0,tex=0.0,tint=0.0,texture=self.icontex)
+        icon.setPos(x,y)
+        icon.colour = (1.0,1.0,1.0,1.0)
+        #icon.setTransformOffset(64.0,64.0)
+        return icon
 
     def prepareToRender(self):
         """
@@ -226,15 +239,17 @@ class DisplayScene(ui.Scene):
         frameNumber = self.frames.currentFrameNumber()
         frameTime = self.frames.currentTime()
         width,height = self.size
-        rectWidth = width * 0.96
+        rectWidth = width * 0.90
         rectHeight = 20
-        self.progressBackground.setPos(width*0.02,height-26)
+        self.progressBackground.setPos(width*0.02+30,height-26)
         self.progressBackground.rectangle(rectWidth*self.raw.indexingStatus(),rectHeight,rgba=(1.0-0.8*self.raw.indexingStatus(),0.2,0.2,0.2),update=self.progressBackground.geometry)
-        self.progress.setPos(width*0.02,height-26)
+        self.progress.setPos(width*0.02+30,height-26)
+        self.play.setPos(width*0.02,height-26)
+        self.play.setScale(0.15)
         progWidth = (float(frameNumber)/float(self.raw.frames()-1))*rectWidth
         self.progress.size = (rectWidth,rectHeight) # For input checking
         self.progress.rectangle(progWidth,rectHeight,rgba=(0.2,0.2,0.01,0.2),update=self.progress.geometry)
-        self.timestamp.setPos(width*0.02+2,height-26)
+        self.timestamp.setPos(width*0.02+32,height-26)
         self.timestamp.setScale(10.0/30.0)
         totsec = float(frameNumber)/self.raw.fps
         minutes = int(totsec/60.0)
