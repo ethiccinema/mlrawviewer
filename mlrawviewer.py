@@ -208,10 +208,15 @@ class DisplayScene(ui.Scene):
         self.rgbImage = rgbImage
         self.display = Display(rgbImage)
         self.progressBackground = ui.Geometry()
-        self.progress = ui.Geometry()
+        self.progress = ui.Button(0,0,self.progressClick)
         self.timestamp = ui.Geometry()
         self.drawables.extend([self.display,self.progressBackground,self.progress,self.timestamp])
         self.frames = frames # Frames interface
+
+    def progressClick(self,x,y):
+        targetFrame = self.raw.frames()*(float(x)/float(self.progress.size[0]))
+        #print "Progress click",x,y,"targetFrame",targetFrame
+        self.frames.jumpto(targetFrame)
 
     def prepareToRender(self):
         """
@@ -226,7 +231,9 @@ class DisplayScene(ui.Scene):
         self.progressBackground.setPos(width*0.02,height-26)
         self.progressBackground.rectangle(rectWidth*self.raw.indexingStatus(),rectHeight,rgba=(1.0-0.8*self.raw.indexingStatus(),0.2,0.2,0.2),update=self.progressBackground.geometry)
         self.progress.setPos(width*0.02,height-26)
-        self.progress.rectangle((float(frameNumber)/float(self.raw.frames()-1))*rectWidth,rectHeight,rgba=(0.2,0.2,0.01,0.2),update=self.progress.geometry)
+        progWidth = (float(frameNumber)/float(self.raw.frames()-1))*rectWidth
+        self.progress.size = (rectWidth,rectHeight) # For input checking
+        self.progress.rectangle(progWidth,rectHeight,rgba=(0.2,0.2,0.01,0.2),update=self.progress.geometry)
         self.timestamp.setPos(width*0.02+2,height-26)
         self.timestamp.setScale(10.0/30.0)
         totsec = float(frameNumber)/self.raw.fps
@@ -436,6 +443,23 @@ class Viewer(GLCompute.GLCompute):
         if self.raw.indexingStatus()<1.0:
             self.refresh()
         PLOG(PLOG_FRAME,"onDraw end")
+    def jumpto(self,frameToJumpTo):
+        #if self.raw.indexingStatus()==1.0:
+        if frameToJumpTo<0:
+            frameToJumpTo = 0
+        if frameToJumpTo>=self.raw.frames():
+            frameToJumpTo = self.raw.frames()
+
+        now = time.time()
+        self.realStartTime = now - frameToJumpTo / self.fps
+        self.neededFrame = int(frameToJumpTo)
+        self.nextFrameNumber = int(frameToJumpTo) # For non-frame dropping case
+        self.audio.stop()
+        if not self.paused:
+            offset = now - self.realStartTime
+            self.startAudio(offset)
+        PLOG(PLOG_FRAME,"jump to %d frame, now need %d"%(frameToJumpTo,self.neededFrame))
+        self.refresh()
     def jump(self,framesToJumpBy):
         #if self.raw.indexingStatus()==1.0:
         if framesToJumpBy<0 and (-framesToJumpBy) > self.neededFrame:
@@ -531,7 +555,7 @@ class Viewer(GLCompute.GLCompute):
             super(Viewer,self).key(k) # Inherit standard behaviour
 
     def input2d(self,x,y,buttons):
-        pass
+        handled = self.display.input2d(x,y,buttons)
 
     def scaleBrightness(self,scale):
         self.setting_brightness *= scale
@@ -859,8 +883,6 @@ class Viewer(GLCompute.GLCompute):
                 self.manageFrameCache()
                 self.preloadingFrame -= 1
         self.manageFrameLoading()
-
-
 
 def main():
     if len(sys.argv)<2:
