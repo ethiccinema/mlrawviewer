@@ -210,7 +210,9 @@ class DisplayScene(ui.Scene):
         self.rgbImage = rgbImage
         self.display = Display(rgbImage)
         self.progressBackground = ui.Geometry()
+        self.progressBackground.edges = (1.0,1.0,0.01,0.25)
         self.progress = ui.Button(0,0,self.progressClick)
+        self.progress.edges = (1.0,1.0,0.01,0.5)
         self.play = self.newIcon(0,0,128,128,1,self.playClick)
         self.play.colour = (0.5,0.5,0.5,0.5) # Quite transparent white
         self.showingPlay = True

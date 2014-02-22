@@ -33,8 +33,8 @@ attribute vec4 argba;
 attribute vec4 actmg;
 varying vec2 texcoord;
 uniform mat4 matrix;
-uniform float opacity;
 uniform vec4 urgba;
+uniform vec4 whxy;
 varying vec4 rgba;
 varying vec4 ctmg;
 void main() {
@@ -52,24 +52,31 @@ varying vec2 texcoord;
 varying vec4 rgba;
 varying vec4 ctmg;
 uniform vec4 urgba;
+uniform vec4 whxy;
 
 void main() {
     vec4 t = texture2D(tex,texcoord).rgba;
     vec4 tr = vec4(t.r);
     t = mix(tr,t,ctmg.y);
-    vec4 col = ctmg.x*rgba + t + ctmg.z*t*rgba;
-    gl_FragColor = urgba*pow(col,vec4(ctmg.w));
+    float r = 1.0;
+    if (any(greaterThan(whxy.zw,vec2(0.0)))) {
+        vec2 tx = (1.0 - abs((texcoord - 0.5)*2.0)); // Change to 1 at centre, 0 at edges
+        vec2 pxy = smoothstep(vec2(0.0),whxy.zw,tx);
+        r = pxy.x*pxy.y;
+    }
+    vec4 col = ctmg.x*rgba + (1.0-ctmg.z)*t + ctmg.z*t*rgba;
+    gl_FragColor = r*urgba*pow(col,vec4(ctmg.w));
 }
 """
 
     def __init__(self,font,**kwds):
         myclass = self.__class__
-        super(ShaderText,self).__init__(myclass.vertex_src,myclass.fragment_src,["urgba","matrix","tex"],**kwds)
+        super(ShaderText,self).__init__(myclass.vertex_src,myclass.fragment_src,["urgba","matrix","tex","whxy"],**kwds)
         self.axyuv = glGetAttribLocation(self.program, "axyuv")
         self.argba = glGetAttribLocation(self.program, "argba")
         self.actmg = glGetAttribLocation(self.program, "actmg")
         self.font = font
-    def draw(self,label,matrix,rgba=(1.0,1.0,1.0,1.0),opacity=1.0):
+    def draw(self,label,matrix,rgba=(1.0,1.0,1.0,1.0),opacity=1.0,whxy=(1.0,1.0,0.0,0.0)):
         texture,vertices = label
         self.use()
         vertices.bind()
@@ -87,6 +94,7 @@ void main() {
         glUniform4f(self.uniforms["urgba"], rgba[0]*opacity,rgba[1]*opacity,rgba[2]*opacity,rgba[3]*opacity)
         glUniformMatrix4fv(self.uniforms["matrix"], 1, 0, matrix.m.tolist())
         glUniform1i(self.uniforms["tex"], 0)
+        glUniform4f(self.uniforms["whxy"], whxy[0],whxy[1],whxy[2],whxy[3])
         #glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
         glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA)
         glEnable(GL_BLEND)

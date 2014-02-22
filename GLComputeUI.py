@@ -166,6 +166,7 @@ class Geometry(Drawable):
         self.children = []
         self.size = (0,0)
         self.opacity = 1.0
+        self.edges = (1.0,1.0,0.0,0.0)
     def setTransformOffset(self,x,y):
         self.transformOffset = (x,y)
     def setPos(self,x,y):
@@ -189,7 +190,7 @@ class Geometry(Drawable):
             #if self.rotation != 0.0:
             #    self.matrix.rotation(2.0*3.1415927*self.rotation/360.0)    
             self.matrix.mult(matrix);
-            self.shader.draw(self.geometry,self.matrix,self.colour,self.opacity)
+            self.shader.draw(self.geometry,self.matrix,self.colour,self.opacity,self.edges)
         for c in self.children:
             c.render(scene,self.matrix) # Relative to parent
     def input2d(self,matrix,x,y,buttons):
