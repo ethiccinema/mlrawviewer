@@ -215,8 +215,12 @@ class DisplayScene(ui.Scene):
         self.play.colour = (0.5,0.5,0.5,0.5) # Quite transparent white
         self.showingPlay = True
         self.timestamp = ui.Geometry()
-        self.drawables.extend([self.display,self.progressBackground,self.progress,self.timestamp,self.play])
+        self.overlay = [self.progressBackground,self.progress,self.timestamp,self.play]
+        self.drawables.extend([self.display])
+        self.drawables.extend(self.overlay)
         self.frames = frames # Frames interface
+        self.timeline = ui.Timeline()
+        self.fadeAnimation = ui.Animation(self.timeline,1.0)
 
     def progressClick(self,x,y):
         targetFrame = self.raw.frames()*(float(x)/float(self.progress.size[0]))
@@ -254,22 +258,30 @@ class DisplayScene(ui.Scene):
         f = self.frame
         frameNumber = int(f % self.raw.frames())
         """
+        self.timeline.setNow(time.time())
+        idle = self.frames.userIdleTime()
+        if idle>5.0 and self.fadeAnimation.targval == 1.0:
+            self.fadeAnimation.setTarget(0.0,2.0,0.0,ui.Animation.SMOOTH)
+        elif idle<=5.0 and self.fadeAnimation.targval == 0.0:
+            self.fadeAnimation.setTarget(1.0,0.5,0.0,ui.Animation.SMOOTH)
+        self.overlayOpacity = self.fadeAnimation.value()
+        if self.frames.paused: self.overlayOpacity = 1.0
         frameNumber = self.frames.currentFrameNumber()
         frameTime = self.frames.currentTime()
         width,height = self.size
         rectWidth = width * 0.90
         rectHeight = 20
-        self.progressBackground.setPos(width*0.02+30,height-26)
+        self.progressBackground.setPos(width*0.02+30,height-27)
         self.progressBackground.rectangle(rectWidth*self.raw.indexingStatus(),rectHeight,rgba=(1.0-0.8*self.raw.indexingStatus(),0.2,0.2,0.2),update=self.progressBackground.geometry)
-        self.progress.setPos(width*0.02+30,height-26)
+        self.progress.setPos(width*0.02+30,height-27)
         self.updatePlayIcon() 
-        self.play.setPos(width*0.02,height-26)
+        self.play.setPos(width*0.02,height-27)
         self.play.setScale(0.15)
         progWidth = (float(frameNumber)/float(self.raw.frames()-1))*rectWidth
         self.progress.size = (rectWidth,rectHeight) # For input checking
         self.progress.rectangle(progWidth,rectHeight,rgba=(0.2,0.2,0.01,0.2),update=self.progress.geometry)
-        self.timestamp.setPos(width*0.02+32,height-26)
-        self.timestamp.setScale(10.0/30.0)
+        self.timestamp.setPos(width*0.02+34,height-26)
+        self.timestamp.setScale(9.0/30.0)
         totsec = float(frameNumber)/self.raw.fps
         minutes = int(totsec/60.0)
         seconds = int(totsec%60.0)
@@ -280,6 +292,8 @@ class DisplayScene(ui.Scene):
         else:
             self.timestamp.label("%02d:%02d.%03d (%d/%d) Indexing %s: %d%%"%(minutes,seconds,fsec,frameNumber+1,self.raw.frames(),self.raw.description(),self.raw.indexingStatus()*100.0),update=self.timestamp.geometry)
         self.timestamp.colour = (0.0,0.0,0.0,1.0)
+        for o in self.overlay:
+            o.opacity = self.overlayOpacity
 
 class Audio(object):
     INIT = 0
@@ -383,6 +397,7 @@ class Viewer(GLCompute.GLCompute):
         self.wav = None
         self.indexing = True
         self.audioOffset = 0.0
+        self.lastEventTime = time.time()
         # Shared settings
         self.setting_brightness = 16.0
         self.setting_rgb = (2.0, 1.0, 1.5)
@@ -512,6 +527,8 @@ class Viewer(GLCompute.GLCompute):
         PLOG(PLOG_FRAME,"jump by %d frames, now need %d"%(framesToJumpBy,self.neededFrame))
         self.refresh()
     def key(self,k):
+        now = time.time()
+        self.lastEventTime = now
         if k==self.KEY_SPACE:
             self.togglePlay()
         elif k==self.KEY_PERIOD: # Nudge forward one frame - best when paused
@@ -580,8 +597,14 @@ class Viewer(GLCompute.GLCompute):
         else:
             super(Viewer,self).key(k) # Inherit standard behaviour
 
+    def userIdleTime(self):
+        now = time.time()
+        return now - self.lastEventTime
+
     def input2d(self,x,y,buttons):
+        now = time.time()
         handled = self.display.input2d(x,y,buttons)
+        self.lastEventTime = now
 
     def scaleBrightness(self,scale):
         self.setting_brightness *= scale

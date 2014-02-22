@@ -69,7 +69,7 @@ void main() {
         self.argba = glGetAttribLocation(self.program, "argba")
         self.actmg = glGetAttribLocation(self.program, "actmg")
         self.font = font
-    def draw(self,label,matrix,rgba=(1.0,1.0,1.0,1.0)):
+    def draw(self,label,matrix,rgba=(1.0,1.0,1.0,1.0),opacity=1.0):
         texture,vertices = label
         self.use()
         vertices.bind()
@@ -84,7 +84,7 @@ void main() {
         else:
             glActiveTexture(GL_TEXTURE0)
             glBindTexture(GL_TEXTURE_2D, 0)
-        glUniform4f(self.uniforms["urgba"], rgba[0],rgba[1],rgba[2],rgba[3])
+        glUniform4f(self.uniforms["urgba"], rgba[0]*opacity,rgba[1]*opacity,rgba[2]*opacity,rgba[3]*opacity)
         glUniformMatrix4fv(self.uniforms["matrix"], 1, 0, matrix.m.tolist())
         glUniform1i(self.uniforms["tex"], 0)
         #glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)

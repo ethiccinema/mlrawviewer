@@ -2,7 +2,7 @@
 
 
 # standard python imports. Should not be missing
-import sys,struct,os,math,time,datetime,zlib
+import sys,struct,os,math,time,datetime,zlib,random
 
 # So we can use modules from the main dir
 root = os.path.split(sys.path[0])[0]
@@ -43,19 +43,29 @@ class Viewer(GLCompute.GLCompute):
         self.font = Font.Font(os.path.join(root,"data/os.glf"))
         self.icons = zlib.decompress(file(os.path.join(root,"data/icons.z"),'rb').read())
         self.iconsz = int(math.sqrt(len(self.icons)))
-        self.time = time.time()
+        self.timeline = ui.Timeline()
+        self.timeline.setNow(time.time())
     def onIdle(self):
         self.redisplay()
     def windowName(self):
         return "UI test"
     def boxClick(self,lx,ly):
-        print "box clicked!"
         if self.box.colour[0]==1.0:
             self.box.colour = (0.0,0.0,1.0,1.0)
         else:
             self.box.colour = (1.0,0.0,1.0,1.0)
+    def updateAnims(self):
+        if self.iconAnim.progress()>=1.0:
+            targr = random.random()*360.0
+            dur = random.random()
+            delay = random.random()
+            interp = ui.Animation.LINEAR
+            if random.random()>0.5:
+                interp = ui.Animation.SMOOTH 
+            self.iconAnim.setTarget(targr,dur,delay,interp)
     def init(self):
         if self._init: return
+        self.iconAnim = ui.Animation(self.timeline)
         self.fonttex = GLCompute.Texture((1024,1024),rgbadata=self.font.atlas,hasalpha=False,mono=True,sixteen=False,mipmap=True)
         self.icontex = GLCompute.Texture((self.iconsz,self.iconsz),rgbadata=self.icons,hasalpha=False,mono=True,sixteen=False,mipmap=True)
         self.shader = ShaderText(self.font)
@@ -96,6 +106,9 @@ class Viewer(GLCompute.GLCompute):
         self._init = True
     def onDraw(self,width,height):
         self.init()
+        self.timeline.setNow(time.time())
+        self.updateAnims()
+        self.iconitems[3].rotation = self.iconAnim.value()
         self.scene.size = (width,height)
         
         self.box.rotation -= 0.1
