@@ -281,7 +281,7 @@ def rescue_norawm(f,start,end,fn,tfn):
             postpend = "\0"*appendzero
             frames += 1
         print "Copying possibly rescued RAW file with %d frames to"%frames,tfn
-        copy(fn,start,end,tfn,"",postpend+rawmheader(width,height,diskframesize,frames))
+        copy(fn,start,end-start,tfn,"",postpend+rawmheader(width,height,diskframesize,frames))
 
         return    
     
@@ -374,7 +374,7 @@ def rescue_norawm(f,start,end,fn,tfn):
         postpend = "\0"*appendzero
         frames += 1
     print "Copying possibly rescued RAW file with %d frames to"%frames,tfn
-    copy(fn,start,end,tfn,"",postpend+rawmheader(width,height,diskframesize,frames))
+    copy(fn,start,end-start,tfn,"",postpend+rawmheader(width,height,diskframesize,frames))
 
     return    
 
@@ -450,7 +450,7 @@ def recover_file(fn,target):
                 prepend = ""
                 if rprepend>0:
                     prepend += "\0"*rprepend
-                copy(fn,start+rstart,end,rn,prepend,rawmheader)
+                copy(fn,start+rstart,end-(start+rstart),rn,prepend,rawmheader)
                 rescnum += 1
             else:
                 print "Problem rescuing RAW file."
