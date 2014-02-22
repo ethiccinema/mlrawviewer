@@ -209,15 +209,30 @@ class DisplayScene(ui.Scene):
         self.raw = raw
         self.rgbImage = rgbImage
         self.display = Display(rgbImage)
+        self.iconBackground = ui.Geometry()
+        self.iconBackground.edges = (1.0,1.0,0.35,0.25)
         self.progressBackground = ui.Geometry()
         self.progressBackground.edges = (1.0,1.0,0.01,0.25)
         self.progress = ui.Button(0,0,self.progressClick)
         self.progress.edges = (1.0,1.0,0.01,0.5)
-        self.play = self.newIcon(0,0,128,128,1,self.playClick)
+        self.play = self.newIcon(0,0,128,128,0,self.playClick)
         self.play.colour = (0.5,0.5,0.5,0.5) # Quite transparent white
-        self.showingPlay = True
+        self.quality = self.newIcon(0,0,128,128,5,self.qualityClick)
+        self.quality.colour = (0.5,0.5,0.5,0.5) # Quite transparent white
+        self.quality.setScale(0.25)
+        self.drop = self.newIcon(0,30,128,128,7,self.dropClick)
+        self.drop.colour = (0.5,0.5,0.5,0.5) # Quite transparent white
+        self.drop.setScale(0.25)
+        self.fullscreen = self.newIcon(0,60,128,128,9,self.fullscreenClick)
+        self.fullscreen.colour = (0.5,0.5,0.5,0.5) # Quite transparent white
+        self.fullscreen.setScale(0.25)
+        self.mapping = self.newIcon(0,90,128,128,11,self.mappingClick)
+        self.mapping.colour = (0.5,0.5,0.5,0.5) # Quite transparent white
+        self.mapping.setScale(0.25)
         self.timestamp = ui.Geometry()
-        self.overlay = [self.progressBackground,self.progress,self.timestamp,self.play]
+        self.iconItems = [self.fullscreen,self.mapping,self.drop,self.quality,self.play]
+        self.overlay = [self.iconBackground,self.progressBackground,self.progress,self.timestamp]
+        self.overlay.extend(self.iconItems)
         self.drawables.extend([self.display])
         self.drawables.extend(self.overlay)
         self.frames = frames # Frames interface
@@ -232,11 +247,24 @@ class DisplayScene(ui.Scene):
     def playClick(self,x,y):
         self.frames.togglePlay()
 
+    def mappingClick(self,x,y):
+        self.frames.toggleToneMapping()
+
+    def fullscreenClick(self,x,y):
+        self.frames.toggleFullscreen()
+
+    def qualityClick(self,x,y):
+        self.frames.toggleQuality()
+    
+    def dropClick(self,x,y):
+        self.frames.toggleDropFrames()
+
     def newIcon(self,x,y,w,h,idx,cb):
         icon = ui.Button(w,h,cb)
         self.setIcon(icon,w,h,idx)
         icon.setPos(x,y)
         icon.colour = (1.0,1.0,1.0,1.0)
+        icon.idx = idx
         #icon.setTransformOffset(64.0,64.0)
         return icon
 
@@ -246,14 +274,18 @@ class DisplayScene(ui.Scene):
         s = 128.0/float(self.iconsz)
         icon.rectangle(w,h,uv=(ix*s,iy*s,s,s),solid=0.0,tex=0.0,tint=0.0,texture=self.icontex)
 
-    def updatePlayIcon(self):
+    def updateIcons(self):
         # Make sure we show correct icon for current state
-        if self.showingPlay and self.frames.paused:
-            self.setIcon(self.play,128,128,0)
-            self.showingPlay = False
-        elif not self.showingPlay and not self.frames.paused:
-            self.setIcon(self.play,128,128,1)
-            self.showingPlay = True
+        # Model is to show icon representing CURRENT state
+        f = self.frames
+        states = [not f._isFull,f.tonemap(),not f.dropframes(),f.setting_highQuality,f.paused]
+        for i in range(len(self.iconItems)):
+            itm = self.iconItems[i]
+            state = states[i]
+            if state!=int(state):
+                if state: state = 1
+                else: state = 0
+            self.setIcon(itm,128,128,itm.idx+state)
 
     def prepareToRender(self):
         """
@@ -271,18 +303,24 @@ class DisplayScene(ui.Scene):
         frameNumber = self.frames.currentFrameNumber()
         frameTime = self.frames.currentTime()
         width,height = self.size
-        rectWidth = width * 0.90
-        rectHeight = 20
-        self.progressBackground.setPos(width*0.02+30,height-27)
+        rectWidth = width - 70.0
+        rectHeight = 30
+        self.iconBackground.setPos(-20.0,40.0)
+        self.iconBackground.rectangle(80,height,rgba=(0.0,0.0,0.0,0.25),update=self.iconBackground.geometry)
+        iconSpacing = 40.0
+        base = height - len(self.iconItems)*iconSpacing
+        for i in self.iconItems:
+            i.setScale(0.25)
+            i.setPos(10.0,base)
+            base += iconSpacing
+        self.progressBackground.setPos(60.0,height-rectHeight-7.0)
         self.progressBackground.rectangle(rectWidth*self.raw.indexingStatus(),rectHeight,rgba=(1.0-0.8*self.raw.indexingStatus(),0.2,0.2,0.2),update=self.progressBackground.geometry)
-        self.progress.setPos(width*0.02+30,height-27)
-        self.updatePlayIcon() 
-        self.play.setPos(width*0.02,height-27)
-        self.play.setScale(0.15)
+        self.progress.setPos(60.0,height-rectHeight-7.0)
+        self.updateIcons() 
         progWidth = (float(frameNumber)/float(self.raw.frames()-1))*rectWidth
         self.progress.size = (rectWidth,rectHeight) # For input checking
         self.progress.rectangle(progWidth,rectHeight,rgba=(0.2,0.2,0.01,0.2),update=self.progress.geometry)
-        self.timestamp.setPos(width*0.02+34,height-26)
+        self.timestamp.setPos(66.0,height-rectHeight-1.0)
         self.timestamp.setScale(9.0/30.0)
         totsec = float(frameNumber)/self.raw.fps
         minutes = int(totsec/60.0)
