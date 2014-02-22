@@ -88,7 +88,7 @@ class Scene(object):
     def input2d(self,x,y,buttons):
         self.matrix.identity()
         #self.matrix.viewport(*self.size)
-        #self.matrix.translate(-self.size[0]*0.5,-self.size[1]*0.5)
+        self.matrix.translate(self.position[0],self.position[1])
         handled = False
         for d in self.drawables:
             if d.ignoreInput: continue
@@ -148,6 +148,7 @@ class Geometry(Drawable):
         self.matrix.mult(matrix);
         # Transform the scene coords into object space
         lx,ly,lz = self.matrix.multveci(x,y)
+        #print lx,ly,self.size[0],self.size[1]
         if lx>=0.0 and lx<=(self.size[0]) and ly>=0.0 and ly<=(self.size[1]):
             return self.event2d(lx,ly,buttons)
         else:
