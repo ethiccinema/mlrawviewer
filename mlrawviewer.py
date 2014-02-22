@@ -211,25 +211,43 @@ class DisplayScene(ui.Scene):
         self.display = Display(rgbImage)
         self.progressBackground = ui.Geometry()
         self.progress = ui.Button(0,0,self.progressClick)
-        self.play = self.newIcon(0,0,128,128,0,self.progressClick)
+        self.play = self.newIcon(0,0,128,128,1,self.playClick)
+        self.play.colour = (0.5,0.5,0.5,0.5) # Quite transparent white
+        self.showingPlay = True
         self.timestamp = ui.Geometry()
         self.drawables.extend([self.display,self.progressBackground,self.progress,self.timestamp,self.play])
         self.frames = frames # Frames interface
+
     def progressClick(self,x,y):
         targetFrame = self.raw.frames()*(float(x)/float(self.progress.size[0]))
         #print "Progress click",x,y,"targetFrame",targetFrame
         self.frames.jumpto(targetFrame)
 
+    def playClick(self,x,y):
+        self.frames.togglePlay()
+
     def newIcon(self,x,y,w,h,idx,cb):
         icon = ui.Button(w,h,cb)
-        ix = idx%(self.iconsz/128)
-        iy = idx/(self.iconsz/128)
-        s = 128.0/float(self.iconsz)
-        r = icon.rectangle(w,h,uv=(ix*s,iy*s,s,s),solid=0.0,tex=0.0,tint=0.0,texture=self.icontex)
+        self.setIcon(icon,w,h,idx)
         icon.setPos(x,y)
         icon.colour = (1.0,1.0,1.0,1.0)
         #icon.setTransformOffset(64.0,64.0)
         return icon
+
+    def setIcon(self,icon,w,h,idx):
+        ix = idx%(self.iconsz/128)
+        iy = idx/(self.iconsz/128)
+        s = 128.0/float(self.iconsz)
+        icon.rectangle(w,h,uv=(ix*s,iy*s,s,s),solid=0.0,tex=0.0,tint=0.0,texture=self.icontex)
+
+    def updatePlayIcon(self):
+        # Make sure we show correct icon for current state
+        if self.showingPlay and self.frames.paused:
+            self.setIcon(self.play,128,128,0)
+            self.showingPlay = False
+        elif not self.showingPlay and not self.frames.paused:
+            self.setIcon(self.play,128,128,1)
+            self.showingPlay = True
 
     def prepareToRender(self):
         """
@@ -244,6 +262,7 @@ class DisplayScene(ui.Scene):
         self.progressBackground.setPos(width*0.02+30,height-26)
         self.progressBackground.rectangle(rectWidth*self.raw.indexingStatus(),rectHeight,rgba=(1.0-0.8*self.raw.indexingStatus(),0.2,0.2,0.2),update=self.progressBackground.geometry)
         self.progress.setPos(width*0.02+30,height-26)
+        self.updatePlayIcon() 
         self.play.setPos(width*0.02,height-26)
         self.play.setScale(0.15)
         progWidth = (float(frameNumber)/float(self.raw.frames()-1))*rectWidth
@@ -494,15 +513,7 @@ class Viewer(GLCompute.GLCompute):
         self.refresh()
     def key(self,k):
         if k==self.KEY_SPACE:
-            self.paused = not self.paused
-            if self.paused:
-                #self.jump(-1) # Redisplay the current frame in high quality
-                self.audio.stop()
-                self.refresh()
-            else:
-                offset = self.playFrameNumber / self.fps
-                self.realStartTime = time.time() - offset
-                self.startAudio(offset)
+            self.togglePlay()
         elif k==self.KEY_PERIOD: # Nudge forward one frame - best when paused
             self.jump(1)
         elif k==self.KEY_COMMA: # Nudge back on frame - best when paused
@@ -590,6 +601,16 @@ class Viewer(GLCompute.GLCompute):
         self.setting_rgb = (R, G, B)
         print "%s:\t %.1f %.1f %.1f"%(Name, R, G, B)
         self.refresh()
+    def togglePlay(self):
+        self.paused = not self.paused
+        if self.paused:
+            #self.jump(-1) # Redisplay the current frame in high quality
+            self.audio.stop()
+            self.refresh()
+        else:
+            offset = self.playFrameNumber / self.fps
+            self.realStartTime = time.time() - offset
+            self.startAudio(offset)
     def toggleQuality(self):
         self.setting_highQuality = not self.setting_highQuality
     def toggleAnamorphic(self):
