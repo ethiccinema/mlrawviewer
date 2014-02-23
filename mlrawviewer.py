@@ -225,12 +225,19 @@ class DisplayScene(ui.Scene):
         self.update.setScale(0.5)
         self.balance = ui.XYGraph(128,128,self.balanceClick)
         self.balance.gradient(128,128,tl=(0.25,0.0,0.0,0.25),tr=(0.25,0.0,0.25,0.25),bl=(0.0,0.0,0.0,0.25),br=(0.0,0.0,0.25,0.25))
+        self.balance.edges = (1.0,1.0,0.05,0.05)
         self.balanceHandle = self.newIcon(0,0,8,8,2,None)
         self.balanceHandle.colour = (0.5,0.5,0.5,0.5)
         self.balanceHandle.ignoreInput = True
+        self.brightness = ui.XYGraph(32,128,self.brightnessClick)
+        self.brightness.gradient(32,128,tl=(0.25,0.25,0.25,0.25),tr=(0.25,0.25,0.25,0.25),bl=(0.0,0.0,0.0,0.25),br=(0.0,0.0,0.0,0.25))
+        self.brightness.edges = (1.0,1.0,0.2,0.05)
+        self.brightnessHandle = self.newIcon(0,0,8,8,2,None)
+        self.brightnessHandle.colour = (0.5,0.5,0.5,0.5)
+        self.brightnessHandle.ignoreInput = True
         self.timestamp = ui.Geometry()
         self.iconItems = [self.fullscreen,self.mapping,self.drop,self.quality,self.play]
-        self.overlay = [self.iconBackground,self.progressBackground,self.progress,self.timestamp,self.update,self.balance,self.balanceHandle]
+        self.overlay = [self.iconBackground,self.progressBackground,self.progress,self.timestamp,self.update,self.balance,self.balanceHandle,self.brightness,self.brightnessHandle]
         self.overlay.extend(self.iconItems)
         self.drawables.extend([self.display])
         self.drawables.extend(self.overlay)
@@ -254,6 +261,14 @@ class DisplayScene(ui.Scene):
         b = 4.0*(x/128.0)
         g = 1.0
         self.frames.changeWhiteBalance(r,g,b,"%f,%f,%f"%(r,g,b))
+        if self.frames.paused:
+            self.frames.refresh()
+
+    def brightnessClick(self,x,y):
+        b = 15.0*(1.0-y/128.0)-5.0
+        b2 = math.pow(2.0,b)
+        self.frames.setting_brightness = b2
+        #self.frames.changeWhiteBalance(r,g,b,"%f,%f,%f"%(r,g,b))
         if self.frames.paused:
             self.frames.refresh()
 
@@ -336,6 +351,11 @@ class DisplayScene(ui.Scene):
         r = ((4.0-rgb[0])/4.0)*128.0
         b = (rgb[2]/4.0)*128.0
         self.balanceHandle.setPos(btl+b-4.0,btr+r-4.0)
+        rtl,rtr = (width-128.0-10.0-32.0-10.0,height-rectHeight-10.0-128.0-5.0)
+        self.brightness.setPos(rtl,rtr)
+        b = math.log(self.frames.setting_brightness,2.0)
+        b2 = 128.0-128.0*((b+5.0)/15.0)
+        self.brightnessHandle.setPos(rtl+16.0-4.0,rtr+b2-4.0)
         self.updateIcons() 
         progWidth = (float(frameNumber)/float(self.raw.frames()-1))*rectWidth
         self.progress.size = (rectWidth,rectHeight) # For input checking
