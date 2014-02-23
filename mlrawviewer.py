@@ -106,6 +106,7 @@ class Demosaicer(ui.Drawable):
         self.lastFrameNumber = None
         self.lastBrightness = None
         self.lastRgb = None
+        self.lastTone = None
         self.frames = frames # Frame fetching interface
         self.rgbFrameUploaded = None
 
@@ -116,7 +117,8 @@ class Demosaicer(ui.Drawable):
         brightness = self.settings.brightness()
         rgb = self.settings.rgb()
         balance = (rgb[0]*brightness, rgb[1]*brightness, rgb[2]*brightness)
-        different = (frameData != self.lastFrameData) or (brightness != self.lastBrightness) or (rgb != self.lastRgb) or (frameNumber != self.lastFrameNumber)
+        tone = self.settings.tonemap()
+        different = (frameData != self.lastFrameData) or (brightness != self.lastBrightness) or (rgb != self.lastRgb) or (frameNumber != self.lastFrameNumber) or (tone != self.lastTone)
         if (frameData and different):
             if ((frameData.rgbimage!=None) or self.settings.highQuality() or self.settings.encoding()) and (frameData.canDemosaic):
                 # Already rgb available, or else low/high quality decode for static view or encoding
@@ -131,7 +133,7 @@ class Demosaicer(ui.Drawable):
                     self.rgbUploadTex.update(frameData.rgbimage)
                     PLOG(PLOG_GPU,"RGB texture upload returned for frame %d"%frameNumber)
                     self.rgbFrameUploaded = frameNumber
-                self.shaderQuality.demosaicPass(self.rgbUploadTex,frameData.black,balance=balance,white=frameData.white,tonemap=self.settings.tonemap())
+                self.shaderQuality.demosaicPass(self.rgbUploadTex,frameData.black,balance=balance,white=frameData.white,tonemap=tone)
                 if self.settings.encoding():
                     self.rgb = glReadPixels(0,0,scene.size[0],scene.size[1],GL_RGB,GL_UNSIGNED_SHORT)
                     self.encoder.encode(frameNumber,self.rgb)
@@ -150,6 +152,7 @@ class Demosaicer(ui.Drawable):
         self.lastFrameNumber = frameNumber
         self.lastBrightness = brightness
         self.lastRgb = rgb
+        self.lastTone = tone
 
 class DemosaicScene(ui.Scene):
     def __init__(self,raw,settings,encoder,frames,**kwds):
@@ -220,9 +223,14 @@ class DisplayScene(ui.Scene):
         self.update = self.newIcon(0,0,128,128,14,self.updateClick)
         self.update.colour = (0.5,0.1,0.0,0.5)
         self.update.setScale(0.5)
+        self.balance = ui.XYGraph(128,128,self.balanceClick)
+        self.balance.gradient(128,128,tl=(0.25,0.0,0.0,0.25),tr=(0.25,0.0,0.25,0.25),bl=(0.0,0.0,0.0,0.25),br=(0.0,0.0,0.25,0.25))
+        self.balanceHandle = self.newIcon(0,0,8,8,2,None)
+        self.balanceHandle.colour = (0.5,0.5,0.5,0.5)
+        self.balanceHandle.ignoreInput = True
         self.timestamp = ui.Geometry()
         self.iconItems = [self.fullscreen,self.mapping,self.drop,self.quality,self.play]
-        self.overlay = [self.iconBackground,self.progressBackground,self.progress,self.timestamp,self.update]
+        self.overlay = [self.iconBackground,self.progressBackground,self.progress,self.timestamp,self.update,self.balance,self.balanceHandle]
         self.overlay.extend(self.iconItems)
         self.drawables.extend([self.display])
         self.drawables.extend(self.overlay)
@@ -240,6 +248,14 @@ class DisplayScene(ui.Scene):
         import webbrowser
         webbrowser.open("https://bitbucket.org/baldand/mlrawviewer/downloads")
         config.updateClickedNow()
+
+    def balanceClick(self,x,y):
+        r = 4.0*(1.0-y/128.0)
+        b = 4.0*(x/128.0)
+        g = 1.0
+        self.frames.changeWhiteBalance(r,g,b,"%f,%f,%f"%(r,g,b))
+        if self.frames.paused:
+            self.frames.refresh()
 
     def playClick(self,x,y):
         self.frames.togglePlay()
@@ -314,6 +330,12 @@ class DisplayScene(ui.Scene):
         self.progressBackground.setPos(60.0,height-rectHeight-7.0)
         self.progressBackground.rectangle(rectWidth*self.raw.indexingStatus(),rectHeight,rgba=(1.0-0.8*self.raw.indexingStatus(),0.2,0.2,0.2),update=self.progressBackground.geometry)
         self.progress.setPos(60.0,height-rectHeight-7.0)
+        btl,btr = (width-128.0-10.0,height-rectHeight-10.0-128.0-5.0)
+        self.balance.setPos(btl,btr)
+        rgb = self.frames.rgb()
+        r = ((4.0-rgb[0])/4.0)*128.0
+        b = (rgb[2]/4.0)*128.0
+        self.balanceHandle.setPos(btl+b-4.0,btr+r-4.0)
         self.updateIcons() 
         progWidth = (float(frameNumber)/float(self.raw.frames()-1))*rectWidth
         self.progress.size = (rectWidth,rectHeight) # For input checking
@@ -668,7 +690,7 @@ class Viewer(GLCompute.GLCompute):
         G = self.checkMultiplier(G)
         B = self.checkMultiplier(B)
         self.setting_rgb = (R, G, B)
-        print "%s:\t %.1f %.1f %.1f"%(Name, R, G, B)
+        #print "%s:\t %.1f %.1f %.1f"%(Name, R, G, B)
         self.refresh()
     def togglePlay(self):
         self.paused = not self.paused
@@ -682,10 +704,13 @@ class Viewer(GLCompute.GLCompute):
             self.startAudio(offset)
     def toggleQuality(self):
         self.setting_highQuality = not self.setting_highQuality
+        self.refresh()
     def toggleAnamorphic(self):
         self.anamorphic = not self.anamorphic
+        self.refresh()
     def toggleToneMapping(self):
         self.setting_tonemap = (self.setting_tonemap + 1)%3
+        self.refresh()
     def toggleDropFrames(self):
         self.setting_dropframes = not self.setting_dropframes
         if self.setting_dropframes:
@@ -694,6 +719,7 @@ class Viewer(GLCompute.GLCompute):
             self.startAudio(offset)
         else:
             self.audio.stop()
+        self.refresh()
     def onIdle(self):
         PLOG(PLOG_FRAME,"onIdle start")
         self.handleIndexing()

@@ -175,6 +175,8 @@ class Geometry(Drawable):
         self.scale = scale    
     def rectangle(self,*args,**kwargs):
         self.geometry = self.shader.rectangle(*args,**kwargs)
+    def gradient(self,*args,**kwargs):
+        self.geometry = self.shader.gradient(*args,**kwargs)
     def label(self,*args,**kwargs):
         self.geometry = self.shader.label(*args,**kwargs)
     def render(self,scene,matrix):
@@ -232,5 +234,16 @@ class Button(Geometry):
             return self
         else:
             self.notClicked = True
+        return None
+
+class XYGraph(Button):
+    def __init__(self,width,height,onclick,**kwds):
+        super(XYGraph,self).__init__(width,height,onclick,**kwds)
+        self.motionWhileClicked = True
+    def event2d(self,lx,ly,buttons):
+        if buttons[0] == 1:
+            # Clicked
+            self.onclick(lx,ly)
+            return self
         return None
         

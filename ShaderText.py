@@ -102,6 +102,52 @@ void main() {
         glDisable(GL_BLEND)
 
         vertices.unbind()
+
+    def gradient(self,width,height,tl,tr,bl,br,update=(None,None)):
+        uv=(0.0,0.0,1.0,1.0)
+        oldvbo = None
+        if update:
+            oldvbo = update[1]
+        triangles = 2
+        v = np.zeros(shape=(triangles*3,12),dtype=np.float32)
+        v[:,8] = 1.0 # Use colour only
+        v[:,9] = 0.0 # Use texture
+        v[:,10] = 0.0 # Use tint
+        v[:,11] = 0.8 # Gamma
+        x0 = 0.0
+        y0 = 0.0
+        x1 = float(width)
+        y1 = float(height)
+        u0 = uv[0]
+        v1 = uv[1]
+        u1 = uv[0]+uv[2]
+        v0 = uv[1]+uv[3]
+        vp = 0
+        v[vp,:4] = [x0,y0,u0,v1]
+        v[vp,4:8] = tl
+        vp += 1
+        v[vp,:4] = [x1,y0,u1,v1]
+        v[vp,4:8] = tr
+        vp += 1
+        v[vp,:4] = [x0,y1,u0,v0]
+        v[vp,4:8] = bl
+        vp += 1
+        v[vp,:4] = [x0,y1,u0,v0]
+        v[vp,4:8] = bl
+        vp += 1
+        v[vp,:4] = [x1,y0,u1,v1]
+        v[vp,4:8] = tr
+        vp += 1
+        v[vp,:4] = [x1,y1,u1,v0]
+        v[vp,4:8] = br
+        vp += 1
+        v = v.reshape((v.shape[0]*v.shape[1],))
+        if oldvbo:
+            oldvbo.set_array(v)
+            vbov = oldvbo
+        else:
+            vbov = vbo.VBO(v)
+        return (None,vbov)
     def rectangle(self,width,height,rgba=(1.0,1.0,1.0,1.0),update=(None,None),uv=(0.0,0.0,1.0,1.0),solid=1.0,tex=0.0,tint=0.0,texture=None):
         oldvbo = None
         if update:
