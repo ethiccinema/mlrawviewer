@@ -110,20 +110,6 @@ class Demosaicer(ui.Drawable):
         self.rgbFrameUploaded = None
 
     def render(self,scene,matrix):
-
-        """
-        f = scene.frame
-        frame = f
-        frameNumber = int((1*frame)/1 % self.raw.frames())
-        if frameNumber==0 or self.raw.indexingStatus<1.0:
-            frameData = self.raw.firstFrame # Always preloaded
-        elif frameNumber != self.lastFrameNumber:
-            frameData = self.raw.frame(frameNumber)
-            nextFrame = int((1*(frame+1)) % self.raw.frames())
-            self.raw.preloadFrame(nextFrame)
-        else:
-            frameData = self.lastFrameData
-        """
         frameData = self.frames.currentFrame()
         frameNumber = self.frames.currentFrameNumber()
 
@@ -231,9 +217,12 @@ class DisplayScene(ui.Scene):
         self.mapping = self.newIcon(0,90,128,128,11,self.mappingClick)
         self.mapping.colour = (0.5,0.5,0.5,0.5) # Quite transparent white
         self.mapping.setScale(0.25)
+        self.update = self.newIcon(0,0,128,128,14,self.updateClick)
+        self.update.colour = (0.5,0.1,0.0,0.5)
+        self.update.setScale(0.5)
         self.timestamp = ui.Geometry()
         self.iconItems = [self.fullscreen,self.mapping,self.drop,self.quality,self.play]
-        self.overlay = [self.iconBackground,self.progressBackground,self.progress,self.timestamp]
+        self.overlay = [self.iconBackground,self.progressBackground,self.progress,self.timestamp,self.update]
         self.overlay.extend(self.iconItems)
         self.drawables.extend([self.display])
         self.drawables.extend(self.overlay)
@@ -245,6 +234,12 @@ class DisplayScene(ui.Scene):
         targetFrame = self.raw.frames()*(float(x)/float(self.progress.size[0]))
         #print "Progress click",x,y,"targetFrame",targetFrame
         self.frames.jumpto(targetFrame)
+    
+    def updateClick(self,x,y):
+        global config
+        import webbrowser
+        webbrowser.open("https://bitbucket.org/baldand/mlrawviewer/downloads")
+        config.updateClickedNow()
 
     def playClick(self,x,y):
         self.frames.togglePlay()
@@ -307,6 +302,7 @@ class DisplayScene(ui.Scene):
         width,height = self.size
         rectWidth = width - 70.0
         rectHeight = 30
+        self.update.setPos(width-64-10,10)
         self.iconBackground.setPos(-20.0,40.0)
         self.iconBackground.rectangle(80,height,rgba=(0.0,0.0,0.0,0.25),update=self.iconBackground.geometry)
         iconSpacing = 40.0
@@ -334,8 +330,17 @@ class DisplayScene(ui.Scene):
         else:
             self.timestamp.label("%02d:%02d.%03d (%d/%d) Indexing %s: %d%%"%(minutes,seconds,fsec,frameNumber+1,self.raw.frames(),self.raw.description(),self.raw.indexingStatus()*100.0),update=self.timestamp.geometry)
         self.timestamp.colour = (0.0,0.0,0.0,1.0)
+        ua = config.isUpdateAvailable()
+        uc = config.versionUpdateClicked()
+        showUpdate = ua and (ua != uc)
         for o in self.overlay:
             o.opacity = self.overlayOpacity
+        if showUpdate:
+            self.update.opacity = self.overlayOpacity
+            self.update.ignoreInput = False
+        else:
+            self.update.opacity = 0.0
+            self.update.ignoreInput = True
 
 class Audio(object):
     INIT = 0
@@ -361,7 +366,6 @@ class Audio(object):
         if not noAudio:
             self.commands.put((Audio.STOP,None))
     def audioLoop(self):
-        print "Audio loop running"
         pa = pyaudio.PyAudio()
         dataBuffer = None
         bufferOffset = 0
@@ -825,7 +829,6 @@ class Viewer(GLCompute.GLCompute):
     def handleIndexing(self):
         # Do anything we need to do when indexing has completed
         if self.indexing and self.raw.indexingStatus()==1.0:
-            print "Indexing completed"
             self.indexing = False
             # Do other events here
             self.initWav() # WAV file may have been written
@@ -860,7 +863,6 @@ class Viewer(GLCompute.GLCompute):
             offset = now - self.realStartTime
             self.startAudio(offset)
     def exit(self):
-        print "Stopping Audio"
         self.audio.stop()
     def tempEncoderWav(self,tempname):
         """

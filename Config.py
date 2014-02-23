@@ -26,52 +26,100 @@ Check for updates of the app
 
 """
 
-import sys,urllib2
+import sys,urllib2,os.path,time
 from threading import Thread
 
 PLAT_SRC = 0
 PLAT_MAC = 1
 PLAT_WIN = 2
 
-UPDATE_URL_BASE = "https://bitbucket.org/baldand/mlrawviewer/src/master/data/"
+UPDATE_URL_BASE = "https://bitbucket.org/baldand/mlrawviewer/raw/master/data/"
+
+CONFIG_PATH = "~/.mlrawviewer"
+
+TIME_BETWEEN_UPDATE_CHECKS = 3600.0 * 24.0 # 1 day
+
+def verToStr(ver):
+    return ".".join((str(v) for v in ver))
+    
+def dataToVer(old,data):
+    try:
+        posver = data.split()[0].split(".")
+        if len(posver)>=3:
+            newer = False
+            older = False
+            uv = []
+            for i in range(3):
+                v = old[i]
+                u = int(posver[i])
+                if u>v: newer = True
+                if u<v: older = True
+                uv.append(u)
+            if newer and not older:
+                return uv
+    except:
+        import traceback
+        traceback.print_exc()
+        pass
+    return None
 
 class Config(object):
     def __init__(self,version,**kwds):
         super(Config,self).__init__(**kwds)
+        os.stat_float_times(True)
         self.version = version
         p = sys.platform
-        self.platform = PLAT_MAC # PLAT_SRC
+        self.platform = PLAT_SRC
         if p.startswith("darwin"):
             self.platform = PLAT_MAC
         elif p.startswith("win"):
             self.platform = PLAT_WIN
         self.updateThread = None
         self.updateVersion = None
+        self.updateClicked = None
+        self.createConfigDir()
+        self.readUpdateClicked()
         self.checkForUpdate()
+    def createConfigDir(self):
+        self.configPath = os.path.expanduser(CONFIG_PATH)
+        if not os.path.exists(self.configPath):
+            os.mkdir(self.configPath)
+    def readUpdateClicked(self):
+        updateClicked = os.path.join(self.configPath,"updateClicked")
+        if os.path.exists(updateClicked):
+            f = file(updateClicked,'rb')
+            data = f.read()
+            f.close()
+            self.updateClicked = dataToVer((0,0,0),data)
+    def updateClickedNow(self):
+        updateClicked = os.path.join(self.configPath,"updateClicked")
+        f = file(updateClicked,'wb')
+        f.write(self.updateVersionString())
+        f.close()
+        self.updateClicked = self.updateVersion
     def version(self):
         return self.version
     def versionString(self):
-        return ".".join((str(v) for v in self.version))
+        return verToStr(self.version)
+    def updateVersionString(self):
+        if self.updateVersion != None:
+            return verToStr(self.updateVersion)
+        else:
+            return ""
     def isUpdateAvailable(self):
         return self.updateVersion
+    def versionUpdateClicked(self):
+        return self.updateClicked
     def checkIfNewer(self,data):
-        try:
-            posver = data.split()[0].split(".")
-            if len(posver>=3):
-                newer = False
-                uv = []
-                for i in range(3):
-                    v = self.version[i]
-                    u = int(posver[i])
-                    if u>v: newer = True
-                    uv.append(u)
-                if newer:
-                    self.updateVersion = uv
-                    print "Update version available:",self.updateVersion
-        except:
-            pass
+        uv = dataToVer(self.version,data)
+        if uv != None:
+            self.updateVersion = uv
+            print "Updated version "+verToStr(uv)+" available from https://bitbucket.org/baldand/mlrawviewer/downloads"
+            updateVersionFilename = os.path.join(self.configPath,"updateVersion")
+            updateVersionFile = file(updateVersionFilename,'wb')
+            updateVersionFile.write(data)
+            updateVersionFile.close()
     def updateThreadFunction(self):
-        print "updatethreadFunction"
         if self.isMac():
             url = UPDATE_URL_BASE + "current_mac_version"
         elif self.isWin():
@@ -79,22 +127,36 @@ class Config(object):
         else: 
             self.updateThread = None
             return 
-        print "urlopen"
         try:
             result = urllib2.urlopen(url)
-            print "urlreturned"
             if result.getcode()==200:
                 self.checkIfNewer(result.read())
         except:
-            print "urlopen error"
             pass
         self.updateThread = None
     def checkForUpdate(self):
         if self.platform == PLAT_SRC: return
         if self.updateThread == None:
-            self.updateThread = Thread(target=self.updateThreadFunction)
-            self.updateThread.daemon = True
-            self.updateThread.start()
+            updateVersionFilename = os.path.join(self.configPath,"updateVersion")
+            check = False
+            if not os.path.exists(updateVersionFilename): 
+                check = True
+            else:
+                lastUpdate = os.stat(updateVersionFilename).st_mtime
+                now = time.time()
+                if now > (lastUpdate + TIME_BETWEEN_UPDATE_CHECKS):
+                    check = True
+            if check:
+                #print "Doing update check"
+                self.updateThread = Thread(target=self.updateThreadFunction)
+                self.updateThread.daemon = True
+                self.updateThread.start()
+            else:
+                #print "Not doing update check"
+                updateVersionFile = file(updateVersionFilename,'rb')
+                data = updateVersionFile.read()
+                updateVersionFile.close()
+                self.checkIfNewer(data)
     def isMac(self):
         return self.platform == PLAT_MAC
     def isWin(self):
