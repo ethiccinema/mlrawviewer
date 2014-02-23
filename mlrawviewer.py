@@ -26,7 +26,9 @@ SOFTWARE.
 import sys,struct,os,math,time,datetime,subprocess,signal,threading,Queue,wave,zlib
 from threading import Thread
 
-version = "1.1.0" 
+from Config import Config
+
+config = Config(version=(1,1,0))
 
 programpath = os.path.abspath(os.path.split(sys.argv[0])[0])
 if getattr(sys,'frozen',False):
@@ -38,7 +40,7 @@ if getattr(sys,'frozen',False):
     except:
         pass
 
-print "MlRawViewer v"+version
+print "MlRawViewer v"+config.versionString()
 print "(c) Andrew Baldwin & contributors 2013-2014"
 
 noAudio = True
@@ -493,7 +495,7 @@ class Viewer(GLCompute.GLCompute):
 
     def windowName(self):
         #try:
-        return "MlRawViewer v"+version+" - "+self.raw.description()
+        return "MlRawViewer v"+config.versionString()+" - "+self.raw.description()
         #except:
         #    return "MlRawViewer v"+version
     def init(self):
