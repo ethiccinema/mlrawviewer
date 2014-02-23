@@ -638,10 +638,6 @@ class Viewer(GLCompute.GLCompute):
             self.changeWhiteBalance(self.setting_rgb[0]-0.1, self.setting_rgb[1], self.setting_rgb[2], "red-")
         elif k==self.KEY_SEVEN:
             self.changeWhiteBalance(self.setting_rgb[0]+0.1, self.setting_rgb[1], self.setting_rgb[2], "red+")
-        elif k==self.KEY_FIVE:
-            self.changeWhiteBalance(self.setting_rgb[0], self.setting_rgb[1]-0.1, self.setting_rgb[2], "green-")
-        elif k==self.KEY_EIGHT:
-            self.changeWhiteBalance(self.setting_rgb[0], self.setting_rgb[1]+0.1, self.setting_rgb[2], "green+")
         elif k==self.KEY_SIX:
             self.changeWhiteBalance(self.setting_rgb[0], self.setting_rgb[1], self.setting_rgb[2]-0.1, "blue-")
         elif k==self.KEY_NINE:
