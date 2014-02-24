@@ -1,6 +1,7 @@
 import numpy as np
 import math
 
+import pyrr.matrix44
 from pyrr.matrix44 import *
 
 class Matrix4x4(object):
@@ -26,7 +27,10 @@ class Matrix4x4(object):
         self.width = 2.0
         self.height = 2.0   
     def viewport(self,width,height):
-        proj = create_orthogonal_view_matrix(0.0,width,0.0,height,0.0,1.0)
+        if hasattr(pyrr.matrix44,"create_orthogonal_view_matrix"):
+             proj = create_orthogonal_view_matrix(0.0,width,0.0,height,0.0,1.0)
+        else:
+             proj = create_orthogonal_projection_matrix(0.0,width,0.0,height,0.0,1.0)
         self.m = multiply(proj,self.m)
         self.width = float(width)
         self.height = float(height)
