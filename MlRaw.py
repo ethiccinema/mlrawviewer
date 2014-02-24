@@ -285,6 +285,8 @@ class MLRAW:
         self.preloader.daemon = True
         self.preloader.start()
     def close(self):
+        self.preloaderArgs.put(None) # So that preloader thread exits
+        self.preloader.join() # Wait for it to finish
         self.indexfile.close()
         for filehandle,filelen in self.framefiles:
             filehandle.close()
@@ -307,6 +309,8 @@ class MLRAW:
     def preloaderMain(self):
         while 1:
             arg = self.preloaderArgs.get() # Will wait for a job
+            if arg==None:
+                break
             frame = self._loadframe(arg)
             self.preloaderResults.put((arg,frame))
     def preloadFrame(self,index):
@@ -428,6 +432,8 @@ class MLV:
             self.preloader.daemon = True
             self.preloader.start()
     def close(self):
+        self.preloaderArgs.put(None) # So that preloader thread exits
+        self.preloader.join() # Wait for it to finish
         for fh,firstframe,frames,header,parsedTo,size in self.files:
             fh.close()
     def parseFile(self,fh,framepos):
@@ -628,6 +634,8 @@ class MLV:
             while 1:
                 self.preindex() # Do some preindexing if still needed
                 arg = self.preloaderArgs.get() # Will wait for a job
+                if arg==None:
+                    break
                 try:
                     frame = self._loadframe(arg)
                 except Exception,err:
@@ -784,6 +792,8 @@ class CDNG:
         return os.path.join(self.cdngpath,"["+name+"-"+lastname+"]"+ext)
 
     def close(self):
+        self.preloaderArgs.put(None) # So that preloader thread exits
+        self.preloader.join() # Wait for it to finish
         self.firstDng.close()
     def indexingStatus(self):
         return 1.0
@@ -798,6 +808,8 @@ class CDNG:
     def preloaderMain(self):
         while 1:
             arg = self.preloaderArgs.get() # Will wait for a job
+            if arg==None:
+                break
             frame = self._loadframe(arg)
             self.preloaderResults.put((arg,frame))
     def preloadFrame(self,index):
@@ -875,6 +887,8 @@ class TIFFSEQ:
         return os.path.join(self.path,"["+name+"-"+lastname+"]"+ext)
 
     def close(self):
+        self.preloaderArgs.put(None) # So that preloader thread exits
+        self.preloader.join() # Wait for it to finish
         self.firstTiff.close()
     def indexingStatus(self):
         return 1.0
@@ -889,6 +903,8 @@ class TIFFSEQ:
     def preloaderMain(self):
         while 1:
             arg = self.preloaderArgs.get() # Will wait for a job
+            if arg==None:
+                break
             frame = self._loadframe(arg)
             self.preloaderResults.put((arg,frame))
     def preloadFrame(self,index):

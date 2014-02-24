@@ -522,6 +522,7 @@ class Viewer(GLCompute.GLCompute):
         self.audio.stop()
         self.demosaic.free() # Release textures
         self.wav = None
+        self.raw.close()
         self.raw = r
         self.playFrame = self.raw.firstFrame
         self.frameCache = {0:self.raw.firstFrame}
