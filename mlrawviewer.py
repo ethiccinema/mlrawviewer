@@ -158,14 +158,14 @@ class DemosaicScene(ui.Scene):
     def __init__(self,raw,settings,encoder,frames,**kwds):
         super(DemosaicScene,self).__init__(**kwds)
         self.raw = raw
-        print "Width:",self.raw.width(),"Height:",self.raw.height(),"Frames:",self.raw.frames()
+        #print "Width:",self.raw.width(),"Height:",self.raw.height(),"Frames:",self.raw.frames()
         self.rawUploadTex = GLCompute.Texture((self.raw.width(),self.raw.height()),None,hasalpha=False,mono=True,sixteen=True)
         #try: self.rgbUploadTex = GLCompute.Texture((self.raw.width(),self.raw.height()),None,hasalpha=False,mono=False,fp=True)
         self.rgbUploadTex = GLCompute.Texture((self.raw.width(),self.raw.height()),None,hasalpha=False,mono=False,sixteen=True)
         try: self.rgbImage = GLCompute.Texture((self.raw.width(),self.raw.height()),None,hasalpha=False,mono=False,fp=True)
         except GLError: self.rgbImage = GLCompute.Texture((self.raw.width(),self.raw.height()),None,hasalpha=False,sixteen=True)
         self.demosaicer = Demosaicer(raw,self.rawUploadTex,self.rgbUploadTex,settings,encoder,frames)
-        print "Using",self.demosaicer.shaderNormal.demosaic_type,"demosaic algorithm"
+        #print "Using",self.demosaicer.shaderNormal.demosaic_type,"demosaic algorithm"
         self.drawables.append(self.demosaicer)
     def setTarget(self):
         self.rgbImage.bindfbo()
@@ -175,9 +175,10 @@ class DemosaicScene(ui.Scene):
         self.rgbImage.free()
 
 class Display(ui.Drawable):
-    def __init__(self,rgbImage,**kwds):
+    def __init__(self,**kwds):
         super(Display,self).__init__(**kwds)
         self.displayShader = ShaderDisplaySimple()
+    def setRgbImage(self,rgbImage):
         self.rgbImage = rgbImage
     def render(self,scene,matrix):
         # Now display the RGB image
@@ -192,14 +193,12 @@ class Display(ui.Drawable):
         # self.displayShader.draw(self.rgbImage.width,self.rgbImage.height,self.rgbImage,balance)
 
 class DisplayScene(ui.Scene):
-    def __init__(self,raw,rgbImage,frames,**kwds):
+    def __init__(self,frames,**kwds):
         super(DisplayScene,self).__init__(**kwds)
         self.icons = zlib.decompress(file(os.path.join(programpath,"data/icons.z"),'rb').read())
         self.iconsz = int(math.sqrt(len(self.icons)))
         self.icontex = GLCompute.Texture((self.iconsz,self.iconsz),rgbadata=self.icons,hasalpha=False,mono=True,sixteen=False,mipmap=True)
-        self.raw = raw
-        self.rgbImage = rgbImage
-        self.display = Display(rgbImage)
+        self.display = Display()
         self.iconBackground = ui.Geometry()
         self.iconBackground.edges = (1.0,1.0,0.35,0.25)
         self.progressBackground = ui.Geometry()
@@ -245,8 +244,11 @@ class DisplayScene(ui.Scene):
         self.timeline = ui.Timeline()
         self.fadeAnimation = ui.Animation(self.timeline,1.0)
 
+    def setRgbImage(self,rgbImage):
+        self.display.setRgbImage(rgbImage)
+
     def progressClick(self,x,y):
-        targetFrame = self.raw.frames()*(float(x)/float(self.progress.size[0]))
+        targetFrame = self.frames.raw.frames()*(float(x)/float(self.progress.size[0]))
         #print "Progress click",x,y,"targetFrame",targetFrame
         self.frames.jumpto(targetFrame)
     
@@ -343,7 +345,7 @@ class DisplayScene(ui.Scene):
             i.setPos(10.0,base)
             base += iconSpacing
         self.progressBackground.setPos(60.0,height-rectHeight-7.0)
-        self.progressBackground.rectangle(rectWidth*self.raw.indexingStatus(),rectHeight,rgba=(1.0-0.8*self.raw.indexingStatus(),0.2,0.2,0.2),update=self.progressBackground.geometry)
+        self.progressBackground.rectangle(rectWidth*self.frames.raw.indexingStatus(),rectHeight,rgba=(1.0-0.8*self.frames.raw.indexingStatus(),0.2,0.2,0.2),update=self.progressBackground.geometry)
         self.progress.setPos(60.0,height-rectHeight-7.0)
         btl,btr = (width-128.0-10.0,height-rectHeight-10.0-128.0-5.0)
         self.balance.setPos(btl,btr)
@@ -357,20 +359,20 @@ class DisplayScene(ui.Scene):
         b2 = 128.0-128.0*((b+5.0)/15.0)
         self.brightnessHandle.setPos(rtl+16.0-4.0,rtr+b2-4.0)
         self.updateIcons() 
-        progWidth = (float(frameNumber)/float(self.raw.frames()-1))*rectWidth
+        progWidth = (float(frameNumber)/float(self.frames.raw.frames()-1))*rectWidth
         self.progress.size = (rectWidth,rectHeight) # For input checking
         self.progress.rectangle(progWidth,rectHeight,rgba=(0.2,0.2,0.01,0.2),update=self.progress.geometry)
         self.timestamp.setPos(66.0,height-rectHeight-1.0)
         self.timestamp.setScale(9.0/30.0)
-        totsec = float(frameNumber)/self.raw.fps
+        totsec = float(frameNumber)/self.frames.raw.fps
         minutes = int(totsec/60.0)
         seconds = int(totsec%60.0)
         fsec = (totsec - int(totsec))*1000.0
         # NOTE: We use one-based numbering for the frame number display because it is more natural -> ends on last frame
-        if self.raw.indexingStatus()==1.0:
-            self.timestamp.label("%02d:%02d.%03d (%d/%d)"%(minutes,seconds,fsec,frameNumber+1,self.raw.frames()),update=self.timestamp.geometry)
+        if self.frames.raw.indexingStatus()==1.0:
+            self.timestamp.label("%02d:%02d.%03d (%d/%d)"%(minutes,seconds,fsec,frameNumber+1,self.frames.raw.frames()),update=self.timestamp.geometry)
         else:
-            self.timestamp.label("%02d:%02d.%03d (%d/%d) Indexing %s: %d%%"%(minutes,seconds,fsec,frameNumber+1,self.raw.frames(),self.raw.description(),self.raw.indexingStatus()*100.0),update=self.timestamp.geometry)
+            self.timestamp.label("%02d:%02d.%03d (%d/%d) Indexing %s: %d%%"%(minutes,seconds,fsec,frameNumber+1,self.frames.raw.frames(),self.frames.raw.description(),self.frames.raw.indexingStatus()*100.0),update=self.timestamp.geometry)
         self.timestamp.colour = (0.0,0.0,0.0,1.0)
         ua = config.isUpdateAvailable()
         uc = config.versionUpdateClicked()
@@ -459,6 +461,7 @@ class Viewer(GLCompute.GLCompute):
         self.raw = raw
         super(Viewer,self).__init__(width=userWidth,height=int(userWidth*self.vidAspectHeight),**kwds)
         self._init = False
+        self.display = None
         self.realStartTime = None
         self.playTime = 0
         self.playFrameNumber = 0
@@ -501,12 +504,19 @@ class Viewer(GLCompute.GLCompute):
         fl.sort()
         current = fl.index(name)
         newOne = (current + step)%len(fl)
-        newname = os.path.join(path,fl[newOne])
-        r = MlRaw.loadRAWorMLV(newname)
-        print r.frames()
-        print self.wavname[:-3],fn[:-3]	
-        if self.wavname[:-3] != fn[:-3]:
-            self.wavname = newname[:-3]+".WAV"
+        found = False
+        while not found:
+            newname = os.path.join(path,fl[newOne])
+            print "Loading",newname
+            try:
+                r = MlRaw.loadRAWorMLV(newname)
+                found = True
+            except:
+                pass
+            newOne = (newOne + step)%len(fl)
+        self.wavname = newname[:-3]+"WAV"
+        #print "New wavname:",self.wavname
+        """
         else:
             fn = self.wavname
             path,name = os.path.split(fn) # Correct for files and CDNG dirs
@@ -519,6 +529,7 @@ class Viewer(GLCompute.GLCompute):
                 self.wavname = newname
             except:
                 self.wavname = newname[:-3]+".WAV"
+        """
         self.audio.stop()
         self.demosaic.free() # Release textures
         self.wav = None
@@ -550,10 +561,14 @@ class Viewer(GLCompute.GLCompute):
         self.scenes = []
         self.demosaic = DemosaicScene(self.raw,self,self,self,size=(self.raw.width(),self.raw.height()))
         self.scenes.append(self.demosaic)
-        self.display = DisplayScene(self.raw,self.demosaic.rgbImage,self,size=(0,0))
+        if self.display == None:
+            self.display = DisplayScene(self,size=(0,0))
+        self.display.setRgbImage(self.demosaic.rgbImage)
         self.scenes.append(self.display)
         self.rgbImage = self.demosaic.rgbImage
         self.initWav()
+        self.vidAspectHeight = float(self.raw.height())/(self.raw.width()) # multiply this number on width to give height in aspect
+        self.vidAspectWidth = float(self.raw.width())/(self.raw.height()) # multiply this number on height to give height in aspect
         self._init = True
     def onDraw(self,width,height):
         # First convert Raw to RGB image at same size
@@ -659,9 +674,9 @@ class Viewer(GLCompute.GLCompute):
         elif k==self.KEY_V:
             self.slideAudio(-0.5)
         elif k==self.KEY_B:
-            self.slideAudio(-0.05)
+            self.slideAudio(-(1.0/float(self.fps)))
         elif k==self.KEY_N:
-            self.slideAudio(0.05)
+            self.slideAudio(1.0/(float(self.fps)))
         elif k==self.KEY_M:
             self.slideAudio(0.5)
 
@@ -895,11 +910,15 @@ class Viewer(GLCompute.GLCompute):
         wavdata = self.wav.readframes(nframe)
         startTime += self.audioOffset
         start = int(startTime*framerate)*channels*width
+        if start<0:
+            pad = "\0"*(-start)
+            wavdata = pad + wavdata
+            start=0
         self.audio.play(wavdata[start:])
     def slideAudio(self,slideBy):
         self.audioOffset += slideBy
-        if self.audioOffset <= 0.0:
-            self.audioOffset = 0.0
+        #if self.audioOffset <= 0.0:
+        #    self.audioOffset = 0.0
         print "Audio offset = %.02f seconds"%self.audioOffset
         if not self.paused:
             now = time.time()
@@ -919,11 +938,19 @@ class Viewer(GLCompute.GLCompute):
         channels,width,framerate,nframe,comptype,compname = self.wav.getparams()
         frameCount = framerate * int(float(self.raw.frames()-self.nextFrameNumber)/float(self.fps))
         startFrame = int((self.audioOffset+(float(self.nextFrameNumber)/float(self.fps)))*framerate)
-        self.wav.setpos(startFrame)
+        padframes = 0
+        readPos = startFrame
+        if startFrame<0:
+            padframes = -startFrame
+            readPos = 0
+        self.wav.setpos(readPos)
         if (startFrame+frameCount)>=(nframe):
-            frames = self.wav.readframes(nframe-startFrame) # All
+            frames = self.wav.readframes(nframe-startFrame) # Less than all
         else:
-            frames = self.wav.readframes(frameCount) # Less than all, clipped to end of raw file
+            frames = self.wav.readframes(frameCount) # All
+        if padframes>0:
+            pad = "\0"*padframes*channels*width
+            tempwav.writeframes(pad)
         tempwav.writeframes(frames)
         tempwav.close()
 

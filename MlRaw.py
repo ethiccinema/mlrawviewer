@@ -255,7 +255,7 @@ ML RAW - need to handle spanning files
 """
 class MLRAW:
     def __init__(self,filename,preindex=False):
-        print "Opening MLRAW file",filename
+        #print "Opening MLRAW file",filename
         self.filename = filename
         dirname,allfiles = getRawFileSeries(filename)
         indexfile = os.path.join(dirname,allfiles[-1])
@@ -264,13 +264,13 @@ class MLRAW:
         footerdata = self.indexfile.read(192)
         self.footer = struct.unpack("4shhiiiiii",footerdata[:8*4])
         self.fps = float(self.footer[6])*0.001
-        print "FPS:",self.fps
+        #print "FPS:",self.fps
         self.info = struct.unpack("40i",footerdata[8*4:])
         #print self.footer,self.info
         self.black = self.info[7]
         self.white = self.info[8]
         self.colorMatrix = colorMatrix(self.info)
-        print "Black level:", self.black, "White level:", self.white
+        #print "Black level:", self.black, "White level:", self.white
         self.framefiles = []
         for framefilename in allfiles:
             fullframefilename = os.path.join(dirname,framefilename)
@@ -347,6 +347,8 @@ class MLRAW:
                 framedata += newframedata
                 if needed==0:
                     break
+            if needed!=0:
+                return ""
             return Frame(self,framedata,self.width(),self.height(),self.black,self.white,convert=convert)
         return ""
 

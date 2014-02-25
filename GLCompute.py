@@ -107,7 +107,9 @@ class Texture:
         glBindFramebuffer(GL_FRAMEBUFFER, 0)
 
     def free(self):
+        glDeleteFramebuffers((self.fbo,))
         glDeleteTextures(self.id)
+
 
     def setupFbo(self):
         self.fbo = glGenFramebuffers(1)
