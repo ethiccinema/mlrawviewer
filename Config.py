@@ -26,7 +26,7 @@ Check for updates of the app
 
 """
 
-import sys,urllib2,os.path,time
+import sys,urllib2,os.path,time,cPickle
 from threading import Thread
 
 PLAT_SRC = 0
@@ -80,6 +80,26 @@ class Config(object):
         self.createConfigDir()
         self.readUpdateClicked()
         self.checkForUpdate()
+    def setState(self,varname,value):
+        varFileName = os.path.join(self.configPath,varname)
+        try:
+            varFile = file(varFileName,'wb')
+            cPickle.dump(value,varFile,cPickle.HIGHEST_PROTOCOL)
+            varFile.close()
+        except:
+            pass
+    def getState(self,varname): 
+        varFileName = os.path.join(self.configPath,varname)
+        result = None
+        try:
+            if os.path.exists(varFileName):
+                varFile = file(varFileName,'rb')
+                result = cPickle.load(varFile)
+                varFile.close()
+        except:
+            pass
+        return result 
+        
     def createConfigDir(self):
         self.configPath = os.path.expanduser(CONFIG_PATH)
         if not os.path.exists(self.configPath):

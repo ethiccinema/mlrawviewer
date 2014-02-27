@@ -502,8 +502,8 @@ class Viewer(GLCompute.GLCompute):
         self.setting_encoding = False
         self.setting_tonemap = 1 # Global tone map, 2 = Log
         self.setting_dropframes = True # Real time playback by default
-        self.setting_loop = True
-
+        self.setting_loop = config.getState("loopPlayback")
+        if self.setting_loop == None: self.setting_loop = True
     def loadNewRawSet(self,step):
         fn = self.raw.filename
         path,name = os.path.split(fn) # Correct for files and CDNG dirs
@@ -764,6 +764,7 @@ class Viewer(GLCompute.GLCompute):
         self.refresh()
     def toggleLooping(self):
         self.setting_loop = not self.setting_loop
+        config.setState("loopPlayback",self.setting_loop)
         self.refresh()
     def toggleDropFrames(self):
         self.setting_dropframes = not self.setting_dropframes
