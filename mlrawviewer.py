@@ -496,6 +496,7 @@ class Viewer(GLCompute.GLCompute):
         self.setting_encoding = False
         self.setting_tonemap = 1 # Global tone map, 2 = Log
         self.setting_dropframes = True # Real time playback by default
+        self.setting_loop = True
 
     def loadNewRawSet(self,step):
         fn = self.raw.filename
@@ -670,6 +671,8 @@ class Viewer(GLCompute.GLCompute):
             self.toggleDropFrames()
         elif k==self.KEY_T:
             self.toggleToneMapping()
+        elif k==self.KEY_L:
+            self.toggleLooping()
 
         elif k==self.KEY_V:
             self.slideAudio(-0.5)
@@ -731,6 +734,9 @@ class Viewer(GLCompute.GLCompute):
             self.audio.stop()
             self.refresh()
         else:
+            if self.playFrameNumber >= (self.raw.frames()-1):
+                self.playFrameNumber = 0 # Paused at end, looping probbaly off
+                self.nextFrameNumber = 0 # So restart from start
             offset = self.playFrameNumber / self.fps
             self.realStartTime = time.time() - offset
             self.startAudio(offset)
@@ -742,6 +748,9 @@ class Viewer(GLCompute.GLCompute):
         self.refresh()
     def toggleToneMapping(self):
         self.setting_tonemap = (self.setting_tonemap + 1)%3
+        self.refresh()
+    def toggleLooping(self):
+        self.setting_loop = not self.setting_loop
         self.refresh()
     def toggleDropFrames(self):
         self.setting_dropframes = not self.setting_dropframes
@@ -769,12 +778,19 @@ class Viewer(GLCompute.GLCompute):
                 # In non-drop-frame mode, only step by 1 frame
                 neededFrame = self.nextFrameNumber
             if neededFrame >= self.raw.frames():
-                neededFrame = 0 #self.raw.frames() - 1 # End of file
-                self.playFrameNumber = 0
-                self.nextFrameNumber = 0
-                self.realStartTime = now
-                self.audio.stop()
-                self.startAudio()
+                if self.setting_loop:
+                    neededFrame = 0 #self.raw.frames() - 1 # End of file
+                    self.playFrameNumber = 0
+                    self.nextFrameNumber = 0
+                    self.realStartTime = now
+                    self.audio.stop()
+                    self.startAudio()
+                else:
+                    neededFrame = self.raw.frames()-1
+                    self.playFrameNumber = neededFrame
+                    self.nextFrameNumber = neededFrame
+                    self.togglePlay() # Pause on last frame
+
             self.neededFrame = neededFrame
             #print "neededFrame",neededFrame,elapsed
             if newNeeded:
