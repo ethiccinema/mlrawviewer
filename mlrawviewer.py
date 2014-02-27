@@ -652,14 +652,21 @@ class Viewer(GLCompute.GLCompute):
             self.changeWhiteBalance(2.5, 1.0, 1.5, "Cloudy ")     # ~Cloudy
 
         elif k==self.KEY_FOUR:
-            self.changeWhiteBalance(self.setting_rgb[0]-0.1, self.setting_rgb[1], self.setting_rgb[2], "red-")
+            self.changeWhiteBalance(self.setting_rgb[0]*0.9, self.setting_rgb[1], self.setting_rgb[2], "red-")
         elif k==self.KEY_SEVEN:
-            self.changeWhiteBalance(self.setting_rgb[0]+0.1, self.setting_rgb[1], self.setting_rgb[2], "red+")
+            self.changeWhiteBalance(self.setting_rgb[0]*1.1, self.setting_rgb[1], self.setting_rgb[2], "red+")
         elif k==self.KEY_SIX:
-            self.changeWhiteBalance(self.setting_rgb[0], self.setting_rgb[1], self.setting_rgb[2]-0.1, "blue-")
+            self.changeWhiteBalance(self.setting_rgb[0], self.setting_rgb[1], self.setting_rgb[2]*0.9, "blue-")
         elif k==self.KEY_NINE:
-            self.changeWhiteBalance(self.setting_rgb[0], self.setting_rgb[1], self.setting_rgb[2]+0.1, "blue+")
-
+            self.changeWhiteBalance(self.setting_rgb[0], self.setting_rgb[1], self.setting_rgb[2]*1.1, "blue+")
+        
+        # Green control is now done by modifying R/B/brightness together 
+        elif k==self.KEY_FIVE:
+            self.changeWhiteBalance(self.setting_rgb[0]*1.1, self.setting_rgb[1], self.setting_rgb[2]*1.1, "green-")
+            self.scaleBrightness(0.9)
+        elif k==self.KEY_EIGHT:
+            self.changeWhiteBalance(self.setting_rgb[0]*0.9, self.setting_rgb[1], self.setting_rgb[2]*0.9, "green+")
+            self.scaleBrightness(1.1)
 
         elif k==self.KEY_Q:
             self.toggleQuality()
