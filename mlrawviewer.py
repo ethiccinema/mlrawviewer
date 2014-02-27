@@ -222,6 +222,9 @@ class DisplayScene(ui.Scene):
         self.update = self.newIcon(0,0,128,128,14,self.updateClick)
         self.update.colour = (0.5,0.1,0.0,0.5)
         self.update.setScale(0.5)
+        self.loop = self.newIcon(0,0,128,128,15,self.loopClick)
+        self.loop.colour = (0.5,0.5,0.5,0.5)
+        self.loop.setScale(0.5)
         self.balance = ui.XYGraph(128,128,self.balanceClick)
         self.balance.gradient(128,128,tl=(0.25,0.0,0.0,0.25),tr=(0.25,0.0,0.25,0.25),bl=(0.0,0.0,0.0,0.25),br=(0.0,0.0,0.25,0.25))
         self.balance.edges = (1.0,1.0,0.05,0.05)
@@ -235,7 +238,7 @@ class DisplayScene(ui.Scene):
         self.brightnessHandle.colour = (0.5,0.5,0.5,0.5)
         self.brightnessHandle.ignoreInput = True
         self.timestamp = ui.Geometry()
-        self.iconItems = [self.fullscreen,self.mapping,self.drop,self.quality,self.play]
+        self.iconItems = [self.fullscreen,self.mapping,self.drop,self.quality,self.loop,self.play]
         self.overlay = [self.iconBackground,self.progressBackground,self.progress,self.timestamp,self.update,self.balance,self.balanceHandle,self.brightness,self.brightnessHandle]
         self.overlay.extend(self.iconItems)
         self.drawables.extend([self.display])
@@ -277,6 +280,9 @@ class DisplayScene(ui.Scene):
     def playClick(self,x,y):
         self.frames.togglePlay()
 
+    def loopClick(self,x,y):
+        self.frames.toggleLooping()
+
     def mappingClick(self,x,y):
         self.frames.toggleToneMapping()
 
@@ -308,7 +314,7 @@ class DisplayScene(ui.Scene):
         # Make sure we show correct icon for current state
         # Model is to show icon representing CURRENT state
         f = self.frames
-        states = [not f._isFull,f.tonemap(),not f.dropframes(),f.setting_highQuality,f.paused]
+        states = [not f._isFull,f.tonemap(),not f.dropframes(),f.setting_highQuality,not f.setting_loop,f.paused]
         for i in range(len(self.iconItems)):
             itm = self.iconItems[i]
             state = states[i]
