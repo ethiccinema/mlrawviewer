@@ -116,19 +116,30 @@ class Scene(object):
     def __init__(self,size=(0,0)):
         self.drawables = []
         self.size = size
-        self.position = (0, 0)
         self.matrix = Matrix4x4()
+        self.inputMatrix = Matrix4x4()
         self.eventHandler = None
+        self.ignoreMotion = True
+        self.setPosition(0.0, 0.0)
+    def setSize(self,w,h):
+        self.size = (float(w),float(h))
+        self.updateMatrices()
+    def setPosition(self,x,y):
+        self.position = (float(x), float(y))
+        self.updateMatrices()
+    def updateMatrices(self):
+        self.matrix.identity()
+        self.matrix.viewport(*self.size)
+        self.matrix.translate(-self.size[0]*0.5,-self.size[1]*0.5)
+        self.inputMatrix.identity()
+        self.inputMatrix.translate(self.position[0],self.position[1])
     def setTarget(self):
         glBindFramebuffer(GL_FRAMEBUFFER, 0)
-        glViewport(self.position[0],self.position[1],self.size[0],self.size[1])
+        glViewport(int(self.position[0]),int(self.position[1]),int(self.size[0]),int(self.size[1]))
     def render(self,frame):
         self.frame = frame
         self.prepareToRender()
         self.setTarget()
-        self.matrix.identity()
-        self.matrix.viewport(*self.size)
-        self.matrix.translate(-self.size[0]*0.5,-self.size[1]*0.5)
         for d in self.drawables:
             d.render(self,self.matrix)
         self.renderComplete()
@@ -137,19 +148,23 @@ class Scene(object):
     def renderComplete(self):
         pass
     def input2d(self,x,y,buttons):
-        self.matrix.identity()
-        #self.matrix.viewport(*self.size)
-        self.matrix.translate(self.position[0],self.position[1])
         if self.eventHandler == None: 
+            if self.ignoreMotion:
+                ignore = True
+                for b in buttons:
+                    if b==GLCompute.GLCompute.BUTTON_DOWN:
+                        ignore = False
+                if ignore:
+                    return None
             #if buttons[0]==0 and buttons[1]==0: return None
             for d in self.drawables:
                 if d.ignoreInput: continue
-                self.eventHandler = d.input2d(self.matrix,x,y,buttons)
+                self.eventHandler = d.input2d(self.inputMatrix,x,y,buttons)
                 if self.eventHandler != None: break
             return self.eventHandler
         else:
             if self.eventHandler.motionWhileClicked or (buttons[0]==0 and buttons[1]==0):
-                self.eventHandler = self.eventHandler.input2d(self.matrix,x,y,buttons)
+                self.eventHandler = self.eventHandler.input2d(self.inputMatrix,x,y,buttons)
 
 class Geometry(Drawable):
     def __init__(self,**kwds):

@@ -225,6 +225,9 @@ class DisplayScene(ui.Scene):
         self.loop = self.newIcon(0,0,128,128,15,self.loopClick)
         self.loop.colour = (0.5,0.5,0.5,0.5)
         self.loop.setScale(0.5)
+        self.encode = self.newIcon(0,0,128,128,2,self.encodeClick)
+        self.encode.colour = (0.2,0.0,0.0,0.5)
+        self.encode.setScale(0.5)
         self.balance = ui.XYGraph(128,128,self.balanceClick)
         self.balance.gradient(128,128,tl=(0.25,0.0,0.0,0.25),tr=(0.25,0.0,0.25,0.25),bl=(0.0,0.0,0.0,0.25),br=(0.0,0.0,0.25,0.25))
         self.balance.edges = (1.0,1.0,0.05,0.05)
@@ -238,7 +241,7 @@ class DisplayScene(ui.Scene):
         self.brightnessHandle.colour = (0.5,0.5,0.5,0.5)
         self.brightnessHandle.ignoreInput = True
         self.timestamp = ui.Geometry()
-        self.iconItems = [self.fullscreen,self.mapping,self.drop,self.quality,self.loop,self.play]
+        self.iconItems = [self.fullscreen,self.mapping,self.drop,self.quality,self.loop,self.encode,self.play]
         self.overlay = [self.iconBackground,self.progressBackground,self.progress,self.timestamp,self.update,self.balance,self.balanceHandle,self.brightness,self.brightnessHandle]
         self.overlay.extend(self.iconItems)
         self.drawables.extend([self.display])
@@ -295,6 +298,9 @@ class DisplayScene(ui.Scene):
     def dropClick(self,x,y):
         self.frames.toggleDropFrames()
 
+    def encodeClick(self,x,y):
+        self.frames.toggleEncoding()
+
     def newIcon(self,x,y,w,h,idx,cb):
         icon = ui.Button(w,h,cb)
         self.setIcon(icon,w,h,idx)
@@ -314,7 +320,7 @@ class DisplayScene(ui.Scene):
         # Make sure we show correct icon for current state
         # Model is to show icon representing CURRENT state
         f = self.frames
-        states = [not f._isFull,f.tonemap(),not f.dropframes(),f.setting_highQuality,not f.setting_loop,f.paused]
+        states = [not f._isFull,f.tonemap(),not f.dropframes(),f.setting_highQuality,not f.setting_loop,False,f.paused]
         for i in range(len(self.iconItems)):
             itm = self.iconItems[i]
             state = states[i]
@@ -322,6 +328,10 @@ class DisplayScene(ui.Scene):
                 if state: state = 1
                 else: state = 0
             self.setIcon(itm,128,128,itm.idx+state)
+        if self.frames.encoding():
+            self.encode.colour = (0.5,0.0,0.0,0.5)
+        else:
+            self.encode.colour = (0.2,0.0,0.0,0.5)
 
     def prepareToRender(self):
         """
@@ -504,6 +514,10 @@ class Viewer(GLCompute.GLCompute):
         self.setting_dropframes = True # Real time playback by default
         self.setting_loop = config.getState("loopPlayback")
         if self.setting_loop == None: self.setting_loop = True
+
+        self.fpsMeasure = None
+        self.fpsCount = 0
+
     def loadNewRawSet(self,step):
         fn = self.raw.filename
         path,name = os.path.split(fn) # Correct for files and CDNG dirs
@@ -591,12 +605,24 @@ class Viewer(GLCompute.GLCompute):
             aspectHeight = int(aspectHeight*1.4)
             aspectWidth = int(aspectWidth/1.4)
         if height > aspectHeight:
-            self.display.size = (width,aspectHeight)
-            self.display.position = (0, height/2 - aspectHeight/2)
+            self.display.setSize(width,aspectHeight)
+            self.display.setPosition(0, height/2 - aspectHeight/2)
         else:
-            self.display.size = (aspectWidth,height)
-            self.display.position = (width/2 - aspectWidth/2, 0)
+            self.display.setSize(aspectWidth,height)
+            self.display.setPosition(width/2 - aspectWidth/2, 0)
         self.renderScenes()
+        """
+        now = time.time()
+        if self.fpsMeasure == None:
+            self.fpsMeasure = now
+            self.fpsCount = 0
+        elif self.fpsCount == 10:
+            print"READ FPS:",10.0/(now-self.fpsMeasure)
+            self.fpsCount = 0
+            self.fpsMeasure = now
+        else:
+            self.fpsCount += 1
+        """
         self.drawnFrameNumber = self.playFrameNumber
         if self.paused: # or self.raw.indexingStatus()<1.0:
             self._frames -= 1

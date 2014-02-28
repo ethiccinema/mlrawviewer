@@ -18,6 +18,7 @@ class Matrix4x4(object):
         self.m = identity()
     def viewport(self,width,height):
         proj = identity()
+        if width==0.0 or height==0.0: return
         proj[0,0] = 2.0/width
         proj[1,1] = -2.0/height
         proj[2,2] = -2.0
