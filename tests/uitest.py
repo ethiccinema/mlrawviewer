@@ -45,6 +45,7 @@ class Viewer(GLCompute.GLCompute):
         self.iconsz = int(math.sqrt(len(self.icons)))
         self.timeline = ui.Timeline()
         self.timeline.setNow(time.time())
+        self.svbo = ui.SharedVbo()
     def onIdle(self):
         self.redisplay()
     def windowName(self):
@@ -65,6 +66,8 @@ class Viewer(GLCompute.GLCompute):
             self.iconAnim.setTarget(targr,dur,delay,interp)
     def init(self):
         if self._init: return
+        #self.offset = self.svbo.allocate(6*12*4*50)
+        self.svbo.bind()
         self.iconAnim = ui.Animation(self.timeline)
         self.fonttex = GLCompute.Texture((1024,1024),rgbadata=self.font.atlas,hasalpha=False,mono=True,sixteen=False,mipmap=True)
         self.icontex = GLCompute.Texture((self.iconsz,self.iconsz),rgbadata=self.icons,hasalpha=False,mono=True,sixteen=False,mipmap=True)
@@ -76,42 +79,44 @@ class Viewer(GLCompute.GLCompute):
         self.scene = ui.Scene()
         self.scenes.append(self.scene)
         
-        self.box = ui.Button(100,100,self.boxClick)
+        self.box = ui.Button(100,100,self.boxClick,svbo=self.svbo)
         self.box.rectangle(100,100,rgba=(1.0,1.0,1.0,1.0))
         self.box.edges = (1.0,1.0,0.1,0.25)
-        self.childbox = ui.Geometry()
+        self.box.setPos(400,200)
+        self.childbox = ui.Geometry(svbo=self.svbo)
         self.childbox.rectangle(50,50,rgba=(1.0,1.0,1.0,1.0))
         self.childbox.colour = (0.0,1.0,0.0,0.5)
         self.childbox.setTransformOffset(25.0,25.0)
         self.childbox.setPos(50.0,50.0)
         self.childbox.edges = (1.0,1.0,0.1,0.1)
-        self.hw = ui.Geometry()
+        self.hw = ui.Geometry(svbo=self.svbo)
         self.hw.label("Hello World!")
         self.hw.setScale(1.0)
         
         self.iconitems = []
         for i in range(5):
             # Icons
-            icon = ui.Geometry()
+            icon = ui.Geometry(svbo=self.svbo)
             ix = i%(self.iconsz/128)
             iy = i/(self.iconsz/128)
             s = 128.0/float(self.iconsz)
             r = icon.rectangle(128.0,128.0,uv=(ix*s,iy*s,s,s),solid=0.0,tex=0.0,tint=0.0,texture=self.icontex)
-            icon.setPos(64.0+i*200,64.0+i*20)
-            icon.colour = (0.5*float(i+1)%2.0,0.333*float(i+1)%3.0,0.25*float(i+1)%4.0,1.0)
+            icon.setPos(64.0+i*200.0,64.0+i*20.0)
+            icon.colour = (0.5*(float(i+1)%2.0),0.333*(float(i+1)%3.0),0.25*(float(i+1)%4.0),1.0)
             icon.setTransformOffset(64.0,64.0)
             self.scene.drawables.append(icon)
             self.iconitems.append(icon)
         self.childbox.children.append(self.hw)
         self.box.children.append(self.childbox)
         self.scene.drawables.append(self.box)
+        self.svbo.upload()
         self._init = True
     def onDraw(self,width,height):
         self.init()
         self.timeline.setNow(time.time())
         self.updateAnims()
-        self.iconitems[3].rotation = self.iconAnim.value()
-        self.scene.size = (width,height)
+        self.iconitems[1].rotation = self.iconAnim.value()
+        self.scene.setSize(width,height)
         
         self.box.rotation -= 0.1
         """
@@ -124,7 +129,7 @@ class Viewer(GLCompute.GLCompute):
         #print "input2d",x,y,buttons
         handled = self.scene.input2d(x,y,buttons)
         if handled: return
-        self.box.setPos(200,400)
+        #self.hw.setPos(200,400)
         if buttons[self.BUTTON_LEFT]==self.BUTTON_DOWN: self.left = 1.0
         else: self.left = 0.0
         if buttons[self.BUTTON_RIGHT]==self.BUTTON_DOWN: self.right = 1.0

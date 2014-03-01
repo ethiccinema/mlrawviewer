@@ -31,6 +31,7 @@ On Debian/Ubuntu try "sudo apt-get install python-numpy"
 
 # Now import our own modules
 import GLCompute
+import GLComputeUI as ui
 import Font
 from ShaderText import *
 from Matrix import *
@@ -41,6 +42,7 @@ class Viewer(GLCompute.GLCompute):
         self._init = False
         self.font = Font.Font(os.path.join(root,"data/os.glf"))
         self.time = time.time()
+        self.svbo = ui.SharedVbo()
     def onIdle(self):
         self.redisplay()
     def windowName(self):
@@ -48,7 +50,7 @@ class Viewer(GLCompute.GLCompute):
     def benchmark(self):
         start = time.time()
         for i in range(100):
-            label = self.shader.label(self.font,"this is a test. The quick brown fox jumped over the lazy dog!") 
+            label = self.shader.label("this is a test. The quick brown fox jumped over the lazy dog!") 
         end = time.time()
         print "100 labels took",end-start,100.0/(end-start)
     def init(self):
@@ -56,20 +58,25 @@ class Viewer(GLCompute.GLCompute):
         self.fonttex = GLCompute.Texture((1024,1024),rgbadata=self.font.atlas,hasalpha=False,mono=True,sixteen=False,mipmap=True)
         self.shader = ShaderText(self.font)
         self.matrix = Matrix4x4()
+        self.offset = self.svbo.allocate(6*12*4*50)
+        self.svbo.bind()
         self.benchmark()
         self._init = True
     def onDraw(self,width,height):
         self.init()
         self.rotmat = Matrix4x4()
         dt = datetime.datetime.now()
-        timestamp = self.shader.label(self.font,"%02d:%02d:%02d.%02d"%(dt.hour,dt.minute,dt.second,dt.microsecond*0.0001)) 
+        texture,vertices = self.shader.label("%02d:%02d:%02d.%02d"%(dt.hour,dt.minute,dt.second,dt.microsecond*0.0001)) 
+        self.svbo.update(vertices,self.offset)
+        self.vab = (self.svbo.vboOffset(0),self.svbo.vboOffset(16),self.svbo.vboOffset(32),len(vertices)/12)
+        self.svbo.upload()
         for i in range(20):
             self.matrix.identity()
             self.matrix.viewport(width,height)
             self.matrix.translate(-400+float(i)*30.0,-200+float(i)*10.0)
             self.matrix.rotation(float(i)/3.14159+(dt.microsecond+dt.second*1000000.0)/1000000.0)
             self.matrix.scale(10.0/20.0)
-            self.shader.draw(timestamp,self.matrix,(float(i)/20.0,1.0-float(i)/20.0,1.0,1.0))
+            self.shader.draw(self.vab,texture,self.matrix,(float(i)/20.0,1.0-float(i)/20.0,1.0,1.0))
 
 def main(): 
     rmc = Viewer()   

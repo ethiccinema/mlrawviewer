@@ -23,6 +23,7 @@ SOFTWARE.
 
 from OpenGL.GL import *
 import GLCompute
+import numpy as np
 
 """
 Note:
@@ -38,10 +39,17 @@ class ShaderDemosaic(GLCompute.Shader):
     def __init__(self,**kwds):
         myclass = self.__class__
         super(ShaderDemosaic,self).__init__(myclass.vertex_src,myclass.fragment_src,["time","rawtex","rawres","black","colourBalance","tonemap"],**kwds)
+        self.svbo = None
+    def prepare(self,svbo):
+        if self.svbo==None:
+            self.svbo = svbo
+            self.svbobase = svbo.allocate(4*12) 
+            vertices = np.array((-1,-1,0,1,-1,0,-1,1,0,1,1,0),dtype=np.float32)
+            self.svbo.update(vertices,self.svbobase)
+
     def demosaicPass(self,texture,black,time=0,balance=(1.0,1.0,1.0),white=(2**14-1),tonemap=1):
         self.use()
-        vertices = GLCompute.glarray(GLfloat,(-1,-1,0,1,-1,0,-1,1,0,1,1,0))
-        glVertexAttribPointer(self.vertex,3,GL_FLOAT,GL_FALSE,0,vertices)
+        glVertexAttribPointer(self.vertex,3,GL_FLOAT,GL_FALSE,0,self.svbo.vboOffset(self.svbobase))
         glEnableVertexAttribArray(self.vertex)
         texture.bindtex(False,0)
         glUniform1f(self.uniforms["tonemap"], float(tonemap))

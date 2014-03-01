@@ -167,12 +167,16 @@ class DemosaicScene(ui.Scene):
         self.demosaicer = Demosaicer(raw,self.rawUploadTex,self.rgbUploadTex,settings,encoder,frames)
         #print "Using",self.demosaicer.shaderNormal.demosaic_type,"demosaic algorithm"
         self.drawables.append(self.demosaicer)
+        self.frames = frames
     def setTarget(self):
         self.rgbImage.bindfbo()
     def free(self):
         self.rawUploadTex.free()
         self.rgbUploadTex.free()
         self.rgbImage.free()
+    def prepareToRender(self):
+        self.demosaicer.shaderNormal.prepare(self.frames.svbo)
+        self.demosaicer.shaderQuality.prepare(self.frames.svbo)
 
 class Display(ui.Drawable):
     def __init__(self,**kwds):
@@ -195,15 +199,16 @@ class Display(ui.Drawable):
 class DisplayScene(ui.Scene):
     def __init__(self,frames,**kwds):
         super(DisplayScene,self).__init__(**kwds)
+        self.frames = frames # Frames interface
         self.icons = zlib.decompress(file(os.path.join(programpath,"data/icons.z"),'rb').read())
         self.iconsz = int(math.sqrt(len(self.icons)))
         self.icontex = GLCompute.Texture((self.iconsz,self.iconsz),rgbadata=self.icons,hasalpha=False,mono=True,sixteen=False,mipmap=True)
         self.display = Display()
-        self.iconBackground = ui.Geometry()
+        self.iconBackground = ui.Geometry(svbo=frames.svbo)
         self.iconBackground.edges = (1.0,1.0,0.35,0.25)
-        self.progressBackground = ui.Geometry()
+        self.progressBackground = ui.Geometry(svbo=frames.svbo)
         self.progressBackground.edges = (1.0,1.0,0.01,0.25)
-        self.progress = ui.Button(0,0,self.progressClick)
+        self.progress = ui.Button(0,0,self.progressClick,svbo=frames.svbo)
         self.progress.edges = (1.0,1.0,0.01,0.5)
         self.play = self.newIcon(0,0,128,128,0,self.playClick)
         self.play.colour = (0.5,0.5,0.5,0.5) # Quite transparent white
@@ -228,25 +233,24 @@ class DisplayScene(ui.Scene):
         self.encode = self.newIcon(0,0,128,128,2,self.encodeClick)
         self.encode.colour = (0.2,0.0,0.0,0.5)
         self.encode.setScale(0.5)
-        self.balance = ui.XYGraph(128,128,self.balanceClick)
+        self.balance = ui.XYGraph(128,128,self.balanceClick,svbo=self.frames.svbo)
         self.balance.gradient(128,128,tl=(0.25,0.0,0.0,0.25),tr=(0.25,0.0,0.25,0.25),bl=(0.0,0.0,0.0,0.25),br=(0.0,0.0,0.25,0.25))
         self.balance.edges = (1.0,1.0,0.05,0.05)
         self.balanceHandle = self.newIcon(0,0,8,8,2,None)
         self.balanceHandle.colour = (0.5,0.5,0.5,0.5)
         self.balanceHandle.ignoreInput = True
-        self.brightness = ui.XYGraph(32,128,self.brightnessClick)
+        self.brightness = ui.XYGraph(32,128,self.brightnessClick,svbo=self.frames.svbo)
         self.brightness.gradient(32,128,tl=(0.25,0.25,0.25,0.25),tr=(0.25,0.25,0.25,0.25),bl=(0.0,0.0,0.0,0.25),br=(0.0,0.0,0.0,0.25))
         self.brightness.edges = (1.0,1.0,0.2,0.05)
         self.brightnessHandle = self.newIcon(0,0,8,8,2,None)
         self.brightnessHandle.colour = (0.5,0.5,0.5,0.5)
         self.brightnessHandle.ignoreInput = True
-        self.timestamp = ui.Geometry()
+        self.timestamp = ui.Geometry(svbo=frames.svbo)
         self.iconItems = [self.fullscreen,self.mapping,self.drop,self.quality,self.loop,self.encode,self.play]
         self.overlay = [self.iconBackground,self.progressBackground,self.progress,self.timestamp,self.update,self.balance,self.balanceHandle,self.brightness,self.brightnessHandle]
         self.overlay.extend(self.iconItems)
         self.drawables.extend([self.display])
         self.drawables.extend(self.overlay)
-        self.frames = frames # Frames interface
         self.timeline = ui.Timeline()
         self.fadeAnimation = ui.Animation(self.timeline,1.0)
 
@@ -302,7 +306,7 @@ class DisplayScene(ui.Scene):
         self.frames.toggleEncoding()
 
     def newIcon(self,x,y,w,h,idx,cb):
-        icon = ui.Button(w,h,cb)
+        icon = ui.Button(w,h,cb,svbo=self.frames.svbo)
         self.setIcon(icon,w,h,idx)
         icon.setPos(x,y)
         icon.colour = (1.0,1.0,1.0,1.0)
@@ -338,6 +342,7 @@ class DisplayScene(ui.Scene):
         f = self.frame
         frameNumber = int(f % self.raw.frames())
         """
+        self.display.displayShader.prepare(self.frames.svbo)
         self.timeline.setNow(time.time())
         idle = self.frames.userIdleTime()
         if idle>5.0 and self.fadeAnimation.targval == 1.0:
@@ -353,7 +358,7 @@ class DisplayScene(ui.Scene):
         rectHeight = 30
         self.update.setPos(width-64-10,10)
         self.iconBackground.setPos(-20.0,40.0)
-        self.iconBackground.rectangle(80,height,rgba=(0.0,0.0,0.0,0.25),update=self.iconBackground.geometry)
+        self.iconBackground.rectangle(80,height,rgba=(0.0,0.0,0.0,0.25))
         iconSpacing = 40.0
         base = height - len(self.iconItems)*iconSpacing
         for i in self.iconItems:
@@ -361,7 +366,7 @@ class DisplayScene(ui.Scene):
             i.setPos(10.0,base)
             base += iconSpacing
         self.progressBackground.setPos(60.0,height-rectHeight-7.0)
-        self.progressBackground.rectangle(rectWidth*self.frames.raw.indexingStatus(),rectHeight,rgba=(1.0-0.8*self.frames.raw.indexingStatus(),0.2,0.2,0.2),update=self.progressBackground.geometry)
+        self.progressBackground.rectangle(rectWidth*self.frames.raw.indexingStatus(),rectHeight,rgba=(1.0-0.8*self.frames.raw.indexingStatus(),0.2,0.2,0.2))
         self.progress.setPos(60.0,height-rectHeight-7.0)
         btl,btr = (width-128.0-10.0,height-rectHeight-10.0-128.0-5.0)
         self.balance.setPos(btl,btr)
@@ -377,7 +382,7 @@ class DisplayScene(ui.Scene):
         self.updateIcons() 
         progWidth = (float(frameNumber)/float(self.frames.raw.frames()-1))*rectWidth
         self.progress.size = (rectWidth,rectHeight) # For input checking
-        self.progress.rectangle(progWidth,rectHeight,rgba=(0.2,0.2,0.01,0.2),update=self.progress.geometry)
+        self.progress.rectangle(progWidth,rectHeight,rgba=(0.2,0.2,0.01,0.2))
         self.timestamp.setPos(66.0,height-rectHeight-1.0)
         self.timestamp.setScale(9.0/30.0)
         totsec = float(frameNumber)/self.frames.raw.fps
@@ -386,9 +391,9 @@ class DisplayScene(ui.Scene):
         fsec = (totsec - int(totsec))*1000.0
         # NOTE: We use one-based numbering for the frame number display because it is more natural -> ends on last frame
         if self.frames.raw.indexingStatus()==1.0:
-            self.timestamp.label("%02d:%02d.%03d (%d/%d)"%(minutes,seconds,fsec,frameNumber+1,self.frames.raw.frames()),update=self.timestamp.geometry)
+            self.timestamp.label("%02d:%02d.%03d (%d/%d)"%(minutes,seconds,fsec,frameNumber+1,self.frames.raw.frames()))
         else:
-            self.timestamp.label("%02d:%02d.%03d (%d/%d) Indexing %s: %d%%"%(minutes,seconds,fsec,frameNumber+1,self.frames.raw.frames(),self.frames.raw.description(),self.frames.raw.indexingStatus()*100.0),update=self.timestamp.geometry)
+            self.timestamp.label("%02d:%02d.%03d (%d/%d) Indexing %s: %d%%"%(minutes,seconds,fsec,frameNumber+1,self.frames.raw.frames(),self.frames.raw.description(),self.frames.raw.indexingStatus()*100.0))
         self.timestamp.colour = (0.0,0.0,0.0,1.0)
         ua = config.isUpdateAvailable()
         uc = config.versionUpdateClicked()
@@ -514,7 +519,7 @@ class Viewer(GLCompute.GLCompute):
         self.setting_dropframes = True # Real time playback by default
         self.setting_loop = config.getState("loopPlayback")
         if self.setting_loop == None: self.setting_loop = True
-
+        self.svbo = None
         self.fpsMeasure = None
         self.fpsCount = 0
 
@@ -579,6 +584,8 @@ class Viewer(GLCompute.GLCompute):
         #    return "MlRawViewer v"+version
     def init(self):
         if self._init: return
+        if self.svbo == None:
+            self.svbo = ui.SharedVbo()
         self.scenes = []
         self.demosaic = DemosaicScene(self.raw,self,self,self,size=(self.raw.width(),self.raw.height()))
         self.scenes.append(self.demosaic)
@@ -629,6 +636,9 @@ class Viewer(GLCompute.GLCompute):
         if self.raw.indexingStatus()<1.0:
             self.refresh()
         PLOG(PLOG_FRAME,"onDraw end")
+    def scenesPrepared(self):
+        self.svbo.bind()
+        self.svbo.upload() # In case there are changes
     def jumpto(self,frameToJumpTo):
         #if self.raw.indexingStatus()==1.0:
         if frameToJumpTo<0:

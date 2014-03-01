@@ -76,16 +76,15 @@ void main() {
         self.argba = glGetAttribLocation(self.program, "argba")
         self.actmg = glGetAttribLocation(self.program, "actmg")
         self.font = font
-    def draw(self,label,matrix,rgba=(1.0,1.0,1.0,1.0),opacity=1.0,whxy=(1.0,1.0,0.0,0.0)):
-        texture,vertices = label
+    def draw(self,vab,texture,matrix,rgba=(1.0,1.0,1.0,1.0),opacity=1.0,whxy=(1.0,1.0,0.0,0.0)):
+        #print "draw",vab,texture,rgba,opacity,matrix.m
         self.use()
-        vertices.bind()
         glEnableVertexAttribArray(self.axyuv)
-        glVertexAttribPointer(self.axyuv,4,GL_FLOAT,GL_FALSE,48,vertices)
+        glVertexAttribPointer(self.axyuv,4,GL_FLOAT,GL_FALSE,48,vab[0])
         glEnableVertexAttribArray(self.argba)
-        glVertexAttribPointer(self.argba,4,GL_FLOAT,GL_FALSE,48,vertices+16)
+        glVertexAttribPointer(self.argba,4,GL_FLOAT,GL_FALSE,48,vab[1])#vertices+16)
         glEnableVertexAttribArray(self.actmg)
-        glVertexAttribPointer(self.actmg,4,GL_FLOAT,GL_FALSE,48,vertices+32)
+        glVertexAttribPointer(self.actmg,4,GL_FLOAT,GL_FALSE,48,vab[2])#vertices+32)
         if texture:
             texture.bindtex(True) # Use linear filter
         else:
@@ -98,16 +97,11 @@ void main() {
         #glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
         glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA)
         glEnable(GL_BLEND)
-        glDrawArrays(GL_TRIANGLES, 0, len(vertices)/12)
+        glDrawArrays(GL_TRIANGLES, 0, vab[3])#len(vertices)/12)
         glDisable(GL_BLEND)
 
-        vertices.unbind()
-
-    def gradient(self,width,height,tl,tr,bl,br,update=(None,None)):
+    def gradient(self,width,height,tl,tr,bl,br):
         uv=(0.0,0.0,1.0,1.0)
-        oldvbo = None
-        if update:
-            oldvbo = update[1]
         triangles = 2
         v = np.zeros(shape=(triangles*3,12),dtype=np.float32)
         v[:,8] = 1.0 # Use colour only
@@ -142,16 +136,8 @@ void main() {
         v[vp,4:8] = br
         vp += 1
         v = v.reshape((v.shape[0]*v.shape[1],))
-        if oldvbo:
-            oldvbo.set_array(v)
-            vbov = oldvbo
-        else:
-            vbov = vbo.VBO(v)
-        return (None,vbov)
-    def rectangle(self,width,height,rgba=(1.0,1.0,1.0,1.0),update=(None,None),uv=(0.0,0.0,1.0,1.0),solid=1.0,tex=0.0,tint=0.0,texture=None):
-        oldvbo = None
-        if update:
-            oldvbo = update[1]
+        return (None,v)
+    def rectangle(self,width,height,rgba=(1.0,1.0,1.0,1.0),uv=(0.0,0.0,1.0,1.0),solid=1.0,tex=0.0,tint=0.0,texture=None):
         triangles = 2
         v = np.zeros(shape=(triangles*3,12),dtype=np.float32)
         v[:,4:8] = rgba
@@ -181,17 +167,9 @@ void main() {
         v[vp,:4] = [x1,y1,u1,v0]
         vp += 1
         v = v.reshape((v.shape[0]*v.shape[1],))
-        if oldvbo:
-            oldvbo.set_array(v)
-            vbov = oldvbo
-        else:
-            vbov = vbo.VBO(v)
-        return (texture,vbov)
+        return (texture,v)
 
-    def label(self,text,rgba=(1.0,1.0,1.0,1.0),update=(None,None)):
-        oldvbo = None
-        if update:
-            oldvbo = update[1]
+    def label(self,text,rgba=(1.0,1.0,1.0,1.0)):
         f = self.font
         kerning = 0
         pi = None
@@ -287,10 +265,5 @@ void main() {
             y += ay/64.0
             pi = ci
         v = v.reshape((v.shape[0]*v.shape[1],))
-        if oldvbo:
-            oldvbo.set_array(v)
-            vbov = oldvbo
-        else:
-            vbov = vbo.VBO(v)
-        return (f.texture(),vbov)
+        return (f.texture(),v)
 

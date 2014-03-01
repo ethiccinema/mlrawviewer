@@ -27,6 +27,7 @@ computation and display using OpenGL FBOs
 
 # standard python imports. Should not be missing
 import sys,time,os,os.path
+import numpy as np
 
 # Our modules
 from Matrix import *
@@ -52,6 +53,32 @@ FONT = Font.Font(os.path.join(os.path.split(__file__)[0],"data/os.glf"))
 
 
 shaders = {}
+
+class SharedVbo(object):
+    def __init__(self,**kwds):
+        super(SharedVbo,self).__init__(**kwds)
+        self.data = np.zeros(shape=(1024*16,),dtype=np.float32)
+        self.vbo = vbo.VBO(self.data)
+        self.bound = False
+        self.avail = 1024*64
+        self.allocated = 0
+    def bind(self):
+        self.vbo.bind()
+        self.bound = True
+    def allocate(self,amount):
+        if (self.avail-amount)>0:
+            offset = self.allocated
+            self.allocated += amount
+            self.avail -= amount
+            return offset 
+        return None
+    def update(self,data,offset):
+        ow = offset/4
+        self.vbo[ow:(ow+len(data))] = data
+    def vboOffset(self,offset):
+        return self.vbo + offset        
+    def upload(self):
+        self.vbo.copy_data()
 
 class Timeline(object):
     def __init__(self,**kwds):
@@ -136,9 +163,7 @@ class Scene(object):
     def setTarget(self):
         glBindFramebuffer(GL_FRAMEBUFFER, 0)
         glViewport(int(self.position[0]),int(self.position[1]),int(self.size[0]),int(self.size[1]))
-    def render(self,frame):
-        self.frame = frame
-        self.prepareToRender()
+    def render(self):
         self.setTarget()
         for d in self.drawables:
             d.render(self,self.matrix)
@@ -167,7 +192,7 @@ class Scene(object):
                 self.eventHandler = self.eventHandler.input2d(self.inputMatrix,x,y,buttons)
 
 class Geometry(Drawable):
-    def __init__(self,**kwds):
+    def __init__(self,svbo,**kwds):
         super(Geometry,self).__init__(**kwds)
         global shaders
         self.shader = shaders.setdefault("text",ShaderText(FONT))
@@ -182,20 +207,50 @@ class Geometry(Drawable):
         self.size = (0,0)
         self.opacity = 1.0
         self.edges = (1.0,1.0,0.0,0.0)
+        self.svbo = svbo
+        self.svbobase = None
+        self.svbospace = None
+        self.vab = None
+        self.texture = None
+    def reserve(self,space):
+        self.svbobase = self.svbo.allocate(space) 
+        #print "reserved",self.svbobase,space
+        if self.svbobase != None:
+            self.svbospace = space
     def setTransformOffset(self,x,y):
         self.transformOffset = (x,y)
     def setPos(self,x,y):
         self.pos = (x,y)    
     def setScale(self,scale):
         self.scale = scale    
+    def setVab(self,vertices):
+        #print "setVab",len(vertices),self.svbobase,self.svbospace,vertices.size,vertices
+        if (vertices.size)<=self.svbospace:
+            self.svbo.update(vertices,self.svbobase)
+            self.vab = (self.svbo.vboOffset(self.svbobase),self.svbo.vboOffset(self.svbobase+16),self.svbo.vboOffset(self.svbobase+32),len(vertices)/12)
     def rectangle(self,*args,**kwargs):
-        self.geometry = self.shader.rectangle(*args,**kwargs)
+        if self.svbobase == None:
+            self.reserve(6*12*4)
+        texture,vertices = self.shader.rectangle(*args,**kwargs)
+        self.setVab(vertices)
+        self.texture = texture
     def gradient(self,*args,**kwargs):
-        self.geometry = self.shader.gradient(*args,**kwargs)
+        if self.svbobase == None:
+            self.reserve(6*12*4)
+        texture,vertices = self.shader.gradient(*args,**kwargs)
+        self.setVab(vertices)
+        self.texture = texture
     def label(self,*args,**kwargs):
-        self.geometry = self.shader.label(*args,**kwargs)
+        if self.svbobase == None:
+            chars = len(args[0])+10
+            #print "chars in",args[0],chars
+            self.reserve(6*12*4*chars)
+        texture,vertices = self.shader.label(*args,**kwargs)
+        #print vertices
+        self.setVab(vertices)
+        self.texture = texture
     def render(self,scene,matrix):
-        if self.geometry and self.opacity>0.0:
+        if self.vab != None and self.opacity>0.0:
             # Update matrix
             self.matrix.identity()
             self.matrix.translate(self.pos[0],self.pos[1])
@@ -207,7 +262,7 @@ class Geometry(Drawable):
             #if self.rotation != 0.0:
             #    self.matrix.rotation(2.0*3.1415927*self.rotation/360.0)    
             self.matrix.mult(matrix);
-            self.shader.draw(self.geometry,self.matrix,self.colour,self.opacity,self.edges)
+            self.shader.draw(self.vab,self.texture,self.matrix,self.colour,self.opacity,self.edges)
         for c in self.children:
             c.render(scene,self.matrix) # Relative to parent
     def input2d(self,matrix,x,y,buttons):

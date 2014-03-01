@@ -23,6 +23,7 @@ SOFTWARE.
 
 import GLCompute
 from OpenGL.GL import *
+import numpy as np
 
 class ShaderDisplaySimple(GLCompute.Shader):
     vertex_src = """
@@ -52,10 +53,17 @@ void main() {
     def __init__(self,**kwds):
         myclass = self.__class__
         super(ShaderDisplaySimple,self).__init__(myclass.vertex_src,myclass.fragment_src,["time","tex","rawres","colourBalance"],**kwds)
+        self.svbo = None
+    def prepare(self,svbo):
+        if self.svbo==None:
+            self.svbo = svbo
+            self.svbobase = svbo.allocate(4*12) 
+            vertices = np.array((-1,-1,0,1,-1,0,-1,1,0,1,1,0),dtype=np.float32)
+            self.svbo.update(vertices,self.svbobase)
+
     def draw(self,width,height,texture,balance):
         self.use()
-        vertices = GLCompute.glarray(GLfloat,(-1,-1,0,1,-1,0,-1,1,0,1,1,0))
-        glVertexAttribPointer(self.vertex,3,GL_FLOAT,GL_FALSE,0,vertices)
+        glVertexAttribPointer(self.vertex,3,GL_FLOAT,GL_FALSE,0,self.svbo.vboOffset(self.svbobase))
         glEnableVertexAttribArray(self.vertex)
         texture.bindtex(True) # Use linear filter
         glUniform1i(self.uniforms["tex"], 0)

@@ -142,7 +142,12 @@ class GLCompute(object):
         return "GLCompute"
     def renderScenes(self):
         for s in self.scenes:
-            s.render(self._frames)
+            s.prepareToRender()
+        self.scenesPrepared()
+        for s in self.scenes:
+            s.render()
+    def scenesPrepared(self):
+        pass
     def __draw(self):
         self._last = timeInUsec()
         self.onFboDraw()
