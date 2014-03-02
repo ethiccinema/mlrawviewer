@@ -351,8 +351,11 @@ class DisplayScene(ui.Scene):
         idle = self.frames.userIdleTime()
         if idle>5.0 and self.fadeAnimation.targval == 1.0:
             self.fadeAnimation.setTarget(0.0,2.0,0.0,ui.Animation.SMOOTH)
+            
+            self.frames.setCursorVisible(False)
         elif idle<=5.0 and self.fadeAnimation.targval == 0.0:
             self.fadeAnimation.setTarget(1.0,0.5,0.0,ui.Animation.SMOOTH)
+            self.frames.setCursorVisible(True)
         self.overlayOpacity = self.fadeAnimation.value()
         if self.frames.paused: self.overlayOpacity = 1.0
         frameNumber = self.frames.currentFrameNumber()
@@ -487,7 +490,7 @@ class Viewer(GLCompute.GLCompute):
         super(Viewer,self).__init__(width=userWidth,height=int(userWidth*self.vidAspectHeight),**kwds)
         self._init = False
         self.display = None
-        self.realStartTime = None
+        self.realStartTime = 0
         self.playTime = 0
         self.playFrameNumber = 0
         self.nextFrameNumber = 0

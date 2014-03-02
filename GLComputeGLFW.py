@@ -112,6 +112,7 @@ class GLCompute(object):
         self.height = height
         self.glfwMonitor = glfw.glfwGetPrimaryMonitor()
         self.glfwWindow = glfw.glfwCreateWindow(width,height,self.windowName(),None,None)
+        glfw.glfwSwapInterval(1)
         self.installCallbacks(self.glfwWindow)
         glfw.glfwMakeContextCurrent(self.glfwWindow)
         self._isFull = False
@@ -140,13 +141,16 @@ class GLCompute(object):
             self.glfwFullscreenWindow = glfw.glfwCreateWindow(mode[0],mode[1],self.windowName(),m,self.glfwWindow)
             self.installCallbacks(self.glfwFullscreenWindow)
             glfw.glfwHideWindow(self.glfwWindow)
+            glfw.glfwSwapInterval(1)
             self._isFull = True
             self.redisplay()
         else:
             glfw.glfwDestroyWindow(self.glfwFullscreenWindow)
             glfw.glfwShowWindow(self.glfwWindow)
+            glfw.glfwSwapInterval(1)
             self._isFull = False
             self.redisplay()
+        self.setCursorVisible(True)
     def run(self):
         while not glfw.glfwWindowShouldClose(self.glfwWindow):
             if self._drawNeeded:
@@ -228,3 +232,11 @@ class GLCompute(object):
         self.input2d(x,y,self.buttons)
     def input2d(self,x,y,buttons):
         print "input2d",x,y,buttons
+    def setCursorVisible(self,visible):
+        w = self.glfwWindow 
+        if self._isFull:
+            w = self.glfwFullscreenWindow
+        if visible:
+            glfw.glfwSetInputMode(w,glfw.GLFW_CURSOR,glfw.GLFW_CURSOR_NORMAL)
+        else:
+            glfw.glfwSetInputMode(w,glfw.GLFW_CURSOR,glfw.GLFW_CURSOR_HIDDEN)

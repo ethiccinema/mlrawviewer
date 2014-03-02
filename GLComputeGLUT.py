@@ -136,6 +136,7 @@ class GLCompute(object):
         else:
             glutFullScreen()
             self._isFull = True
+        self.setCursorVisible(True)
     def run(self):
         glutMainLoop()
     def windowName(self):
@@ -214,3 +215,8 @@ class GLCompute(object):
         self.input2d(x,y,self.buttons)
     def input2d(self,x,y,buttons):
         print "input2d",x,y,buttons
+    def setCursorVisible(self,visible):
+        if visible:
+            glutSetCursor(GLUT_CURSOR_INHERIT)
+        else:
+            glutSetCursor(GLUT_CURSOR_NONE)
