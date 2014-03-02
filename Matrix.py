@@ -10,8 +10,10 @@ def identity():
 class Matrix4x4(object):
     def __init__(self):
         self.m = identity()
-    def copy(self,other):
-        self.m = other.m
+    def copy(self):
+        ret = Matrix4x4()
+        ret.m = self.m.copy()
+        return ret
     def reset(self):
         self.identity()
     def identity(self):

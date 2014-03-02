@@ -93,15 +93,12 @@ from ShaderDisplaySimple import *
 from ShaderText import *
 
 class Demosaicer(ui.Drawable):
-    def __init__(self,raw,rawUploadTex,rgbUploadTex,settings,encoder,frames,**kwds):
+    def __init__(self,settings,encoder,frames,**kwds):
         super(Demosaicer,self).__init__(**kwds)
         self.shaderNormal = ShaderDemosaicBilinear()
         self.shaderQuality = ShaderDemosaicCPU()
         self.settings = settings
         self.encoder = encoder
-        self.raw = raw
-        self.rawUploadTex = rawUploadTex
-        self.rgbUploadTex = rgbUploadTex
         self.lastFrameData = None
         self.lastFrameNumber = None
         self.lastBrightness = None
@@ -109,6 +106,10 @@ class Demosaicer(ui.Drawable):
         self.lastTone = None
         self.frames = frames # Frame fetching interface
         self.rgbFrameUploaded = None
+
+    def setTextures(self,rawUploadTex,rgbUploadTex):
+        self.rawUploadTex = rawUploadTex
+        self.rgbUploadTex = rgbUploadTex
 
     def render(self,scene,matrix):
         frameData = self.frames.currentFrame()
@@ -157,17 +158,20 @@ class Demosaicer(ui.Drawable):
 class DemosaicScene(ui.Scene):
     def __init__(self,raw,settings,encoder,frames,**kwds):
         super(DemosaicScene,self).__init__(**kwds)
-        self.raw = raw
-        #print "Width:",self.raw.width(),"Height:",self.raw.height(),"Frames:",self.raw.frames()
-        self.rawUploadTex = GLCompute.Texture((self.raw.width(),self.raw.height()),None,hasalpha=False,mono=True,sixteen=True)
-        #try: self.rgbUploadTex = GLCompute.Texture((self.raw.width(),self.raw.height()),None,hasalpha=False,mono=False,fp=True)
-        self.rgbUploadTex = GLCompute.Texture((self.raw.width(),self.raw.height()),None,hasalpha=False,mono=False,sixteen=True)
-        try: self.rgbImage = GLCompute.Texture((self.raw.width(),self.raw.height()),None,hasalpha=False,mono=False,fp=True)
-        except GLError: self.rgbImage = GLCompute.Texture((self.raw.width(),self.raw.height()),None,hasalpha=False,sixteen=True)
-        self.demosaicer = Demosaicer(raw,self.rawUploadTex,self.rgbUploadTex,settings,encoder,frames)
-        #print "Using",self.demosaicer.shaderNormal.demosaic_type,"demosaic algorithm"
-        self.drawables.append(self.demosaicer)
         self.frames = frames
+        self.demosaicer = Demosaicer(settings,encoder,frames)
+        self.initTextures()
+        self.drawables.append(self.demosaicer)
+        #print "Width:",self.raw.width(),"Height:",self.raw.height(),"Frames:",self.raw.frames()
+    def initTextures(self):
+        raw = self.frames.raw
+        self.rawUploadTex = GLCompute.Texture((raw.width(),raw.height()),None,hasalpha=False,mono=True,sixteen=True)
+        #try: self.rgbUploadTex = GLCompute.Texture((self.raw.width(),self.raw.height()),None,hasalpha=False,mono=False,fp=True)
+        self.rgbUploadTex = GLCompute.Texture((raw.width(),raw.height()),None,hasalpha=False,mono=False,sixteen=True)
+        try: self.rgbImage = GLCompute.Texture((raw.width(),raw.height()),None,hasalpha=False,mono=False,fp=True)
+        except GLError: self.rgbImage = GLCompute.Texture((raw.width(),raw.height()),None,hasalpha=False,sixteen=True)
+        self.demosaicer.setTextures(self.rawUploadTex,self.rgbUploadTex)
+        #print "Using",self.demosaicer.shaderNormal.demosaic_type,"demosaic algorithm"
     def setTarget(self):
         self.rgbImage.bindfbo()
     def free(self):
@@ -510,6 +514,8 @@ class Viewer(GLCompute.GLCompute):
         self.indexing = True
         self.audioOffset = 0.0
         self.lastEventTime = time.time()
+        self.wasFull = False
+        self.demosaic = None
         # Shared settings
         self.setting_brightness = 16.0
         self.setting_rgb = (2.0, 1.0, 1.5)
@@ -587,7 +593,10 @@ class Viewer(GLCompute.GLCompute):
         if self.svbo == None:
             self.svbo = ui.SharedVbo()
         self.scenes = []
-        self.demosaic = DemosaicScene(self.raw,self,self,self,size=(self.raw.width(),self.raw.height()))
+        if self.demosaic == None:
+            self.demosaic = DemosaicScene(self.raw,self,self,self,size=(self.raw.width(),self.raw.height()))
+        else:
+            self.demosaic.initTextures()
         self.scenes.append(self.demosaic)
         if self.display == None:
             self.display = DisplayScene(self,size=(0,0))
@@ -602,6 +611,12 @@ class Viewer(GLCompute.GLCompute):
         # First convert Raw to RGB image at same size
         PLOG(PLOG_FRAME,"onDraw start")
         self.init()
+        if self._isFull != self.wasFull:
+            GLCompute.reset_state()
+            self.svbo.bound = False
+            self.wasFull = self._isFull
+        if not self.svbo.bound:
+            self.svbo.bind()
         if self.realStartTime == None or self.raw.indexingStatus()<1.0:
             offset = self.playFrameNumber / self.fps
             self.realStartTime = time.time() - offset
@@ -618,7 +633,7 @@ class Viewer(GLCompute.GLCompute):
             self.display.setSize(aspectWidth,height)
             self.display.setPosition(width/2 - aspectWidth/2, 0)
         self.renderScenes()
-        """
+        """ 
         now = time.time()
         if self.fpsMeasure == None:
             self.fpsMeasure = now
@@ -637,7 +652,6 @@ class Viewer(GLCompute.GLCompute):
             self.refresh()
         PLOG(PLOG_FRAME,"onDraw end")
     def scenesPrepared(self):
-        self.svbo.bind()
         self.svbo.upload() # In case there are changes
     def jumpto(self,frameToJumpTo):
         #if self.raw.indexingStatus()==1.0:
@@ -964,7 +978,10 @@ class Viewer(GLCompute.GLCompute):
         if not self.wavname:
             return
         if os.path.exists(self.wavname):
-            self.wav = wave.open(self.wavname,'r')
+            try:
+                self.wav = wave.open(self.wavname,'r')
+            except:
+                self.wav = None
             #print "wav",self.wav.getparams()
             #self.startAudio()
     def startAudio(self,startTime=0.0):

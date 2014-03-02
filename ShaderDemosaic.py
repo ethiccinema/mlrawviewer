@@ -49,6 +49,7 @@ class ShaderDemosaic(GLCompute.Shader):
 
     def demosaicPass(self,texture,black,time=0,balance=(1.0,1.0,1.0),white=(2**14-1),tonemap=1):
         self.use()
+        self.blend(False)
         glVertexAttribPointer(self.vertex,3,GL_FLOAT,GL_FALSE,0,self.svbo.vboOffset(self.svbobase))
         glEnableVertexAttribArray(self.vertex)
         texture.bindtex(False,0)

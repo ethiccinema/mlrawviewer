@@ -115,10 +115,10 @@ class Viewer(GLCompute.GLCompute):
         self.init()
         self.timeline.setNow(time.time())
         self.updateAnims()
-        self.iconitems[1].rotation = self.iconAnim.value()
+        self.iconitems[1].setRotation(self.iconAnim.value())
         self.scene.setSize(width,height)
         
-        self.box.rotation -= 0.1
+        self.box.setRotation(self.box.rotation - 0.1)
         """
         self.childbox.rotation += 1.0
         for index,icon in enumerate(self.iconitems):

@@ -51,6 +51,12 @@ On Debian/Ubuntu try "sudo apt-get install python-opengl"
     sys.exit(1)
 FONT = Font.Font(os.path.join(os.path.split(__file__)[0],"data/os.glf"))
 
+import PerformanceLog
+from PerformanceLog import PLOG
+PLOG_FILE_IO = PerformanceLog.PLOG_TYPE(0,"FILE_IO")
+PLOG_FRAME = PerformanceLog.PLOG_TYPE(1,"FRAME")
+PLOG_CPU = PerformanceLog.PLOG_TYPE(2,"CPU")
+PLOG_GPU = PerformanceLog.PLOG_TYPE(3,"GPU")
 
 shaders = {}
 
@@ -63,7 +69,9 @@ class SharedVbo(object):
         self.avail = 1024*64
         self.allocated = 0
     def bind(self):
+        PLOG(PLOG_CPU,"SharedVbo bind")
         self.vbo.bind()
+        PLOG(PLOG_CPU,"SharedVbo bound")
         self.bound = True
     def allocate(self,amount):
         if (self.avail-amount)>0:
@@ -78,7 +86,9 @@ class SharedVbo(object):
     def vboOffset(self,offset):
         return self.vbo + offset        
     def upload(self):
+        PLOG(PLOG_CPU,"SharedVbo upload")
         self.vbo.copy_data()
+        PLOG(PLOG_CPU,"SharedVbo upload done")
 
 class Timeline(object):
     def __init__(self,**kwds):
@@ -212,17 +222,42 @@ class Geometry(Drawable):
         self.svbospace = None
         self.vab = None
         self.texture = None
+        self.matrixDirty = True
+    def updateMatrix(self):
+        if self.matrixDirty:
+            PLOG(PLOG_CPU,"Updating matrix %d,%d"%self.pos)
+            # Update matrix
+            self.matrix.identity()
+            self.matrix.translate(self.pos[0],self.pos[1])
+            if self.rotation != 0.0:
+                self.matrix.rotation(2.0*3.1415927*self.rotation/360.0)    
+            self.matrix.translate(-self.transformOffset[0],-self.transformOffset[1])
+            if self.scale != 1.0:
+                self.matrix.scale(self.scale)
+            self.matrixDirty = False
+            PLOG(PLOG_CPU,"Update of matrix done %d,%d"%self.pos)
+
     def reserve(self,space):
         self.svbobase = self.svbo.allocate(space) 
         #print "reserved",self.svbobase,space
         if self.svbobase != None:
             self.svbospace = space
     def setTransformOffset(self,x,y):
-        self.transformOffset = (x,y)
+        if self.transformOffset != (x,y):
+            self.transformOffset = (x,y)
+            self.matrixDirty = True
     def setPos(self,x,y):
-        self.pos = (x,y)    
+        if self.pos != (x,y):
+            self.pos = (x,y)    
+            self.matrixDirty = True
     def setScale(self,scale):
-        self.scale = scale    
+        if self.scale != scale:
+            self.scale = scale    
+            self.matrixDirty = True
+    def setRotation(self,rotation):
+        if self.rotation != rotation:
+            self.rotation = rotation
+            self.matrixDirty = True
     def setVab(self,vertices):
         #print "setVab",len(vertices),self.svbobase,self.svbospace,vertices.size,vertices
         if (vertices.size)<=self.svbospace:
@@ -250,33 +285,24 @@ class Geometry(Drawable):
         self.setVab(vertices)
         self.texture = texture
     def render(self,scene,matrix):
+        PLOG(PLOG_CPU,"Geometry render %d,%d"%self.pos)
         if self.vab != None and self.opacity>0.0:
-            # Update matrix
-            self.matrix.identity()
-            self.matrix.translate(self.pos[0],self.pos[1])
-            if self.rotation != 0.0:
-                self.matrix.rotation(2.0*3.1415927*self.rotation/360.0)    
-            self.matrix.translate(-self.transformOffset[0],-self.transformOffset[1])
-            if self.scale != 1.0:
-                self.matrix.scale(self.scale)
-            #if self.rotation != 0.0:
-            #    self.matrix.rotation(2.0*3.1415927*self.rotation/360.0)    
-            self.matrix.mult(matrix);
-            self.shader.draw(self.vab,self.texture,self.matrix,self.colour,self.opacity,self.edges)
+            self.updateMatrix()
+            m = self.matrix.copy()
+            m.mult(matrix);
+            PLOG(PLOG_CPU,"Geometry render draw %d,%d"%self.pos)
+            self.shader.draw(self.vab,self.texture,m,self.colour,self.opacity,self.edges)
+        PLOG(PLOG_CPU,"Geometry render children %d,%d"%self.pos)
         for c in self.children:
-            c.render(scene,self.matrix) # Relative to parent
+            c.render(scene,m) # Relative to parent
+        PLOG(PLOG_CPU,"Geometry render done %d,%d"%self.pos)
     def input2d(self,matrix,x,y,buttons):
         # Update matrix
-        self.matrix.identity()
-        self.matrix.translate(self.pos[0],self.pos[1])
-        if self.rotation != 0.0:
-            self.matrix.rotation(2.0*3.1415927*self.rotation/360.0)    
-        self.matrix.translate(-self.transformOffset[0],-self.transformOffset[1])
-        if self.scale != 1.0:
-            self.matrix.scale(self.scale)
-        self.matrix.mult(matrix);
+        self.updateMatrix()
+        m = self.matrix.copy()
+        m.mult(matrix);
         # Transform the scene coords into object space
-        lx,ly,lz = self.matrix.multveci(x,y)
+        lx,ly,lz = m.multveci(x,y)
         #print lx,ly,self.size[0],self.size[1]
         if lx>=0.0 and lx<=(self.size[0]) and ly>=0.0 and ly<=(self.size[1]):
             return self.event2d(lx,ly,buttons)

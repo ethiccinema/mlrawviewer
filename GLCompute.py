@@ -43,10 +43,28 @@ On Debian/Ubuntu try "sudo apt-get install python-opengl"
 """
     sys.exit(1)
 
+import PerformanceLog
+from PerformanceLog import PLOG
+PLOG_FILE_IO = PerformanceLog.PLOG_TYPE(0,"FILE_IO")
+PLOG_FRAME = PerformanceLog.PLOG_TYPE(1,"FRAME")
+PLOG_CPU = PerformanceLog.PLOG_TYPE(2,"CPU")
+PLOG_GPU = PerformanceLog.PLOG_TYPE(3,"GPU")
+
+
 def glarray(gltype, seq):
     carray = (gltype * len(seq))()
     carray[:] = seq
     return carray
+
+current_shader = None
+blending = False
+current_texture = (None,False)
+
+def reset_state():
+    global current_shader,blending,current_texture
+    current_shader = None
+    blending = False
+    current_texture = (None,False)
 
 class Shader(object):
     def __init__(self,vs,fs,uniforms,**kwds):
@@ -59,7 +77,21 @@ class Shader(object):
             self.uniforms[key] = glGetUniformLocation(self.program,key)
         super(Shader,self).__init__(**kwds)
     def use(self):
-        glUseProgram(self.program)
+        global current_shader
+        if current_shader != self:
+            PLOG(PLOG_CPU,"Changing shader")
+            glUseProgram(self.program)
+            current_shader = self
+    def blend(self,state):
+        global blending
+        if state and not blending:
+            glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA)
+            glEnable(GL_BLEND)
+            blending = state
+        elif not state and blending:
+            glDisable(GL_BLEND)
+            blending = state 
+
 
 class Texture:
     def __init__(self,size,rgbadata=None,hasalpha=True,mono=False,sixteen=False,mipmap=False,fp=False):
@@ -109,7 +141,6 @@ class Texture:
     def free(self):
         glDeleteFramebuffers((self.fbo,))
         glDeleteTextures(self.id)
-
 
     def setupFbo(self):
         self.fbo = glGenFramebuffers(1)
@@ -203,7 +234,18 @@ class Texture:
             glBindFramebuffer(GL_FRAMEBUFFER, self.fbo)
         glViewport(0,0,self.width,self.height)
 
+    @staticmethod
+    def unbindtex(texnum=0):
+        global current_texture
+        if texnum==0:
+            current_texture = (None,False)
+        glActiveTexture(GL_TEXTURE0+texnum)
+        glBindTexture(GL_TEXTURE_2D, 0)
+        
     def bindtex(self,linear=False,texnum=0):
+        global current_texture
+        if texnum==0 and current_texture == (self,linear):
+            return
         glActiveTexture(GL_TEXTURE0+texnum)
         glBindTexture(GL_TEXTURE_2D, self.id)
         if linear:
@@ -219,7 +261,7 @@ class Texture:
                 glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST)
             else:
                 glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST_MIPMAP_NEAREST)
-
+        current_texture = (self,linear)
 
 from datetime import datetime
 def timeInUsec():

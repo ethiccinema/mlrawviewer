@@ -88,17 +88,14 @@ void main() {
         if texture:
             texture.bindtex(True) # Use linear filter
         else:
-            glActiveTexture(GL_TEXTURE0)
-            glBindTexture(GL_TEXTURE_2D, 0)
+            GLCompute.Texture.unbindtex()
         glUniform4f(self.uniforms["urgba"], rgba[0]*opacity,rgba[1]*opacity,rgba[2]*opacity,rgba[3]*opacity)
         glUniformMatrix4fv(self.uniforms["matrix"], 1, 0, matrix.m.tolist())
         glUniform1i(self.uniforms["tex"], 0)
         glUniform4f(self.uniforms["whxy"], whxy[0],whxy[1],whxy[2],whxy[3])
         #glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
-        glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA)
-        glEnable(GL_BLEND)
+        self.blend(True)
         glDrawArrays(GL_TRIANGLES, 0, vab[3])#len(vertices)/12)
-        glDisable(GL_BLEND)
 
     def gradient(self,width,height,tl,tr,bl,br):
         uv=(0.0,0.0,1.0,1.0)
