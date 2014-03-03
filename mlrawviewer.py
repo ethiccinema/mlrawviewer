@@ -73,6 +73,18 @@ On Debian/Ubuntu try "sudo apt-get install python-numpy"
 """
     sys.exit(1)
 
+# pyrr. Could be missing
+try:
+    import pyrr
+except Exception,err:
+    import traceback
+    traceback.print_exc()
+    print """There is a problem with your python environment.
+I Could not import the pyrr module.
+On Debian/Ubuntu try "sudo apt-get install python-pyrr"
+"""
+    sys.exit(1)
+
 # Now import our own modules
 import PerformanceLog
 from PerformanceLog import PLOG
@@ -351,7 +363,7 @@ class DisplayScene(ui.Scene):
         self.display.displayShader.prepare(self.frames.svbo)
         self.timeline.setNow(time.time())
         idle = self.frames.userIdleTime()
-        if idle>5.0 and self.fadeAnimation.targval == 1.0:
+        if idle>5.0 and self.fadeAnimation.targval == 1.0 and not self.frames.encoding():
             self.fadeAnimation.setTarget(0.0,2.0,0.0,ui.Animation.SMOOTH)
             
             self.frames.setCursorVisible(False)
@@ -375,7 +387,7 @@ class DisplayScene(ui.Scene):
             i.setPos(10.0,base)
             base += iconSpacing
         markstart = float(self.frames.marks[0][0])/float(self.frames.raw.frames())
-        marklen = float(self.frames.marks[1][0] - self.frames.marks[0][0])/float(self.frames.raw.frames())
+        marklen = float(self.frames.marks[1][0] - self.frames.marks[0][0] + 1)/float(self.frames.raw.frames())
         self.mark.setPos(60.0+rectWidth*markstart,height-6.0)
         self.mark.rectangle(rectWidth*marklen,3.0,rgba=(0.75,0.75,0.75,0.75))
         self.progressBackground.setPos(60.0,height-rectHeight-7.0)

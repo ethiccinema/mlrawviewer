@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
 	<key>CFBundleShortVersionString</key>
-	<string>1.0.4 alpha</string>
+	<string>1.1.0</string>
 	<key>CFBundleExecutable</key>
 	<string>MacOS/mlrawviewer</string>
 	<key>CFBundleName</key>
@@ -32,6 +32,16 @@
 			<key>CFBundleTypeExtensions</key>
 			<array>
 				<string>MLV</string>
+			</array>
+			<key>LSHandlerRank</key>
+			<string>Default</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+		</dict>
+		<dict>
+			<key>CFBundleTypeExtensions</key>
+			<array>
+				<string>DNG</string>
 			</array>
 			<key>LSHandlerRank</key>
 			<string>Default</string>
