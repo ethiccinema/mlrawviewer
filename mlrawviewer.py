@@ -73,18 +73,6 @@ On Debian/Ubuntu try "sudo apt-get install python-numpy"
 """
     sys.exit(1)
 
-# pyrr. Could be missing
-try:
-    import pyrr
-except Exception,err:
-    import traceback
-    traceback.print_exc()
-    print """There is a problem with your python environment.
-I Could not import the pyrr module.
-On Debian/Ubuntu try "sudo apt-get install python-pyrr"
-"""
-    sys.exit(1)
-
 # Now import our own modules
 import PerformanceLog
 from PerformanceLog import PLOG
