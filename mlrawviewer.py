@@ -210,6 +210,8 @@ class DisplayScene(ui.Scene):
         self.display = Display()
         self.iconBackground = ui.Geometry(svbo=frames.svbo)
         self.iconBackground.edges = (1.0,1.0,0.35,0.25)
+        self.mark = ui.Geometry(svbo=frames.svbo)
+        self.mark.edges = (1.0,1.0,0.01,0.6)
         self.progressBackground = ui.Geometry(svbo=frames.svbo)
         self.progressBackground.edges = (1.0,1.0,0.01,0.25)
         self.progress = ui.Button(0,0,self.progressClick,svbo=frames.svbo)
@@ -251,7 +253,7 @@ class DisplayScene(ui.Scene):
         self.brightnessHandle.ignoreInput = True
         self.timestamp = ui.Geometry(svbo=frames.svbo)
         self.iconItems = [self.fullscreen,self.mapping,self.drop,self.quality,self.loop,self.encode,self.play]
-        self.overlay = [self.iconBackground,self.progressBackground,self.progress,self.timestamp,self.update,self.balance,self.balanceHandle,self.brightness,self.brightnessHandle]
+        self.overlay = [self.iconBackground,self.progressBackground,self.progress,self.timestamp,self.update,self.balance,self.balanceHandle,self.brightness,self.brightnessHandle,self.mark]
         self.overlay.extend(self.iconItems)
         self.drawables.extend([self.display])
         self.drawables.extend(self.overlay)
@@ -264,7 +266,7 @@ class DisplayScene(ui.Scene):
     def progressClick(self,x,y):
         targetFrame = self.frames.raw.frames()*(float(x)/float(self.progress.size[0]))
         #print "Progress click",x,y,"targetFrame",targetFrame
-        self.frames.jumpto(targetFrame)
+        self.frames.jumpTo(targetFrame)
     
     def updateClick(self,x,y):
         global config
@@ -372,6 +374,10 @@ class DisplayScene(ui.Scene):
             i.setScale(0.25)
             i.setPos(10.0,base)
             base += iconSpacing
+        markstart = float(self.frames.marks[0][0])/float(self.frames.raw.frames())
+        marklen = float(self.frames.marks[1][0] - self.frames.marks[0][0])/float(self.frames.raw.frames())
+        self.mark.setPos(60.0+rectWidth*markstart,height-6.0)
+        self.mark.rectangle(rectWidth*marklen,3.0,rgba=(0.75,0.75,0.75,0.75))
         self.progressBackground.setPos(60.0,height-rectHeight-7.0)
         self.progressBackground.rectangle(rectWidth*self.frames.raw.indexingStatus(),rectHeight,rgba=(1.0-0.8*self.frames.raw.indexingStatus(),0.2,0.2,0.2))
         self.progress.setPos(60.0,height-rectHeight-7.0)
@@ -519,6 +525,7 @@ class Viewer(GLCompute.GLCompute):
         self.lastEventTime = time.time()
         self.wasFull = False
         self.demosaic = None
+        self.markReset()
         # Shared settings
         self.setting_brightness = 16.0
         self.setting_rgb = (2.0, 1.0, 1.5)
@@ -582,6 +589,7 @@ class Viewer(GLCompute.GLCompute):
         self.playFrame = self.raw.firstFrame
         self.preloadFrame(1) # Immediately try to preload the next frame
         self.indexing = True
+        self.markReset()
         self._init = False
         self.init()
         self.refresh()
@@ -656,7 +664,7 @@ class Viewer(GLCompute.GLCompute):
         PLOG(PLOG_FRAME,"onDraw end")
     def scenesPrepared(self):
         self.svbo.upload() # In case there are changes
-    def jumpto(self,frameToJumpTo):
+    def jumpTo(self,frameToJumpTo):
         #if self.raw.indexingStatus()==1.0:
         if frameToJumpTo<0:
             frameToJumpTo = 0
@@ -737,8 +745,21 @@ class Viewer(GLCompute.GLCompute):
             self.toggleDropFrames()
         elif k==self.KEY_T:
             self.toggleToneMapping()
-        elif k==self.KEY_L:
+        elif k==self.KEY_I:
             self.toggleLooping()
+
+        # Mark management
+        elif k==self.KEY_R:
+            self.markReset()
+            self.refresh()
+        elif k==self.KEY_L:
+            self.markNext()
+        elif k==self.KEY_H:
+            self.markPrev()
+        elif k==self.KEY_J:
+            self.markIn()
+        elif k==self.KEY_K:
+            self.markOut()
 
         elif k==self.KEY_V:
             self.slideAudio(-0.5)
@@ -919,6 +940,12 @@ class Viewer(GLCompute.GLCompute):
     def toggleEncoding(self):
         if not self.setting_encoding:
             # Start the encoding process
+            now = time.time()
+            startframe = self.marks[0][0]
+            self.realStartTime = now - startframe / self.fps
+            self.neededFrame = startframe
+            self.nextFrameNumber = startframe
+            self.audio.stop()
             if self.setting_dropframes:
                 self.toggleDropFrames()
             self.setting_encoding = True
@@ -936,7 +963,7 @@ class Viewer(GLCompute.GLCompute):
             tempwavname = None
             if self.wav:
                 tempwavname = self.outfilename + ".WAV"
-                self.tempEncoderWav(tempwavname)
+                self.tempEncoderWav(tempwavname,self.marks[0][0],self.marks[1][0])
             kwargs = {"stdin":subprocess.PIPE,"stdout":subprocess.PIPE,"stderr":subprocess.STDOUT}
             if subprocess.mswindows:
                 su = subprocess.STARTUPINFO()
@@ -1012,9 +1039,11 @@ class Viewer(GLCompute.GLCompute):
             self.startAudio(offset)
     def exit(self):
         self.audio.stop()
-    def tempEncoderWav(self,tempname):
+    def tempEncoderWav(self,tempname,inframe,outframe):
         """
         Create a temporary wav file starting from the current audioOffset
+        Start and end frames match the given in/out marks
+        outframe is included
         This will be fed as one stream to the external encoder
         """
         if not self.wav:
@@ -1022,8 +1051,8 @@ class Viewer(GLCompute.GLCompute):
         tempwav = wave.open(tempname,'w')
         tempwav.setparams(self.wav.getparams())
         channels,width,framerate,nframe,comptype,compname = self.wav.getparams()
-        frameCount = framerate * int(float(self.raw.frames()-self.nextFrameNumber)/float(self.fps))
-        startFrame = int((self.audioOffset+(float(self.nextFrameNumber)/float(self.fps)))*framerate)
+        frameCount = framerate * int(float(outframe-inframe+1)/float(self.fps))
+        startFrame = int((self.audioOffset+(float(inframe)/float(self.fps)))*framerate)
         padframes = 0
         readPos = startFrame
         if startFrame<0:
@@ -1064,7 +1093,7 @@ class Viewer(GLCompute.GLCompute):
         #print "demosaicAverage:",self.demosaicAverage
     def encode(self, index, frame):
         if self.setting_encoding and self.encoderProcess and self.lastEncodedFrame:
-            if index < self.lastEncodedFrame:
+            if index < self.lastEncodedFrame or index > self.marks[1][0]:
                 self.toggleEncoding() # Stop encoding as we reached the end
                 self.paused = True
                 self.jump(-1) # Should go back to last frame
@@ -1142,6 +1171,86 @@ class Viewer(GLCompute.GLCompute):
                 self.manageFrameCache()
                 self.preloadingFrame -= 1
         self.manageFrameLoading()
+    MARK_IN = 0
+    MARK_OUT = 1
+    def markReset(self):
+        # By default, start at start and end at end, whole file in scope
+        self.marks = [(0,self.MARK_IN),(self.raw.frames()-1,self.MARK_OUT)]
+        #Aprint "markReset",self.marks
+    def markNext(self):
+        #print "markNext"
+        this = self.playFrameNumber
+        for frame,mt in self.marks:
+            if this < frame:
+                self.jumpTo(frame)
+                break
+    def markPrev(self):
+        #print "markPrev"
+        this = self.playFrameNumber
+        lastframe = None
+        for frame,mt in self.marks:
+            if this <= frame:
+                if lastframe != None:
+                    self.jumpTo(lastframe)
+                return
+            lastframe = frame
+        self.jumpTo(lastframe)
+    def markIn(self):
+        #print "markIn",self.playFrameNumber
+        self.markAt(self.playFrameNumber,self.MARK_IN)
+    def markOut(self):
+        #print "markOut",self.playFrameNumber
+        self.markAt(self.playFrameNumber,self.MARK_OUT)
+    def markAt(self,at,markType):
+        """
+        Implement the mark management logic
+        For now we only allow one pair
+        Start/End are implicitly used when needed to create a pair
+        """
+        index = 0
+        insert = True
+        mark = (at,markType)
+        # Find index
+        for frame,kind in self.marks:
+            if frame==at:
+                insert = False
+                break  
+            elif frame>at:
+                break
+            index += 1
+        # Do the correct operation
+        if insert:
+            if index==len(self.marks):
+                # Adding a new mark at the end
+                if kind == markType:
+                    #print "replacing prev mark",index
+                    self.marks[index-1] = mark
+                """
+                    if markType==self.MARK_IN: # Must add end as out
+                        self.marks.append((self.raw.frames(),self.MARK_OUT)
+                elsAe:
+                """
+            elif index==0:
+                # Adding a new mark at the start
+                if kind == markType:
+                    #print "replacing next mark",index
+                    self.marks[index] = mark
+            elif markType == kind:
+                # We are inserting same kind of mark as the one after -> replace that
+                #print "replacing next mark",index
+                self.marks[index] = mark
+            else:
+                # We are inserting same kind of mark as the previous one -> replace that
+                #print "replacing prev mark",index
+                self.marks[index-1] = mark
+        else: 
+            pass
+            #if kind != markType:
+            #    print "deleting mark",index
+            #    del self.marks[index] 
+
+        #print self.marks               
+        self.refresh()
 
 def main():
     if len(sys.argv)<2:
