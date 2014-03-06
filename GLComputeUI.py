@@ -342,4 +342,32 @@ class XYGraph(Button):
             self.onclick(lx,ly)
             return self
         return None
-        
+       
+class Text(Button):
+    def __init__(self,text="",**kwds):
+        self.text = text
+        self.oldtext = None
+        super(Text,self).__init__(0,0,onclick=self.clickHandler,**kwds)
+        #self.motionWhileClicked = True
+    def update(self):
+        if self.oldtext != self.text:
+            print "update",self.text
+            self.label(self.text)
+            self.oldtext = self.text
+    def clickHandler(self,x,y):
+        pass
+    def event2d(self,lx,ly,buttons):
+        if buttons[0] == 1:
+            # Clicked
+            self.onclick(lx,ly)
+            return self
+        return None
+    def key(self,k):
+        if k==GLCompute.GLCompute.KEY_BACKSPACE:
+            print "backspace"
+            self.text = self.text[:-1]
+        elif k>=GLCompute.GLCompute.KEY_A and k<=GLCompute.GLCompute.KEY_Z:
+            self.text += chr(k) 
+        else:
+            print "edit",k
+ 

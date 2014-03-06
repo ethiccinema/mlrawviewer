@@ -90,6 +90,8 @@ class GLCompute(object):
     KEY_Y = ord('Y')
     KEY_Z = ord('Z')
 
+    KEY_BACKSPACE = 8
+
     KEY_LEFT = 100
     KEY_RIGHT = 102
     KEY_UP = 101

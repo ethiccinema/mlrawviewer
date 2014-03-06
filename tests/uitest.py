@@ -46,6 +46,8 @@ class Viewer(GLCompute.GLCompute):
         self.timeline = ui.Timeline()
         self.timeline.setNow(time.time())
         self.svbo = ui.SharedVbo()
+        self.wasFull = False
+        self.keyfocus = None
     def onIdle(self):
         self.redisplay()
     def windowName(self):
@@ -89,9 +91,9 @@ class Viewer(GLCompute.GLCompute):
         self.childbox.setTransformOffset(25.0,25.0)
         self.childbox.setPos(50.0,50.0)
         self.childbox.edges = (1.0,1.0,0.1,0.1)
-        self.hw = ui.Geometry(svbo=self.svbo)
-        self.hw.label("Hello World!")
+        self.hw = ui.Text(text="Hello World!",svbo=self.svbo)
         self.hw.setScale(1.0)
+        self.hw.update()
         
         self.iconitems = []
         for i in range(5):
@@ -113,12 +115,20 @@ class Viewer(GLCompute.GLCompute):
         self._init = True
     def onDraw(self,width,height):
         self.init()
+        if self._isFull != self.wasFull:
+            GLCompute.reset_state()
+            self.svbo.bound = False
+            self.wasFull = self._isFull
+            self.svbo.bind()
         self.timeline.setNow(time.time())
         self.updateAnims()
+        self.hw.update()
         self.iconitems[1].setRotation(self.iconAnim.value())
         self.scene.setSize(width,height)
         
         self.box.setRotation(self.box.rotation - 0.1)
+
+        self.svbo.upload() # In case there are changes
         """
         self.childbox.rotation += 1.0
         for index,icon in enumerate(self.iconitems):
@@ -135,7 +145,14 @@ class Viewer(GLCompute.GLCompute):
         if buttons[self.BUTTON_RIGHT]==self.BUTTON_DOWN: self.right = 1.0
         else: self.right = 0.0
         #self.box.setScale(1.0+self.left+self.right)
-        
+    def key(self,k):
+        if self.keyfocus:
+            self.keyfocus = self.keyfocus.key(k)
+        else:
+            self.keyfocus = self.hw.key(k)
+        if not self.keyfocus:
+            super(Viewer,self).key(k) # Inherit standard behaviour
+ 
 def main(): 
     rmc = Viewer()   
     return rmc.run()

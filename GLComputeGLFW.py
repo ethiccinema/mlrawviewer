@@ -92,6 +92,8 @@ class GLCompute(object):
     KEY_Y = glfw.GLFW_KEY_Y
     KEY_Z = glfw.GLFW_KEY_Z
 
+    KEY_BACKSPACE = glfw.GLFW_KEY_BACKSPACE
+
     KEY_LEFT = glfw.GLFW_KEY_LEFT
     KEY_RIGHT = glfw.GLFW_KEY_RIGHT
     KEY_UP = glfw.GLFW_KEY_UP
