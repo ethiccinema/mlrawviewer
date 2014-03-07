@@ -556,6 +556,9 @@ class Viewer(GLCompute.GLCompute):
             except:
                 pass
             newOne = (newOne + step)%len(fl)
+        self.loadSet(r,newname)
+
+    def loadSet(self,raw,newname):
         self.wavname = newname[:-3]+"WAV"
         #print "New wavname:",self.wavname
         """
@@ -576,7 +579,7 @@ class Viewer(GLCompute.GLCompute):
         self.demosaic.free() # Release textures
         self.wav = None
         self.raw.close()
-        self.raw = r
+        self.raw = raw
         self.playFrame = self.raw.firstFrame
         self.frameCache = {0:self.raw.firstFrame}
         self.preloadingFrame = 0
@@ -593,6 +596,13 @@ class Viewer(GLCompute.GLCompute):
         self._init = False
         self.init()
         self.refresh()
+
+    def drop(self,objects):
+        # Drag and drop from the system! Not drop-frames
+        fn = objects[0]
+        r = MlRaw.loadRAWorMLV(fn)
+        if r:
+            self.loadSet(r,fn)
 
     def windowName(self):
         #try:
@@ -698,7 +708,7 @@ class Viewer(GLCompute.GLCompute):
             self.startAudio(offset)
         PLOG(PLOG_FRAME,"jump by %d frames, now need %d"%(framesToJumpBy,self.neededFrame))
         self.refresh()
-    def key(self,k):
+    def key(self,k,m):
         now = time.time()
         self.lastEventTime = now
         if k==self.KEY_SPACE:
@@ -785,7 +795,7 @@ class Viewer(GLCompute.GLCompute):
             self.scaleBrightness(1.0/1.1)
 
         else:
-            super(Viewer,self).key(k) # Inherit standard behaviour
+            super(Viewer,self).key(k,m) # Inherit standard behaviour
 
     def userIdleTime(self):
         now = time.time()

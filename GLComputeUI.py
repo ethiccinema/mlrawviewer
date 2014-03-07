@@ -362,12 +362,16 @@ class Text(Button):
             self.onclick(lx,ly)
             return self
         return None
-    def key(self,k):
+    def key(self,k,m):
         if k==GLCompute.GLCompute.KEY_BACKSPACE:
-            print "backspace"
             self.text = self.text[:-1]
         elif k>=GLCompute.GLCompute.KEY_A and k<=GLCompute.GLCompute.KEY_Z:
-            self.text += chr(k) 
+            c = k - GLCompute.GLCompute.KEY_A
+            if m&GLCompute.GLCompute.KEY_MOD_SHIFT:
+                c = c + ord('A')
+            else:    
+                c = c + ord('a')
+            self.text += chr(c) 
         else:
             print "edit",k
  

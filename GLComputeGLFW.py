@@ -98,7 +98,11 @@ class GLCompute(object):
     KEY_RIGHT = glfw.GLFW_KEY_RIGHT
     KEY_UP = glfw.GLFW_KEY_UP
     KEY_DOWN = glfw.GLFW_KEY_DOWN
-    
+   
+    KEY_MOD_SHIFT = glfw.GLFW_MOD_SHIFT
+    KEY_MOD_CONTROL= glfw.GLFW_MOD_CONTROL
+    KEY_MOD_ALT = glfw.GLFW_MOD_ALT
+ 
     BUTTON_DOWN = 1
     BUTTON_UP = 0
     BUTTON_LEFT = 0
@@ -131,6 +135,7 @@ class GLCompute(object):
         glfw.glfwSetKeyCallback(w, self.__key)
         glfw.glfwSetCursorPosCallback(w, self.__motionfunc)
         glfw.glfwSetMouseButtonCallback(w, self.__mousefunc)
+        glfw.glfwSetDropCallback(w, self.__dropfunc)
     def toggleFullscreen(self):
         if not self._isFull:
             monitors = glfw.glfwGetMonitors()
@@ -212,10 +217,10 @@ class GLCompute(object):
     def __key(self,window, key, scancode, action, mods):
         # Don't propagate release events
         if action == glfw.GLFW_PRESS or action == glfw.GLFW_REPEAT:
-            self.key(key)
+            self.key(key,mods)
     def exit(self):
         pass
-    def key(self,k):
+    def key(self,k,m):
         if k == self.KEY_ESCAPE:
             glfw.glfwSetWindowShouldClose(self.glfwWindow,1)
             self.exit()
@@ -233,7 +238,7 @@ class GLCompute(object):
     def __motionfunc(self,window,x,y):
         self.input2d(x,y,self.buttons)
     def input2d(self,x,y,buttons):
-        print "input2d",x,y,buttons
+        pass
     def setCursorVisible(self,visible):
         w = self.glfwWindow 
         if self._isFull:
@@ -242,3 +247,11 @@ class GLCompute(object):
             glfw.glfwSetInputMode(w,glfw.GLFW_CURSOR,glfw.GLFW_CURSOR_NORMAL)
         else:
             glfw.glfwSetInputMode(w,glfw.GLFW_CURSOR,glfw.GLFW_CURSOR_HIDDEN)
+    def __dropfunc(self,window,count,objects):
+        result = [objects[i] for i in range(count)]    
+        try:
+            self.drop(result)
+        except:
+            pass
+    def drop(self,objects):
+        pass

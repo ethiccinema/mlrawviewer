@@ -342,6 +342,7 @@ cursorenterfun     = CFUNCTYPE(None, POINTER(GLFWwindow), c_int)
 scrollfun          = CFUNCTYPE(None, POINTER(GLFWwindow), c_double, c_double)
 keyfun             = CFUNCTYPE(None, POINTER(GLFWwindow), c_int, c_int, c_int, c_int)
 charfun            = CFUNCTYPE(None, POINTER(GLFWwindow), c_uint)
+dropfun            = CFUNCTYPE(None, POINTER(GLFWwindow), c_int, POINTER(c_char_p))
 monitorfun         = CFUNCTYPE(None, POINTER(GLFWmonitor), c_int)
 
 # --- Init --------------------------------------------------------------------
@@ -416,6 +417,7 @@ glfwSetCursorPos               = _glfw.glfwSetCursorPos
 # glfwSetCursorPosCallback       = _glfw.glfwSetCursorPosCallback
 # glfwSetCursorEnterCallback     = _glfw.glfwSetCursorEnterCallback
 # glfwSetScrollCallback          = _glfw.glfwSetScrollCallback
+glfwSetDropCallback            = _glfw.glfwSetDropCallback
 glfwJoystickPresent            = _glfw.glfwJoystickPresent
 # glfwGetJoystickAxes            = _glfw.glfwGetJoystickAxes
 # glfwGetJoystickButtons         = _glfw.glfwGetJoystickButtons
@@ -446,6 +448,7 @@ glfwGetProcAddress             = _glfw.glfwGetProcAddress
 
 # This keeps track of current windows
 __windows__ = []
+__destroyed__ = []
 
 # This is to prevent garbage collection on callbacks
 __c_callbacks__ = {}
@@ -456,6 +459,7 @@ def glfwCreateWindow(width=640, height=480, title="GLFW Window", monitor=None, s
     _glfw.glfwCreateWindow.restype = POINTER(GLFWwindow)
     window = _glfw.glfwCreateWindow(width,height,title,monitor,share)
     __windows__.append(window)
+    __destroyed__.append(False)
     index = __windows__.index(window)
     __c_callbacks__[index] = {}
     __py_callbacks__[index] = { 'errorfun'           : None,
@@ -472,16 +476,19 @@ def glfwCreateWindow(width=640, height=480, title="GLFW Window", monitor=None, s
                                 'mousebuttonfun'     : None,
                                 'cursorposfun'       : None,
                                 'cursorenterfun'     : None,
+                                'dropfun'            : None,
                                 'scrollfun'          : None }
     return window
 
 def glfwDestroyWindow(window):
     index = __windows__.index(window)
-    _glfw.glfwDestroyWindow(window)
-    # We do not delete window from the list (or it would impact windows numbering)
-    # del __windows__[index]
-    del __c_callbacks__[index]
-    del __py_callbacks__[index]
+    if not __destroyed__[index]:
+        _glfw.glfwDestroyWindow(window)
+        # We do not delete window from the list (or it would impact numbering)
+        del __c_callbacks__[index]
+        del __py_callbacks__[index]
+        # del __windows__[index]
+    __destroyed__[index] = True
 
 def glfwGetVersion():
     major, minor, rev = c_int(0), c_int(0), c_int(0)
@@ -565,12 +572,15 @@ def glfwGetJoystickAxes(joy):
     _glfw.glfwGetJoystickAxes.restype = POINTER(c_float)
     c_axes = _glfw.glfwGetJoystickAxes(joy, byref(count))
     axes = [c_axes[i].value for i in range(count)]
+    return axes
+
 
 def glfwGetJoystickButtons(joy):
     count = c_int(0)
     _glfw.glfwGetJoystickButtons.restype = POINTER(c_int)
     c_buttons = _glfw.glfwGetJoystickButtons(joy, byref(count))
     buttons = [c_buttons[i].value for i in range(count)]
+    return buttons
 
 
 # --- Callbacks ---------------------------------------------------------------
@@ -602,4 +612,5 @@ exec __callback__('Key')
 exec __callback__('Char')
 exec __callback__('MouseButton')
 exec __callback__('CursorPos')
+exec __callback__('Drop')
 exec __callback__('Scroll')

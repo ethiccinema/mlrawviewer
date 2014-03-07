@@ -97,6 +97,10 @@ class GLCompute(object):
     KEY_UP = 101
     KEY_DOWN = 103
 
+    KEY_MOD_SHIFT = GLUT_ACTIVE_SHIFT
+    KEY_MOD_CONTROL = GLUT_ACTIVE_CTRL
+    KEY_MOD_ALT = GLUT_ACTIVE_ALT
+
     BUTTON_DOWN = 1
     BUTTON_UP = 0
     BUTTON_LEFT = 0
@@ -195,10 +199,11 @@ class GLCompute(object):
         # Always map lower case keys to upper case
         if k>=ord('a') and k<=ord('z'):
             k -= ord('a')-ord('A')
-        self.key(k)
+        m = glutGetModifiers()
+        self.key(k,m)
     def __specialkey(self,k,x,y):
         self.key(k)
-    def key(self,k):
+    def key(self,k,m):
         if k==self.KEY_ESCAPE:
             self.__close()
         if k==self.KEY_TAB:
@@ -222,3 +227,5 @@ class GLCompute(object):
             glutSetCursor(GLUT_CURSOR_INHERIT)
         else:
             glutSetCursor(GLUT_CURSOR_NONE)
+    def drop(self,objects):
+        pass

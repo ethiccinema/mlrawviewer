@@ -145,13 +145,15 @@ class Viewer(GLCompute.GLCompute):
         if buttons[self.BUTTON_RIGHT]==self.BUTTON_DOWN: self.right = 1.0
         else: self.right = 0.0
         #self.box.setScale(1.0+self.left+self.right)
-    def key(self,k):
+    def key(self,k,m):
         if self.keyfocus:
-            self.keyfocus = self.keyfocus.key(k)
+            self.keyfocus = self.keyfocus.key(k,m)
         else:
-            self.keyfocus = self.hw.key(k)
+            self.keyfocus = self.hw.key(k,m)
         if not self.keyfocus:
-            super(Viewer,self).key(k) # Inherit standard behaviour
+            super(Viewer,self).key(k,m) # Inherit standard behaviour
+    def drop(self,objects):
+        print "Dropped",objects
  
 def main(): 
     rmc = Viewer()   
