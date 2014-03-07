@@ -91,6 +91,7 @@ from ShaderDemosaicBilinear import *
 from ShaderDemosaicCPU import *
 from ShaderDisplaySimple import *
 from ShaderText import *
+import ExportQueue
 
 class Demosaicer(ui.Drawable):
     def __init__(self,settings,encoder,frames,**kwds):
@@ -539,6 +540,8 @@ class Viewer(GLCompute.GLCompute):
         self.fpsMeasure = None
         self.fpsCount = 0
 
+        self.exporter = ExportQueue.ExportQueue()
+
     def loadNewRawSet(self,step):
         fn = self.raw.filename
         path,name = os.path.split(fn) # Correct for files and CDNG dirs
@@ -752,6 +755,8 @@ class Viewer(GLCompute.GLCompute):
         elif k==self.KEY_E:
             self.toggleEncoding()
         elif k==self.KEY_D:
+            self.dngExport()
+        elif k==self.KEY_F:
             self.toggleDropFrames()
         elif k==self.KEY_T:
             self.toggleToneMapping()
@@ -861,6 +866,9 @@ class Viewer(GLCompute.GLCompute):
         self.refresh()
     def onIdle(self):
         PLOG(PLOG_FRAME,"onIdle start")
+        if self.exporter.busy:
+            for index in self.exporter.jobs.keys():
+                print "export",index,self.exporter.status(index)
         self.handleIndexing()
         self.checkForLoadedFrames()
         wrongFrame = self.neededFrame != self.drawnFrameNumber
@@ -1049,6 +1057,7 @@ class Viewer(GLCompute.GLCompute):
             self.startAudio(offset)
     def exit(self):
         self.audio.stop()
+        self.exporter.end()
     def tempEncoderWav(self,tempname,inframe,outframe):
         """
         Create a temporary wav file starting from the current audioOffset
@@ -1261,6 +1270,10 @@ class Viewer(GLCompute.GLCompute):
 
         #print self.marks               
         self.refresh()
+
+    def dngExport(self):
+        print "dngExport",self.raw.filename
+        self.exporter.exportDng(self.raw.filename,self.outfilename[:-4]+"_DNG",self.marks[0][0],self.marks[1][0])
 
 def main():
     if len(sys.argv)<2:
