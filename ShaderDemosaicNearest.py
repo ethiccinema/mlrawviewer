@@ -73,7 +73,7 @@ float blue(vec2 coord) {
     return sample;
 }
 
-vec3 getColor(vec2 coord) {
+vec3 getColour(vec2 coord) {
     return vec3(red(coord),green(coord),blue(coord));    
 }
 
