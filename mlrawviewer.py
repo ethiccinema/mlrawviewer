@@ -797,6 +797,9 @@ class Viewer(GLCompute.GLCompute):
         elif k==self.KEY_P:
             self.loadNewRawSet(1)
 
+        elif k==self.KEY_W:
+            self.askOutput()
+
         elif k==self.KEY_LEFT: # Left cursor
             self.jump(-self.fps) # Go back 1 second (will wrap)
         elif k==self.KEY_RIGHT: # Right cursor
@@ -874,9 +877,9 @@ class Viewer(GLCompute.GLCompute):
         self.refresh()
     def onIdle(self):
         PLOG(PLOG_FRAME,"onIdle start")
-        if self.exporter.busy:
-            for index in self.exporter.jobs.keys():
-                print "export",index,self.exporter.status(index)
+        #if self.exporter.busy:
+        #    for index in self.exporter.jobs.keys():
+        #        print "export",index,self.exporter.status(index)
         self.handleIndexing()
         self.checkForLoadedFrames()
         wrongFrame = self.neededFrame != self.drawnFrameNumber
@@ -943,16 +946,15 @@ class Viewer(GLCompute.GLCompute):
     def refresh(self):
         self.needsRefresh = True
 
-    def checkoutfile(self):
-        if os.path.exists(self.outfilename):
-            i = 1
-            start = os.path.splitext(self.outfilename)[0]
-            if start[-3]=='_' and start[-2].isdigit() and start[-1].isdigit():
-                start = start[:-3]
-            self.outfilename = start + "_%02d.MOV"%i
-            while os.path.exists(self.outfilename):
-                i+=1
-                self.outfilename = start + "_%02d.MOV"%i
+    def checkoutfile(self,ext):
+        rfn = os.path.splitext(os.path.split(self.raw.filename)[1])[0]
+        i = 1
+        full = os.path.join(self.outfilename,rfn+"_%06d"%i+ext)
+        while os.path.exists(full):
+            i += 1
+            full = os.path.join(self.outfilename,rfn+"_%06d"%i+ext)
+        return full    
+
     def stdoutReaderLoop(self):
         try:
             buf = self.encoderProcess.stdout.readline().strip()
@@ -985,10 +987,10 @@ class Viewer(GLCompute.GLCompute):
             print localexe
             if os.path.exists(localexe):
                 exe = localexe
-            self.checkoutfile()
+            outfile = self.checkoutfile(".MOV")
             tempwavname = None
             if self.wav:
-                tempwavname = self.outfilename + ".WAV"
+                tempwavname = outfile[:-4] + ".WAV"
                 self.tempEncoderWav(tempwavname,self.marks[0][0],self.marks[1][0])
             kwargs = {"stdin":subprocess.PIPE,"stdout":subprocess.PIPE,"stderr":subprocess.STDOUT}
             if subprocess.mswindows:
@@ -997,9 +999,9 @@ class Viewer(GLCompute.GLCompute):
                 su.wShowWindow = subprocess.SW_HIDE
                 kwargs["startupinfo"] = su
             if tempwavname != None: # Includes Audio
-                args = [exe,"-f","rawvideo","-pix_fmt","rgb48","-s","%dx%d"%(self.raw.width(),self.raw.height()),"-r","%.03f"%self.fps,"-i","-","-i",tempwavname,"-f","mov","-vf","vflip","-vcodec","prores_ks","-profile:v","3","-r","%.03f"%self.fps,"-acodec","copy",self.outfilename]
+                args = [exe,"-f","rawvideo","-pix_fmt","rgb48","-s","%dx%d"%(self.raw.width(),self.raw.height()),"-r","%.03f"%self.fps,"-i","-","-i",tempwavname,"-f","mov","-vf","vflip","-vcodec","prores_ks","-profile:v","3","-r","%.03f"%self.fps,"-acodec","copy",outfile]
             else: # No audio
-                args = [exe,"-f","rawvideo","-pix_fmt","rgb48","-s","%dx%d"%(self.raw.width(),self.raw.height()),"-r","%.03f"%self.fps,"-i","-","-an","-f","mov","-vf","vflip","-vcodec","prores_ks","-profile:v","3","-r","%.03f"%self.fps,self.outfilename]
+                args = [exe,"-f","rawvideo","-pix_fmt","rgb48","-s","%dx%d"%(self.raw.width(),self.raw.height()),"-r","%.03f"%self.fps,"-i","-","-an","-f","mov","-vf","vflip","-vcodec","prores_ks","-profile:v","3","-r","%.03f"%self.fps,outfile]
             print "Encoder args:",args
             print "Subprocess args:",kwargs
             self.encoderProcess = subprocess.Popen(args,**kwargs)
@@ -1252,6 +1254,10 @@ class Viewer(GLCompute.GLCompute):
                 if kind == markType:
                     #print "replacing prev mark",index
                     self.marks[index-1] = mark
+                else:
+                    self.marks[index-2] = mark
+                    self.marks[index-1] = (self.raw.frames()-1,self.MARK_OUT)
+                    
                 """
                     if markType==self.MARK_IN: # Must add end as out
                         self.marks.append((self.raw.frames(),self.MARK_OUT)
@@ -1262,6 +1268,9 @@ class Viewer(GLCompute.GLCompute):
                 if kind == markType:
                     #print "replacing next mark",index
                     self.marks[index] = mark
+                else:
+                    self.marks[index] = (0,self.MARK_IN)
+                    self.marks[index+1] = mark
             elif markType == kind:
                 # We are inserting same kind of mark as the one after -> replace that
                 #print "replacing next mark",index
@@ -1280,8 +1289,18 @@ class Viewer(GLCompute.GLCompute):
         self.refresh()
 
     def dngExport(self):
-        print "dngExport",self.raw.filename
-        self.exporter.exportDng(self.raw.filename,self.outfilename[:-4]+"_DNG",self.marks[0][0],self.marks[1][0])
+        outfile = self.checkoutfile("_DNG")
+        self.exporter.exportDng(self.raw.filename,outfile,self.marks[0][0],self.marks[1][0])
+
+    def askOutput(self):
+        """
+        Temporary way to set output target
+        """
+        root = tk.Tk()
+        root.iconify()
+        adir = tkFileDialog.askdirectory(title='Choose DNG or ProRes output directory...', initialdir=self.outfilename)
+        self.outfilename = adir
+        root.destroy()
 
 def main():
     filename = None
@@ -1292,7 +1311,8 @@ def main():
         root.iconify()
         mlFT1 = ('*.RAW', '*.raw')
         mlFT2 = ('*.MLV', '*.mlv')
-        afile = tkFileDialog.askopenfilename(title='Open ML video...', initialdir='~/Videos', filetypes=[('ML', mlFT1+mlFT2), ('RAW', mlFT1), ('MLV', mlFT2), ('All', '*.*')])
+        mlFT3 = ('*.DNG', '*.dng')
+        afile = tkFileDialog.askopenfilename(title='Open ML video...', initialdir='~', filetypes=[('ML', mlFT1+mlFT2+mlFT3), ('RAW', mlFT1), ('MLV', mlFT2), ('DNG',mlFT3),('All', '*.*')])
         if afile != None:
             filename = afile
         root.destroy()
@@ -1303,12 +1323,7 @@ def main():
         return -1
 
     # Try to pick a sensible default filename for any possible encoding
-    if os.path.isdir(filename): # Dir - probably CDNG
-        outfilename = os.path.abspath(filename)+".MOV"
-        print "outfilename for CDNG:",outfilename
-    else: # File
-        outfilename = filename+".MOV"
-
+    outfilename = os.path.split(filename)[0]
     poswavname = os.path.splitext(filename)[0]+".WAV"
     wavnames = [w for w in os.listdir(os.path.split(filename)[0]) if w.lower()==poswavname]
     if len(wavnames)>0:
