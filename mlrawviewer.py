@@ -26,6 +26,13 @@ SOFTWARE.
 import sys,struct,os,math,time,datetime,subprocess,signal,threading,Queue,wave,zlib
 from threading import Thread
 
+# python tkinter imports
+try:
+    import Tkinter as tk #python2
+except ImportError:
+    import tkinter as tk #python3
+import tkFileDialog
+
 from Config import Config
 
 config = Config(version=(1,1,0))
@@ -1276,20 +1283,27 @@ class Viewer(GLCompute.GLCompute):
         self.exporter.exportDng(self.raw.filename,self.outfilename[:-4]+"_DNG",self.marks[0][0],self.marks[1][0])
 
 def main():
+    filename = None
     if len(sys.argv)<2:
-        print "Error. Please specify an MLV or RAW file to view"
-        return -1
-    filename = sys.argv[1]
+        #print "Error. Please specify an MLV or RAW file to view"
+        #return -1
+        mlFT1 = ('*.RAW', '*.raw')
+        mlFT2 = ('*.MLV', '*.mlv')
+        afile = tkFileDialog.askopenfilename(title='Open ML video...', initialdir='~/Videos', filetypes=[('ML', mlFT1+mlFT2), ('RAW', mlFT1), ('MLV', mlFT2), ('All', '*.*')])
+        if afile != None:
+            filename = afile
+    if filename == None:
+        filename = sys.argv[1]
     if not os.path.exists(filename):
         print "Error. Specified filename",filename,"does not exist"
         return -1
 
     # Try to pick a sensible default filename for any possible encoding
-    if os.path.isdir(sys.argv[1]): # Dir - probably CDNG
-        outfilename = os.path.abspath(sys.argv[1])+".MOV"
-        print "outfilename for CDNG:",outfilename
-    else: # File
-        outfilename = sys.argv[1]+".MOV"
+#    if os.path.isdir(sys.argv[1]): # Dir - probably CDNG
+#        outfilename = os.path.abspath(sys.argv[1])+".MOV"
+#        print "outfilename for CDNG:",outfilename
+#    else: # File
+#        outfilename = sys.argv[1]+".MOV"
 
     poswavname = os.path.splitext(filename)[0]+".WAV"
     wavnames = [w for w in os.listdir(os.path.split(filename)[0]) if w.lower()==poswavname]
@@ -1318,7 +1332,7 @@ def main():
         return 1
 
 
-    rmc = Viewer(r,outfilename,wavfilename)
+    rmc = Viewer(r,None,None)
     ret = rmc.run()
     PerformanceLog.PLOG_PRINT()
     return ret
