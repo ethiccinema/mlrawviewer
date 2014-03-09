@@ -125,8 +125,8 @@ class ExportQueue(threading.Thread):
         at(e,DNG.Tag.Compression,1) # No compression
         at(e,DNG.Tag.PhotometricInterpretation,32803) # CFA
         at(e,DNG.Tag.FillOrder,1)
-        atm(e,DNG.Tag.Make,"Canon")
-        atm(e,DNG.Tag.Model,"EOS")
+        atm(e,DNG.Tag.Make,r.make())
+        atm(e,DNG.Tag.Model,r.model())
         at(e,DNG.Tag.StripOffsets,0)
         at(e,DNG.Tag.Orientation,1)
         at(e,DNG.Tag.SamplesPerPixel,1)
@@ -135,11 +135,12 @@ class ExportQueue(threading.Thread):
         at(e,DNG.Tag.StripByteCounts,0)
         at(e,DNG.Tag.PlanarConfiguration,1) # Chunky
         atm(e,DNG.Tag.Software,"MlRawViewer")
+        #atm(e,DNG.Tag.DateTime,"1988:10:01 23:23:23")
         atm(e,DNG.Tag.CFARepeatPatternDim,(2,2)) # No compression
         atm(e,DNG.Tag.CFAPattern,(0,1,1,2)) # No compression
         at(e,DNG.Tag.Compression,1) # No compression
         atm(e,DNG.Tag.DNGVersion,(1,4,0,0))
-        atm(e,DNG.Tag.UniqueCameraModel,"Canon EOS")
+        atm(e,DNG.Tag.UniqueCameraModel,r.make()+" "+r.model())
         at(e,DNG.Tag.BlackLevel,r.black)
         at(e,DNG.Tag.WhiteLevel,r.white)
         atm(e,DNG.Tag.DefaultCropOrigin,(0,0))

@@ -599,6 +599,15 @@ class Viewer(GLCompute.GLCompute):
 
     def loadSet(self,raw,newname):
         self.wavname = newname[:-3]+"WAV"
+    
+        # Hack to load any WAV file we find in a DNG dir
+        if os.path.isdir(newname) or newname.lower().endswith(".dng"):
+            wavdir = os.path.split(newname)[0]
+            if os.path.isdir(newname):
+                wavdir = newname
+            wavfiles = [w for w in os.listdir(wavdir) if w.lower().endswith(".wav")]
+            if len(wavfiles)>0:
+                self.wavname = os.path.join(wavdir,wavfiles[0])
         #print "New wavname:",self.wavname
         """
         else:
@@ -1130,7 +1139,7 @@ class Viewer(GLCompute.GLCompute):
         tempwav = wave.open(tempname,'w')
         tempwav.setparams(self.wav.getparams())
         channels,width,framerate,nframe,comptype,compname = self.wav.getparams()
-        frameCount = framerate * int(float(outframe-inframe+1)/float(self.fps))
+        frameCount = int(framerate * float(outframe-inframe+1)/float(self.fps))
         startFrame = int((self.audioOffset+(float(inframe)/float(self.fps)))*framerate)
         padframes = 0
         readPos = startFrame
@@ -1341,6 +1350,10 @@ class Viewer(GLCompute.GLCompute):
     def dngExport(self):
         outfile = self.checkoutfile("_DNG")
         os.mkdir(outfile)
+        if self.wav:
+            rhead = os.path.splitext(os.path.split(self.raw.filename)[1])[0]
+            tempwavname = os.path.join(outfile, rhead + ".WAV")
+            self.tempEncoderWav(tempwavname,self.marks[0][0],self.marks[1][0])
         self.exporter.exportDng(self.raw.filename,outfile,self.marks[0][0],self.marks[1][0])
         self.refresh()
 
@@ -1381,12 +1394,18 @@ def main():
     if outfilename == None:
         outfilename = os.path.split(filename)[0]
     poswavname = os.path.splitext(filename)[0]+".WAV"
-    wavnames = [w for w in os.listdir(os.path.split(filename)[0]) if w.lower()==poswavname]
-    if len(wavnames)>0:
-        wavfilename = wavnames[0]
+    if os.path.isdir(filename):
+        wavdir = filename
+    else:
+        wavdir = os.path.split(filename)[0]
+    wavnames = [w for w in os.listdir(wavdir) if w.lower().endswith(".wav")]
+    print "wavnames",wavnames
+    if os.path.isdir(filename) and len(wavnames)>0:
+        wavfilename = os.path.join(wavdir,wavnames[0])
     else:
         wavfilename = poswavname # Expect this to be extracted by indexing of MLV with SND
 
+    print "wavfilename",wavfilename
     if len(sys.argv)==3:
         # Second arg could be WAV or outfilename
         if sys.argv[2].lower().endswith(".wav"):
