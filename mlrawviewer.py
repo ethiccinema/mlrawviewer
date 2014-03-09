@@ -1300,6 +1300,7 @@ class Viewer(GLCompute.GLCompute):
         root.iconify()
         adir = tkFileDialog.askdirectory(title='Choose DNG or ProRes output directory...', initialdir=self.outfilename)
         self.outfilename = adir
+        config.setState("targetDir",adir)
         root.destroy()
 
 def main():
@@ -1323,7 +1324,10 @@ def main():
         return -1
 
     # Try to pick a sensible default filename for any possible encoding
-    outfilename = os.path.split(filename)[0]
+    
+    outfilename = config.getState("targetDir") # Restore persisted target
+    if outfilename == None:
+        outfilename = os.path.split(filename)[0]
     poswavname = os.path.splitext(filename)[0]+".WAV"
     wavnames = [w for w in os.listdir(os.path.split(filename)[0]) if w.lower()==poswavname]
     if len(wavnames)>0:
@@ -1337,9 +1341,11 @@ def main():
             wavfilename = sys.argv[2]
         else:
             outfilename = sys.argv[2]
+            config.setState("targetDir",outfilename)
     elif len(sys.argv)>3:
         wavfilename = sys.argv[2]
         outfilename = sys.argv[3]
+        config.setState("targetDir",outfilename)
 
     try:
         r = MlRaw.loadRAWorMLV(filename)
