@@ -145,6 +145,8 @@ class GLCompute(object):
         self.setCursorVisible(True)
     def run(self):
         glutMainLoop()
+    def updateWindowName(self):
+        glutSetWindowTitle(self.windowName())  
     def windowName(self):
         return "GLCompute"
     def renderScenes(self):

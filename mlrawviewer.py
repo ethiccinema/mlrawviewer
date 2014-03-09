@@ -100,6 +100,10 @@ from ShaderDisplaySimple import *
 from ShaderText import *
 import ExportQueue
 
+ENCODE_TYPE_MOV = 0
+ENCODE_TYPE_DNG = 1
+ENCODE_TYPE_MAX = 2
+
 class Demosaicer(ui.Drawable):
     def __init__(self,settings,encoder,frames,**kwds):
         super(Demosaicer,self).__init__(**kwds)
@@ -244,9 +248,13 @@ class DisplayScene(ui.Scene):
         self.loop = self.newIcon(0,0,128,128,15,self.loopClick)
         self.loop.colour = (0.5,0.5,0.5,0.5)
         self.loop.setScale(0.5)
+        self.outformat = self.newIcon(0,0,128,128,17,self.outfmtClick)
+        self.outformat.colour = (0.5,0.5,0.5,0.5)
+        self.outformat.setScale(0.5)
         self.encode = self.newIcon(0,0,128,128,2,self.encodeClick)
         self.encode.colour = (0.2,0.0,0.0,0.5)
         self.encode.setScale(0.5)
+        self.encodeStatus = ui.Geometry(svbo=frames.svbo)
         self.balance = ui.XYGraph(128,128,self.balanceClick,svbo=self.frames.svbo)
         self.balance.gradient(128,128,tl=(0.25,0.0,0.0,0.25),tr=(0.25,0.0,0.25,0.25),bl=(0.0,0.0,0.0,0.25),br=(0.0,0.0,0.25,0.25))
         self.balance.edges = (1.0,1.0,0.05,0.05)
@@ -260,8 +268,8 @@ class DisplayScene(ui.Scene):
         self.brightnessHandle.colour = (0.5,0.5,0.5,0.5)
         self.brightnessHandle.ignoreInput = True
         self.timestamp = ui.Geometry(svbo=frames.svbo)
-        self.iconItems = [self.fullscreen,self.mapping,self.drop,self.quality,self.loop,self.encode,self.play]
-        self.overlay = [self.iconBackground,self.progressBackground,self.progress,self.timestamp,self.update,self.balance,self.balanceHandle,self.brightness,self.brightnessHandle,self.mark]
+        self.iconItems = [self.fullscreen,self.mapping,self.drop,self.quality,self.loop,self.outformat,self.encode,self.play]
+        self.overlay = [self.iconBackground,self.progressBackground,self.progress,self.timestamp,self.encodeStatus,self.update,self.balance,self.balanceHandle,self.brightness,self.brightnessHandle,self.mark]
         self.overlay.extend(self.iconItems)
         self.drawables.extend([self.display])
         self.drawables.extend(self.overlay)
@@ -315,6 +323,9 @@ class DisplayScene(ui.Scene):
     
     def dropClick(self,x,y):
         self.frames.toggleDropFrames()
+    
+    def outfmtClick(self,x,y):
+        self.frames.toggleEncodeType()
 
     def encodeClick(self,x,y):
         self.frames.toggleEncoding()
@@ -338,7 +349,7 @@ class DisplayScene(ui.Scene):
         # Make sure we show correct icon for current state
         # Model is to show icon representing CURRENT state
         f = self.frames
-        states = [not f._isFull,f.tonemap(),not f.dropframes(),f.setting_highQuality,not f.setting_loop,False,f.paused]
+        states = [not f._isFull,f.tonemap(),not f.dropframes(),f.setting_highQuality,not f.setting_loop,f.setting_encodeType[0],False,f.paused]
         for i in range(len(self.iconItems)):
             itm = self.iconItems[i]
             state = states[i]
@@ -346,10 +357,13 @@ class DisplayScene(ui.Scene):
                 if state: state = 1
                 else: state = 0
             self.setIcon(itm,128,128,itm.idx+state)
-        if self.frames.encoding():
+        if self.frames.encoding() or self.frames.exporter.busy:
             self.encode.colour = (0.5,0.0,0.0,0.5)
         else:
             self.encode.colour = (0.2,0.0,0.0,0.5)
+        #if self.exporter.busy:
+        #    for index in self.exporter.jobs.keys():
+        #        print "export",index,self.exporter.status(index)
 
     def prepareToRender(self):
         """
@@ -406,16 +420,19 @@ class DisplayScene(ui.Scene):
         self.progress.rectangle(progWidth,rectHeight,rgba=(0.2,0.2,0.01,0.2))
         self.timestamp.setPos(66.0,height-rectHeight-1.0)
         self.timestamp.setScale(9.0/30.0)
+        self.encodeStatus.setPos(66.0,height-rectHeight-41.0)
+        self.encodeStatus.setScale(9.0/30.0)
         totsec = float(frameNumber)/self.frames.raw.fps
         minutes = int(totsec/60.0)
         seconds = int(totsec%60.0)
         fsec = (totsec - int(totsec))*1000.0
         # NOTE: We use one-based numbering for the frame number display because it is more natural -> ends on last frame
         if self.frames.raw.indexingStatus()==1.0:
-            self.timestamp.label("%02d:%02d.%03d (%d/%d)"%(minutes,seconds,fsec,frameNumber+1,self.frames.raw.frames()))
+            self.timestamp.label("%02d:%02d.%03d (%d/%d)"%(minutes,seconds,fsec,frameNumber+1,self.frames.raw.frames()),maxchars=100)
         else:
-            self.timestamp.label("%02d:%02d.%03d (%d/%d) Indexing %s: %d%%"%(minutes,seconds,fsec,frameNumber+1,self.frames.raw.frames(),self.frames.raw.description(),self.frames.raw.indexingStatus()*100.0))
+            self.timestamp.label("%02d:%02d.%03d (%d/%d) Indexing %s: %d%%"%(minutes,seconds,fsec,frameNumber+1,self.frames.raw.frames(),self.frames.raw.description(),self.frames.raw.indexingStatus()*100.0),maxchars=100)
         self.timestamp.colour = (0.0,0.0,0.0,1.0)
+        
         ua = config.isUpdateAvailable()
         uc = config.versionUpdateClicked()
         showUpdate = ua and (ua != uc)
@@ -427,6 +444,15 @@ class DisplayScene(ui.Scene):
         else:
             self.update.opacity = 0.0
             self.update.ignoreInput = True
+
+        if self.frames.exporter.busy:
+            jix = self.frames.exporter.jobs.keys()
+            jix.sort()
+            self.encodeStatus.label("DNG export status: %d%% (In queue: %d)"%(100.0*self.frames.exporter.status(jix[0]),len(self.frames.exporter.jobs)))
+            self.encodeStatus.opacity = self.overlayOpacity
+            self.encodeStatus.colour = (1.0,0.0,0.0,0.8)
+        else:
+            self.encodeStatus.opacity = 0.0
 
 class Audio(object):
     INIT = 0
@@ -543,11 +569,14 @@ class Viewer(GLCompute.GLCompute):
         self.setting_dropframes = True # Real time playback by default
         self.setting_loop = config.getState("loopPlayback")
         if self.setting_loop == None: self.setting_loop = True
+        self.setting_encodeType = config.getState("encodeType")
+        if self.setting_encodeType == None: self.setting_encodeType = (ENCODE_TYPE_MOV,)       
         self.svbo = None
         self.fpsMeasure = None
         self.fpsCount = 0
 
         self.exporter = ExportQueue.ExportQueue()
+        self.wasExporting = False
 
     def loadNewRawSet(self,step):
         fn = self.raw.filename
@@ -605,6 +634,7 @@ class Viewer(GLCompute.GLCompute):
         self.markReset()
         self._init = False
         self.init()
+        self.updateWindowName()
         self.refresh()
 
     def drop(self,objects):
@@ -762,7 +792,7 @@ class Viewer(GLCompute.GLCompute):
         elif k==self.KEY_E:
             self.toggleEncoding()
         elif k==self.KEY_D:
-            self.dngExport()
+            self.toggleEncodeType()
         elif k==self.KEY_F:
             self.toggleDropFrames()
         elif k==self.KEY_T:
@@ -880,6 +910,13 @@ class Viewer(GLCompute.GLCompute):
         #if self.exporter.busy:
         #    for index in self.exporter.jobs.keys():
         #        print "export",index,self.exporter.status(index)
+        if self.exporter.busy:
+            self.wasExporting = True
+        if self.wasExporting:
+            self.refresh() 
+        if self.wasExporting and not self.exporter.busy:
+            self.wasExporting = False
+        
         self.handleIndexing()
         self.checkForLoadedFrames()
         wrongFrame = self.neededFrame != self.drawnFrameNumber
@@ -965,7 +1002,20 @@ class Viewer(GLCompute.GLCompute):
         except:
             pass
         print "ENCODER FINISHED!"
+    def toggleEncodeType(self):
+        newEncodeType = (self.setting_encodeType[0]+1)%ENCODE_TYPE_MAX
+        if newEncodeType == ENCODE_TYPE_MOV:
+            self.setting_encodeType = (newEncodeType,) # Could be more params here
+        elif newEncodeType == ENCODE_TYPE_DNG:
+            self.setting_encodeType = (newEncodeType,) # Could be more params here
+        config.setState("encodeType",self.setting_encodeType)
+        self.refresh()
     def toggleEncoding(self):
+        if self.setting_encodeType[0] == ENCODE_TYPE_DNG:
+            self.dngExport()
+        elif self.setting_encodeType[0] == ENCODE_TYPE_MOV:   
+            self.movExport()
+    def movExport(self):
         if not self.setting_encoding:
             # Start the encoding process
             now = time.time()
@@ -1290,7 +1340,9 @@ class Viewer(GLCompute.GLCompute):
 
     def dngExport(self):
         outfile = self.checkoutfile("_DNG")
+        os.mkdir(outfile)
         self.exporter.exportDng(self.raw.filename,outfile,self.marks[0][0],self.marks[1][0])
+        self.refresh()
 
     def askOutput(self):
         """

@@ -92,7 +92,8 @@ class ExportQueue(threading.Thread):
                         traceback.print_exc()
                     del self.jobs[jobindex]
                     del self.jobstatus[jobindex]
-                    self.busy = False
+                    if self.iq.empty():
+                        self.busy = False
         except:
             pass
         self.ended = True
@@ -152,7 +153,6 @@ class ExportQueue(threading.Thread):
         filename,dngdir,startFrame,endFrame = args
         todo = endFrame-startFrame+1
         target = dngdir
-        os.mkdir(target)
         r = MlRaw.loadRAWorMLV(filename)
         targfile = os.path.splitext(os.path.split(r.filename)[1])[0]
         target = os.path.join(target,targfile)

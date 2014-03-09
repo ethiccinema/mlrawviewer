@@ -130,6 +130,11 @@ class GLCompute(object):
         self.scenes = [] # Render these scenes in order
         self.buttons = [self.BUTTON_UP,self.BUTTON_UP]
         super(GLCompute,self).__init__(**kwds)
+    def updateWindowName(self):
+        if not self._isFull:
+            glfw.glfwSetWindowTitle(self.glfwWindow,self.windowName())
+        else:
+            glfw.glfwSetWindowTitle(self.glfwFullscreenWindow,self.windowName())
     def installCallbacks(self,w):
         glfw.glfwSetWindowRefreshCallback(w,self.redisplay)
         glfw.glfwSetKeyCallback(w, self.__key)
