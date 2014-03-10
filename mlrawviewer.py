@@ -544,7 +544,8 @@ class Viewer(GLCompute.GLCompute):
         self.fps = raw.fps
         self.paused = False
         self.needsRefresh = False
-        self.anamorphic = False
+        self.anamorphic = False # Canon squeeze
+        self.anamorLens = 0 # Lens squeeze
         self.encoderProcess = None
         self.outfilename = outfilename
         self.lastEncodedFrame = None
@@ -709,6 +710,19 @@ class Viewer(GLCompute.GLCompute):
         if self.anamorphic == True:
             aspectHeight = int(aspectHeight*1.4)
             aspectWidth = int(aspectWidth/1.4)
+        if self.anamorLens != 0:
+            if self.anamorLens == 1:
+                aspectHeight = int(aspectHeight/(4.0/3))
+                aspectWidth = int(aspectWidth*(4.0/3))
+            elif self.anamorLens == 2:
+                aspectHeight = int(aspectHeight/1.4)
+                aspectWidth = int(aspectWidth*1.4)          
+            elif self.anamorLens == 3:
+                aspectHeight = int(aspectHeight/1.5)
+                aspectWidth = int(aspectWidth*1.5)                 
+            elif self.anamorLens == 4:
+                aspectHeight = int(aspectHeight/2.0)
+                aspectWidth = int(aspectWidth*2.0)          
         if height > aspectHeight:
             self.display.setSize(width,aspectHeight)
             self.display.setPosition(0, height/2 - aspectHeight/2)
@@ -810,7 +824,9 @@ class Viewer(GLCompute.GLCompute):
         elif k==self.KEY_Q:
             self.toggleQuality()
         elif k==self.KEY_A:
-            self.toggleAnamorphic()
+            self.toggleAnamorphic() #anamorphic for canon squeeze
+        elif k==self.KEY_S:
+            self.toggleAnamorLens() #anamorphic for lenses
         elif k==self.KEY_E:
             self.toggleEncoding()
         elif k==self.KEY_D:
@@ -910,6 +926,9 @@ class Viewer(GLCompute.GLCompute):
         self.refresh()
     def toggleAnamorphic(self):
         self.anamorphic = not self.anamorphic
+        self.refresh()
+    def toggleAnamorLens(self):
+        self.anamorLens = (self.anamorLens + 1)%5
         self.refresh()
     def toggleToneMapping(self):
         self.setting_tonemap = (self.setting_tonemap + 1)%3
