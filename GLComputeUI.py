@@ -276,8 +276,12 @@ class Geometry(Drawable):
         self.setVab(vertices)
         self.texture = texture
     def label(self,*args,**kwargs):
-        if self.svbobase == None:
+        if "maxchars" in kwargs:
+            chars = kwargs["maxchars"]
+            del kwargs["maxchars"]
+        else:
             chars = len(args[0])+10
+        if self.svbobase == None:
             #print "chars in",args[0],chars
             self.reserve(6*12*4*chars)
         texture,vertices = self.shader.label(*args,**kwargs)

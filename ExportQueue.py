@@ -23,6 +23,15 @@ SOFTWARE.
 
 import os,threading,Queue,time
 
+import MlRaw,DNG
+
+import numpy as np
+
+def at(entries,tag,val):
+    entries.append((tag[0],tag[1][0],1,(val,)))
+def atm(entries,tag,val):
+    entries.append((tag[0],tag[1][0],len(val),val))
+
 class ExportQueue(threading.Thread):
     """
     Process a queue of export jobs one at a time but as quickly as possible
@@ -75,10 +84,16 @@ class ExportQueue(threading.Thread):
                 jobindex = self.iq.get()
                 if jobindex != None:
                     self.busy = True
-                    self.nextJob(self.jobs[jobindex])
+                    try:
+                        self.nextJob(self.jobs[jobindex])
+                    except:
+                        print "Export job failed:"
+                        import traceback
+                        traceback.print_exc()
                     del self.jobs[jobindex]
                     del self.jobstatus[jobindex]
-                    self.busy = False
+                    if self.iq.empty():
+                        self.busy = False
         except:
             pass
         self.ended = True
@@ -90,11 +105,73 @@ class ExportQueue(threading.Thread):
             self.doExportDng(job[0],jobArgs)
         else:
             pass
+
+    def setDngHeader(self,r,d):
+        d.stripTotal = 3000000
+        d.bo = "<" # Little endian
+        # Prepopulate DNG with basic set of tags for a single image
+        ifd = DNG.DNG.IFD(d)
+        d.ifds.append(ifd)
+        d.FULL_IFD = ifd
+        ifd.subFileType = 0 # Full
+        ifd.width = r.width()
+        ifd.length = r.height()
+        e = ifd.entries
+        at(e,DNG.Tag.NewSubfileType,0)
+        at(e,DNG.Tag.ImageWidth,r.width())
+        at(e,DNG.Tag.ImageLength,r.height())
+        at(e,DNG.Tag.BitsPerSample,14)
+        ifd.BitsPerSample = (14,)
+        at(e,DNG.Tag.Compression,1) # No compression
+        at(e,DNG.Tag.PhotometricInterpretation,32803) # CFA
+        at(e,DNG.Tag.FillOrder,1)
+        atm(e,DNG.Tag.Make,r.make())
+        atm(e,DNG.Tag.Model,r.model())
+        at(e,DNG.Tag.StripOffsets,0)
+        at(e,DNG.Tag.Orientation,1)
+        at(e,DNG.Tag.SamplesPerPixel,1)
+        at(e,DNG.Tag.RowsPerStrip,r.height())
+        ifd.RowsPerStrip = r.height()
+        at(e,DNG.Tag.StripByteCounts,0)
+        at(e,DNG.Tag.PlanarConfiguration,1) # Chunky
+        atm(e,DNG.Tag.Software,"MlRawViewer")
+        #atm(e,DNG.Tag.DateTime,"1988:10:01 23:23:23")
+        atm(e,DNG.Tag.CFARepeatPatternDim,(2,2)) # No compression
+        atm(e,DNG.Tag.CFAPattern,(0,1,1,2)) # No compression
+        at(e,DNG.Tag.Compression,1) # No compression
+        atm(e,DNG.Tag.DNGVersion,(1,4,0,0))
+        atm(e,DNG.Tag.UniqueCameraModel,r.make()+" "+r.model())
+        at(e,DNG.Tag.BlackLevel,r.black)
+        at(e,DNG.Tag.WhiteLevel,r.white)
+        atm(e,DNG.Tag.DefaultCropOrigin,(0,0))
+        atm(e,DNG.Tag.DefaultCropSize,(r.width(),r.height()))
+        m = [(int(v*10000),10000) for v in r.colorMatrix.A1]
+        atm(e,DNG.Tag.ColorMatrix1,m)
+        atm(e,DNG.Tag.AsShotNeutral,((473635,1000000),(1000000,1000000),(624000,1000000)))
+        at(e,DNG.Tag.FrameRate,(25000,1000))
+
     def doExportDng(self,jobindex,args):
-        print "doExportDng",args
-        for i in range(100):
-            time.sleep(0.1)            
-            self.jobstatus[jobindex] = float(i)/100.0
+        filename,dngdir,startFrame,endFrame = args
+        todo = endFrame-startFrame+1
+        target = dngdir
+        r = MlRaw.loadRAWorMLV(filename)
+        targfile = os.path.splitext(os.path.split(r.filename)[1])[0]
+        target = os.path.join(target,targfile)
+        print "DNG export to",target
+        r.preloadFrame(startFrame)
+        r.preloadFrame(startFrame+1) # Preload one ahead
+        d = DNG.DNG()
+        self.setDngHeader(r,d)
+        ifd = d.FULL_IFD
+        for i in range(endFrame-startFrame+1):
+            f = r.frame(startFrame+i)
+            ifd._strips = [np.frombuffer(f.rawdata,dtype=np.uint16).byteswap().tostring()]
+            d.writeFile(target+"_%06d.dng"%i)
+            if ((startFrame+i+1)<r.frames()):
+                r.preloadFrame(startFrame+i+1)
+            self.jobstatus[jobindex] = float(i)/float(todo)
             if self.endflag:
                 break
+        print "DNG export to",target,"finished"
+        r.close()
 

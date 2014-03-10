@@ -58,6 +58,9 @@ Playback will happen at the file frame rate or the closest achievable if constra
 Encoding is made using the version of "ffmpeg" found either in the scritp directory or on the path. Currently it tries to encode
 with the "prores_ks" codec, which may only be found in newer versions of (real) ffmpeg. You can download a suitable (e.g. static) version of ffmpeg from http://www.ffmpeg.org/download.html
 
+A new file can be dragged onto an existing window and will be 
+loaded (GLFW backend only).
+
 Keys
 ----
 
@@ -77,13 +80,17 @@ UP/DOWN CURSOR - Increase/decrease brightness
 
 9, 6 - Change blue multiplier up and down by 0.1
 
-D - Toggle between drop-frame mode allowing synchronised audio playback, or sequential frame mode and no audio
+F - Toggle between drop-frame mode allowing synchronised audio playback, or sequential frame mode and no audio
 
 Q - Toggle between fast and high-quality demosaicing for playback (high-quality is used automatically when paused)
 
 A - Toggle anamorphic aspect to take into account the 1.4x squeeze from shooting 50p/60p
 
-E - Start encoding from the start of the marked range. If no file name was supplied, will use the source name with ".MOV" appended.
+W - File dialog to choose the export directory
+
+D - Choose export type, MOV or DNG
+
+E - Start exporting from the start of the marked range to the export directory. Will use the source name with ".MOV" or "_DNG" appended.
 
 T - Toggle between linear color, global tone mapping, and log mapping
 
@@ -94,3 +101,5 @@ V/B/N/M - Slide audio file start by -0.5,-0.05,+0.05,+0.5 seconds
 J/K - Set IN/OUT marks. IN mark must be before the OUT mark. OUT mark must be after the IN mark
 
 H/L - Jump to the previous/next marks
+
+R - Reset the marks to start/end of the file
