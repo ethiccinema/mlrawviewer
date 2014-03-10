@@ -35,7 +35,7 @@ import tkFileDialog
 
 from Config import Config
 
-config = Config(version=(1,1,0))
+config = Config(version=(1,1,1))
 
 programpath = os.path.abspath(os.path.split(sys.argv[0])[0])
 if getattr(sys,'frozen',False):
@@ -649,9 +649,22 @@ class Viewer(GLCompute.GLCompute):
     def drop(self,objects):
         # Drag and drop from the system! Not drop-frames
         fn = objects[0]
-        r = MlRaw.loadRAWorMLV(fn)
-        if r:
-            self.loadSet(r,fn)
+        print fn
+        if fn.lower().endswith(".wav"):
+            self.loadWav(fn)
+        else:
+            r = MlRaw.loadRAWorMLV(fn)
+            if r:
+                self.loadSet(r,fn)
+
+    def loadWav(self,wavname):
+        self.audio.stop()
+        self.wav = None
+        self.wavname = wavname    
+        self.initWav()    
+        if not self.paused:
+            self.togglePlay() # Pause..
+            self.togglePlay() # ...and restart with new Wav
 
     def windowName(self):
         #try:
