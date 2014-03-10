@@ -49,6 +49,7 @@ class ExportQueue(threading.Thread):
         self.endflag = False
         self.ended = False
         self.busy = False
+	self.daemon = True
         self.start()
     def end(self):
         self.endflag = True
