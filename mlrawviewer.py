@@ -35,7 +35,7 @@ import tkFileDialog
 
 from Config import Config
 
-config = Config(version=(1,1,1))
+config = Config(version=(1,1,2))
 
 programpath = os.path.abspath(os.path.split(sys.argv[0])[0])
 if getattr(sys,'frozen',False):
