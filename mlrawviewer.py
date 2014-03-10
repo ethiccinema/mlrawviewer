@@ -1383,18 +1383,18 @@ class Viewer(GLCompute.GLCompute):
 
 def main():
     filename = None
+    root = tk.Tk() # Must always do otherwise can't open tk windows later on Mac
+    root.iconify()
     if len(sys.argv)<2:
         #print "Error. Please specify an MLV or RAW file to view"
         #return -1
-        root = tk.Tk()
-        root.iconify()
         mlFT1 = ('*.RAW', '*.raw')
         mlFT2 = ('*.MLV', '*.mlv')
         mlFT3 = ('*.DNG', '*.dng')
         afile = tkFileDialog.askopenfilename(title='Open ML video...', initialdir='~', filetypes=[('ML', mlFT1+mlFT2+mlFT3), ('RAW', mlFT1), ('MLV', mlFT2), ('DNG',mlFT3),('All', '*.*')])
         if afile != None:
             filename = afile
-        root.destroy()
+    root.destroy()
     if filename == None:
         filename = sys.argv[1]
     if not os.path.exists(filename):
