@@ -67,8 +67,8 @@ class ExportQueue(threading.Thread):
         else:
             return 1.0
     # Queue Job calls
-    def exportDng(self,rawfile,dngdir,startFrame=0,endFrame=None):
-        return self.submitJob(self.JOB_DNG,rawfile,dngdir,startFrame,endFrame)
+    def exportDng(self,rawfile,dngdir,startFrame=0,endFrame=None,bits=16):
+        return self.submitJob(self.JOB_DNG,rawfile,dngdir,startFrame,endFrame,bits)
     def submitJob(self,*args):
         ix = self.jobindex
         self.jobindex += 1
@@ -107,7 +107,7 @@ class ExportQueue(threading.Thread):
         else:
             pass
 
-    def setDngHeader(self,r,d):
+    def setDngHeader(self,r,d,bits):
         d.stripTotal = 3000000
         d.bo = "<" # Little endian
         # Prepopulate DNG with basic set of tags for a single image
@@ -121,8 +121,8 @@ class ExportQueue(threading.Thread):
         at(e,DNG.Tag.NewSubfileType,0)
         at(e,DNG.Tag.ImageWidth,r.width())
         at(e,DNG.Tag.ImageLength,r.height())
-        at(e,DNG.Tag.BitsPerSample,14)
-        ifd.BitsPerSample = (14,)
+        at(e,DNG.Tag.BitsPerSample,bits)
+        ifd.BitsPerSample = (bits,)
         at(e,DNG.Tag.Compression,1) # No compression
         at(e,DNG.Tag.PhotometricInterpretation,32803) # CFA
         at(e,DNG.Tag.FillOrder,1)
@@ -152,7 +152,7 @@ class ExportQueue(threading.Thread):
         at(e,DNG.Tag.FrameRate,(25000,1000))
 
     def doExportDng(self,jobindex,args):
-        filename,dngdir,startFrame,endFrame = args
+        filename,dngdir,startFrame,endFrame,bits = args
         todo = endFrame-startFrame+1
         target = dngdir
         r = MlRaw.loadRAWorMLV(filename)
@@ -162,14 +162,18 @@ class ExportQueue(threading.Thread):
         r.preloadFrame(startFrame)
         r.preloadFrame(startFrame+1) # Preload one ahead
         d = DNG.DNG()
-        self.setDngHeader(r,d)
+        self.setDngHeader(r,d,bits)
         ifd = d.FULL_IFD
         for i in range(endFrame-startFrame+1):
             f = r.frame(startFrame+i)
-            ifd._strips = [np.frombuffer(f.rawdata,dtype=np.uint16).byteswap().tostring()]
-            d.writeFile(target+"_%06d.dng"%i)
             if ((startFrame+i+1)<r.frames()):
                 r.preloadFrame(startFrame+i+1)
+            if bits==14:
+                ifd._strips = [np.frombuffer(f.rawdata,dtype=np.uint16).byteswap().tostring()]
+            elif bits==16:
+                f.convert() # Will block if still processing
+                ifd._strips = [np.frombuffer(f.rawimage,dtype=np.uint16).tostring()]
+            d.writeFile(target+"_%06d.dng"%i)
             self.jobstatus[jobindex] = float(i)/float(todo)
             if self.endflag:
                 break
