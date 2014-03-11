@@ -708,8 +708,8 @@ class Viewer(GLCompute.GLCompute):
         aspectHeight = int((width*self.vidAspectHeight))
         aspectWidth = int((height*self.vidAspectWidth))
         if self.anamorphic == True:
-            aspectHeight = int(aspectHeight*1.4)
-            aspectWidth = int(aspectWidth/1.4)
+            aspectHeight = int(aspectHeight*1.6)
+            aspectWidth = int(aspectWidth/1.6)
         if self.anamorLens != 0:
             if self.anamorLens == 1:
                 aspectHeight = int(aspectHeight/(4.0/3))
