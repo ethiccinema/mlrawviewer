@@ -86,6 +86,8 @@ Q - Toggle between fast and high-quality demosaicing for playback (high-quality 
 
 A - Toggle anamorphic aspect to take into account the 1.4x squeeze from shooting 50p/60p
 
+S - Toggle anamorphic aspect to take into account anamorphic lenses (1.33x, 1.4x, 1.5x, 2.0x)
+
 W - File dialog to choose the export directory
 
 D - Choose export type, MOV or DNG
