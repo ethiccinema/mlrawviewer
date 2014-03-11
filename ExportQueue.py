@@ -142,6 +142,7 @@ class ExportQueue(threading.Thread):
         at(e,DNG.Tag.Compression,1) # No compression
         atm(e,DNG.Tag.DNGVersion,(1,4,0,0))
         atm(e,DNG.Tag.UniqueCameraModel,r.make()+" "+r.model())
+        atm(e,DNG.Tag.LinearizationTable,[i for i in range(2**14-1)])
         at(e,DNG.Tag.BlackLevel,r.black)
         at(e,DNG.Tag.WhiteLevel,r.white)
         atm(e,DNG.Tag.DefaultCropOrigin,(0,0))
