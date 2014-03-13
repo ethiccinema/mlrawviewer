@@ -443,6 +443,8 @@ class MLV:
         self.preloader.join() # Wait for it to finish
         for fh,firstframe,frames,header,parsedTo,size in self.files:
             fh.close()
+    def currentMetadata(self):
+        return (self.currentExpo,self.currentWbal,self.currentLens)
     def parseFile(self,fh,framepos):
         fh.seek(0,os.SEEK_END)
         size = fh.tell()
@@ -472,7 +474,7 @@ class MLV:
                 ts = self.parseRtc(fh,pos,blockSize)
             elif blockType==MLV.BlockType.VideoFrame:
                 videoFrameHeader = self.parseVideoFrame(fh,pos,blockSize)
-                framepos[videoFrameHeader[1]] = (fh,pos)
+                framepos[videoFrameHeader[1]] = (fh,pos,self.currentMetadata())
                 pos += blockSize
                 break # Only get first frame in this file
                 #print videoFrameHeader[1],pos
@@ -674,7 +676,7 @@ class MLV:
 
                 if blockType==MLV.BlockType.VideoFrame:
                     videoFrameHeader = self.parseVideoFrame(fh,pos,blockSize)
-                    self.framepos[videoFrameHeader[1]] = (fh,pos)
+                    self.framepos[videoFrameHeader[1]] = (fh,pos,self.currentMetadata())
                     #print videoFrameHeader[1],pos
                     preindexStep -= 1
                 elif blockType==MLV.BlockType.AudioFrame:
@@ -731,8 +733,8 @@ class MLV:
     def _getframedata(self,index,checkNextFile=True):
         printWhenFound = False
         try:
-            fh, framepos = self.framepos[index]
-            return fh, framepos
+            fh, framepos, metadata = self.framepos[index]
+            return fh, framepos, metadata
         except:
             # Do not have that frame (yet)
             # Find which file should contain that frame
@@ -757,7 +759,7 @@ class MLV:
                 #print blockName,blockSize
                 if blockType==MLV.BlockType.VideoFrame:
                     videoFrameHeader = self.parseVideoFrame(fh,pos,blockSize)
-                    self.framepos[videoFrameHeader[1]] = (fh,pos)
+                    self.framepos[videoFrameHeader[1]] = (fh,pos,self.currentMetadata())
                     #print videoFrameHeader[1],index,fh,pos
                     if videoFrameHeader[1]==index:
                         pos += blockSize
@@ -788,13 +790,13 @@ class MLV:
                     print "FOUND",index
             except:
                 print "FAILED TO FIND FRAME AFTER SCAN",index
-                self.framepos[index] = (None,None)
+                self.framepos[index] = (None,None,None)
             return result
     def _loadframe(self,index,convert=True):
         fhframepos = self._getframedata(index)
         if fhframepos==None: # Return black frame
             return Frame(self,None,self.width(),self.height(),self.black,self.white)
-        fh,framepos = fhframepos
+        fh,framepos,metadata = fhframepos
         if fh==None: # Return black frame
             return Frame(self,None,self.width(),self.height(),self.black,self.white)
         fh.seek(framepos)
