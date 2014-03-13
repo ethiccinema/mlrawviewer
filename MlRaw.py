@@ -123,7 +123,7 @@ class FrameConverter(threading.Thread):
 FrameConverterThread = FrameConverter()
 
 class Frame:
-    def __init__(self,rawfile,rawdata,width,height,black,white,byteSwap=0,bitsPerSample=14,bayer=True,rgb=False,convert=True):
+    def __init__(self,rawfile,rawdata,width,height,black,white,byteSwap=0,bitsPerSample=14,bayer=True,rgb=False,convert=True,rtc=None,lens=None,expo=None,wbal=None):
         global haveDemosaic
         #print "opening frame",len(rawdata),width,height
         #print width*height
@@ -139,6 +139,10 @@ class Frame:
         self.bitsPerSample = bitsPerSample
         self.conversionResult = None
         self.convertQueued = False
+        self.rtc = rtc
+        self.lens = lens
+        self.expo = expo
+        self.wbal = wbal
         self.convertQ = Queue.Queue(1)
         if bayer==False and rgb==True:
             self.rgbimage = rawdata
@@ -397,6 +401,7 @@ class MLV:
         self.currentExpo = None
         self.currentWbal = None
         self.currentLens = None
+        self.currentRtc = None
         header,raw,parsedTo,size,ts = self.parseFile(mlvfile,self.framepos)
         self.fps = float(header[16])/float(header[17])
         print "FPS:",self.fps
@@ -444,7 +449,12 @@ class MLV:
         for fh,firstframe,frames,header,parsedTo,size in self.files:
             fh.close()
     def currentMetadata(self):
-        return (self.currentExpo,self.currentWbal,self.currentLens)
+        return (self.currentRtc,self.currentExpo,self.currentWbal,self.currentLens)
+    def toMetadata(self,ix):
+        return {"rtc":self.metadata[ix[0]],
+                "expo":self.metadata[ix[1]],
+                "wbal":self.metadata[ix[2]],
+                "lens":self.metadata[ix[3]]}
     def parseFile(self,fh,framepos):
         fh.seek(0,os.SEEK_END)
         size = fh.tell()
@@ -530,6 +540,8 @@ class MLV:
         fh.seek(pos+8)
         rtcData = fh.read(size-8)
         rtc = struct.unpack("<Q10H8s",rtcData[:(8+10*2+8)])
+        self.currentRtc = len(self.metadata) 
+        self.metadata.append(rtc)
         #print "Rtc:",rtc
         return rtc
     def parseIdentity(self,fh,pos,size):
@@ -796,9 +808,10 @@ class MLV:
         fhframepos = self._getframedata(index)
         if fhframepos==None: # Return black frame
             return Frame(self,None,self.width(),self.height(),self.black,self.white)
-        fh,framepos,metadata = fhframepos
+        fh,framepos,md = fhframepos
+        rtc,expo,wbal,lens = self.toMetadata(md)
         if fh==None: # Return black frame
-            return Frame(self,None,self.width(),self.height(),self.black,self.white)
+            return Frame(self,None,self.width(),self.height(),self.black,self.white,rtc=rtc,expo=expo,wbal=wbal,lens=lens)
         fh.seek(framepos)
         blockType,blockSize = struct.unpack("II",fh.read(8))
         videoFrameHeader = self.parseVideoFrame(fh,framepos,blockSize)
