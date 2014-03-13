@@ -366,7 +366,7 @@ class MLV:
         ExposureInfo = 0x4f505845
         LensInfo = 0x534e454c
         RealTimeClock = 0x49435452
-        Idendity = 0x544e4449
+        Identity = 0x544e4449
         XREF = 0x46455258
         Info = 0x4f464e49
         DualISOInfo = 0x79837368
@@ -477,6 +477,14 @@ class MLV:
                 xref = self.parseXref(fh,pos,blockSize)
             elif blockType==MLV.BlockType.AudioFrame:
                 audio = self.parseAudioFrame(fh,pos,blockSize)
+            elif blockType==MLV.BlockType.Identity:
+                identity = self.parseIdentity(fh,pos,blockSize)
+            elif blockType==MLV.BlockType.LensInfo:
+                lens = self.parseLens(fh,pos,blockSize)
+            elif blockType==MLV.BlockType.ExposureInfo:
+                expo = self.parseExpo(fh,pos,blockSize)
+            elif blockType==MLV.BlockType.WhiteBalance:
+                wbal = self.parseWbal(fh,pos,blockSize)
             count += 1
             pos += blockSize
             count += 1
@@ -515,8 +523,36 @@ class MLV:
         fh.seek(pos+8)
         rtcData = fh.read(size-8)
         rtc = struct.unpack("<Q10H8s",rtcData[:(8+10*2+8)])
+        #print "Rtc:",rtc
         return rtc
-        #print "RawInfo:",self.raw
+    def parseIdentity(self,fh,pos,size):
+        fh.seek(pos+8)
+        idntData = fh.read(size-8)
+        idnt = struct.unpack("<Q32sI32s",idntData[:(8+32+4+32)])
+        model = idnt[1].split('\0')[0]
+        serial = idnt[3].split('\0')[0]
+        #print "Identity:",idnt,model,serial
+        return idnt
+    def parseLens(self,fh,pos,size):
+        fh.seek(pos+8)
+        lensData = fh.read(size-8)
+        lens = struct.unpack("<Q3HBBII32s32s",lensData[:(8+3*2+2+8+32+32)])
+        name = lens[8].split('\0')[0]
+        serial = lens[9].split('\0')[0]
+        #print "Lens:",lens,name,serial
+        return lens
+    def parseExpo(self,fh,pos,size):
+        fh.seek(pos+8)
+        expoData = fh.read(size-8)
+        expo = struct.unpack("<Q4IQ",expoData[:(8+4*4+8)])
+        #print "Exposure:",expo
+        return expo
+    def parseWbal(self,fh,pos,size):
+        fh.seek(pos+8)
+        wbalData = fh.read(size-8)
+        wbal = struct.unpack("<Q7I",wbalData[:(8+7*4)])
+        #print "WhiteBalance:",wbal
+        return wbal
     def parseWavi(self,fh,pos,size):
         fh.seek(pos+8)
         waviData = fh.read(size-8)
@@ -622,6 +658,14 @@ class MLV:
                     preindexStep -= 1
                 elif blockType==MLV.BlockType.AudioFrame:
                     audioFrameHeader = self.parseAudioFrame(fh,pos,blockSize)
+                elif blockType==MLV.BlockType.LensInfo:
+                    lens = self.parseLens(fh,pos,blockSize)
+                elif blockType==MLV.BlockType.ExposureInfo:
+                    expo = self.parseExpo(fh,pos,blockSize)
+                elif blockType==MLV.BlockType.RealTimeClock:
+                    ts = self.parseRtc(fh,pos,blockSize)
+                elif blockType==MLV.BlockType.WhiteBalance:
+                    wbal = self.parseWbal(fh,pos,blockSize)
                 pos += blockSize
                 self.totalParsed += blockSize
             self.files[index] = (fh, firstframe, frames, header, pos, size)
