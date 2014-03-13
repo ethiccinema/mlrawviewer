@@ -809,9 +809,8 @@ class MLV:
         if fhframepos==None: # Return black frame
             return Frame(self,None,self.width(),self.height(),self.black,self.white)
         fh,framepos,md = fhframepos
-        rtc,expo,wbal,lens = self.toMetadata(md)
         if fh==None: # Return black frame
-            return Frame(self,None,self.width(),self.height(),self.black,self.white,rtc=rtc,expo=expo,wbal=wbal,lens=lens)
+            return Frame(self,None,self.width(),self.height(),self.black,self.white)
         fh.seek(framepos)
         blockType,blockSize = struct.unpack("II",fh.read(8))
         videoFrameHeader = self.parseVideoFrame(fh,framepos,blockSize)
@@ -821,7 +820,8 @@ class MLV:
         PLOG(PLOG_CPU,"Reading frame %d size %d"%(index,rawsize))
         rawdata = fh.read(rawsize)
         PLOG(PLOG_CPU,"Read frame %d size %d"%(index,rawsize))
-        return Frame(self,rawdata,self.width(),self.height(),self.black,self.white,convert=convert)
+        mdkw = self.toMetadata(md)
+        return Frame(self,rawdata,self.width(),self.height(),self.black,self.white,convert=convert,**mdkw)
 
 class CDNG:
     """

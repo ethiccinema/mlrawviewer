@@ -224,6 +224,7 @@ class DisplayScene(ui.Scene):
         self.iconBackground.edges = (1.0,1.0,0.35,0.25)
         self.mark = ui.Geometry(svbo=frames.svbo)
         self.mark.edges = (1.0,1.0,0.01,0.6)
+        self.mark.colour = (0.85,0.35,0.20,0.85) # Quite transparent yellow
         self.progressBackground = ui.Geometry(svbo=frames.svbo)
         self.progressBackground.edges = (1.0,1.0,0.01,0.25)
         self.progress = ui.Button(0,0,self.progressClick,svbo=frames.svbo)
@@ -1002,6 +1003,9 @@ class Viewer(GLCompute.GLCompute):
                 self.nextFrameNumber = self.playFrameNumber + 1
                 self.playTime = self.neededFrame * self.fps
                 self.playFrame = self.frameCache[self.neededFrame]
+                #if self.playFrame.wbal:
+                #    ts,mode,temp,r,g,b,d1,d2 = self.playFrame.wbal
+                #    self.setting_rgb = (1024.0/r,1024.0/g,1024.0/b)
                 self.needsRefresh = True
                 self.redisplay()
             else:
