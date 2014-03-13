@@ -393,6 +393,10 @@ class MLV:
         self.wav = None
         self.framepos = {}
         self.audioframepos = {}
+        self.metadata = [] # Store small info blocks so frames can reference them
+        self.currentExpo = None
+        self.currentWbal = None
+        self.currentLens = None
         header,raw,parsedTo,size,ts = self.parseFile(mlvfile,self.framepos)
         self.fps = float(header[16])/float(header[17])
         print "FPS:",self.fps
@@ -402,6 +406,7 @@ class MLV:
         self.header = header
         self.raw = raw
         self.ts = ts
+        self.identity = ("Canon","EOS","",None)
         self.files = [(mlvfile,0,header[14],header,parsedTo, size)]
         self.totalSize = size
         self.totalParsed = parsedTo
@@ -478,7 +483,7 @@ class MLV:
             elif blockType==MLV.BlockType.AudioFrame:
                 audio = self.parseAudioFrame(fh,pos,blockSize)
             elif blockType==MLV.BlockType.Identity:
-                identity = self.parseIdentity(fh,pos,blockSize)
+                self.identity = self.parseIdentity(fh,pos,blockSize)
             elif blockType==MLV.BlockType.LensInfo:
                 lens = self.parseLens(fh,pos,blockSize)
             elif blockType==MLV.BlockType.ExposureInfo:
@@ -529,29 +534,43 @@ class MLV:
         fh.seek(pos+8)
         idntData = fh.read(size-8)
         idnt = struct.unpack("<Q32sI32s",idntData[:(8+32+4+32)])
-        model = idnt[1].split('\0')[0]
+        makemodel = idnt[1].split('\0')[0]
         serial = idnt[3].split('\0')[0]
-        #print "Identity:",idnt,model,serial
-        return idnt
+        make = "Canon"
+        if makemodel.lower().startswith("canon "):
+            model = makemodel[6:] 
+        elif makemodel.lower().startswith("failed"):
+            # Workaround for TL-7D builds that couldn't get correct data
+            model = "EOS 7D"
+        else:
+            model = "EOS"
+        print "Identity:",make,model,serial
+        return make,model,serial,idnt
     def parseLens(self,fh,pos,size):
         fh.seek(pos+8)
         lensData = fh.read(size-8)
         lens = struct.unpack("<Q3HBBII32s32s",lensData[:(8+3*2+2+8+32+32)])
         name = lens[8].split('\0')[0]
         serial = lens[9].split('\0')[0]
-        #print "Lens:",lens,name,serial
+        #print "Lens:",lens[:-2],name,serial
+        self.currentLens = len(self.metadata) 
+        self.metadata.append((name,serial,lens[:-2]))
         return lens
     def parseExpo(self,fh,pos,size):
         fh.seek(pos+8)
         expoData = fh.read(size-8)
         expo = struct.unpack("<Q4IQ",expoData[:(8+4*4+8)])
         #print "Exposure:",expo
+        self.currentExpo = len(self.metadata) 
+        self.metadata.append(expo)
         return expo
     def parseWbal(self,fh,pos,size):
         fh.seek(pos+8)
         wbalData = fh.read(size-8)
         wbal = struct.unpack("<Q7I",wbalData[:(8+7*4)])
         #print "WhiteBalance:",wbal
+        self.currentWbal = len(self.metadata) 
+        self.metadata.append(wbal)
         return wbal
     def parseWavi(self,fh,pos,size):
         fh.seek(pos+8)
@@ -607,9 +626,11 @@ class MLV:
     def frames(self):
         return self.framecount
     def make(self):
-        return "Canon"
+        return self.identity[0]
     def model(self):
-        return "EOS"
+        return self.identity[1]
+    def bodySerialNumber(self):
+        return self.identity[2]
     def audioFrames(self):
         return self.audioFrameCount
     def nextUnindexedFile(self):
