@@ -21,7 +21,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
-import os,threading,Queue,time
+import os,threading,Queue,time,math
 
 import MlRaw,DNG
 
@@ -107,7 +107,7 @@ class ExportQueue(threading.Thread):
         else:
             pass
 
-    def setDngHeader(self,r,d,bits):
+    def setDngHeader(self,r,d,bits,frame):
         d.stripTotal = 3000000
         d.bo = "<" # Little endian
         # Prepopulate DNG with basic set of tags for a single image
@@ -126,8 +126,8 @@ class ExportQueue(threading.Thread):
         at(e,DNG.Tag.Compression,1) # No compression
         at(e,DNG.Tag.PhotometricInterpretation,32803) # CFA
         at(e,DNG.Tag.FillOrder,1)
-        atm(e,DNG.Tag.Make,r.make())
-        atm(e,DNG.Tag.Model,r.model())
+        atm(e,DNG.Tag.Make,r.make()+"\0")
+        atm(e,DNG.Tag.Model,r.model()+"\0")
         at(e,DNG.Tag.StripOffsets,0)
         at(e,DNG.Tag.Orientation,1)
         at(e,DNG.Tag.SamplesPerPixel,1)
@@ -135,13 +135,16 @@ class ExportQueue(threading.Thread):
         ifd.RowsPerStrip = r.height()
         at(e,DNG.Tag.StripByteCounts,0)
         at(e,DNG.Tag.PlanarConfiguration,1) # Chunky
-        atm(e,DNG.Tag.Software,"MlRawViewer")
+        atm(e,DNG.Tag.Software,"MlRawViewer"+"\0")
+        if frame.rtc != None:
+            se,mi,ho,da,mo,ye = frame.rtc[1:7]
+            atm(e,DNG.Tag.DateTime,"%04d:%02d:%02d %02d:%02d:%02d\0"%(ye+1900,mo,da,ho,mi,se))
         #atm(e,DNG.Tag.DateTime,"1988:10:01 23:23:23")
         atm(e,DNG.Tag.CFARepeatPatternDim,(2,2)) # No compression
         atm(e,DNG.Tag.CFAPattern,(0,1,1,2)) # No compression
-        at(e,DNG.Tag.Compression,1) # No compression
+        at(e,DNG.Tag.EXIF_IFD,0)
         atm(e,DNG.Tag.DNGVersion,(1,4,0,0))
-        atm(e,DNG.Tag.UniqueCameraModel,r.make()+" "+r.model())
+        atm(e,DNG.Tag.UniqueCameraModel,r.make()+" "+r.model()+"\0")
         atm(e,DNG.Tag.LinearizationTable,[i for i in range(2**14-1)])
         at(e,DNG.Tag.BlackLevel,r.black)
         at(e,DNG.Tag.WhiteLevel,r.white)
@@ -150,8 +153,34 @@ class ExportQueue(threading.Thread):
         m = [(int(v*10000),10000) for v in r.colorMatrix.A1]
         atm(e,DNG.Tag.ColorMatrix1,m)
         atm(e,DNG.Tag.AsShotNeutral,((473635,1000000),(1000000,1000000),(624000,1000000)))
-        at(e,DNG.Tag.FrameRate,(25000,1000))
-
+        at(e,DNG.Tag.FrameRate,(r.fpsnum,r.fpsden))
+        exif = DNG.DNG.IFD(d)
+        d.ifds[0].EXIF_IFD = exif
+        e = exif.entries
+        if frame.expo != None:
+            expusec = frame.expo[-1]
+            tv = -math.log(expusec/1000000.0,2.0)*1024.0
+            at(e,DNG.Tag.ExposureTime,(expusec,1000000))
+            if frame.lens != None:
+                at(e,DNG.Tag.FNumber,(frame.lens[2][3],100))
+            at(e,DNG.Tag.PhotographicSensitivity,frame.expo[2])
+            at(e,DNG.Tag.SensitivityType,3) # ISO
+            at(e,DNG.Tag.ShutterSpeedValue,(int(tv),1024))
+        if frame.lens != None:
+            dist = frame.lens[2][2]
+            if dist == 65535:
+                dist = 0xFFFFFFFF
+            at(e,DNG.Tag.SubjectDistance,(dist,1))
+            at(e,DNG.Tag.FocalLength,(frame.lens[2][1],1))
+            at(e,DNG.Tag.FocalLengthIn35mmFilm,frame.lens[2][1])
+            atm(e,DNG.Tag.EXIFPhotoBodySerialNumber,r.bodySerialNumber()+"\0")
+            atm(e,DNG.Tag.EXIFPhotoLensModel,frame.lens[0]+"\0")
+            
+        atm(e,DNG.Tag.ExifVersion,"0230") # 0230
+        if frame.rtc != None:
+            se,mi,ho,da,mo,ye = frame.rtc[1:7]
+            atm(e,DNG.Tag.DateTimeOriginal,"%04d:%02d:%02d %02d:%02d:%02d\0"%(ye+1900,mo,da,ho,mi,se))
+            
     def doExportDng(self,jobindex,args):
         filename,dngdir,startFrame,endFrame,bits = args
         todo = endFrame-startFrame+1
@@ -163,7 +192,7 @@ class ExportQueue(threading.Thread):
         r.preloadFrame(startFrame)
         r.preloadFrame(startFrame+1) # Preload one ahead
         d = DNG.DNG()
-        self.setDngHeader(r,d,bits)
+        self.setDngHeader(r,d,bits,r.firstFrame)
         ifd = d.FULL_IFD
         for i in range(endFrame-startFrame+1):
             f = r.frame(startFrame+i)

@@ -80,12 +80,14 @@ class Tag:
     EXIF_IFD = (34665,Type.Long)
     ExposureProgram = (34850,Type.Short)
     PhotographicSensitivity = (34855,Type.Short)
+    SensitivityType = (34864,Type.Short)
     ExifVersion = (36864,Type.Undefined)
     DateTimeOriginal = (36867,Type.Ascii)
     ShutterSpeedValue = (37377,Type.Srational)
     ApertureValue = (37378,Type.Rational)
     ExposureBiasValue = (37380,Type.Srational)
     MaxApertureValue = (37381,Type.Rational)
+    SubjectDistance = (37382,Type.Rational)
     MeteringMode = (37383,Type.Short)
     Flash = (37385,Type.Short)
     FocalLength = (37386,Type.Rational)
@@ -260,7 +262,7 @@ class DNG(object):
 
         # Write EXIF IFD
         if self.ifds[0].EXIF_IFD:
-            # Fix up link to EXIF_IDF in IFD0
+            # Fix up link to EXIF_IFD in IFD0
             b[exififd[0]+8:exififd[0]+12] = struct.pack(self.bo+"I",off)
             off += self.writeIfd(b,off,self.ifds[0].EXIF_IFD)
 

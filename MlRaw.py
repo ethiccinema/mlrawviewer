@@ -268,6 +268,9 @@ class MLRAW:
         footerdata = self.indexfile.read(192)
         self.footer = struct.unpack("4shhiiiiii",footerdata[:8*4])
         self.fps = float(self.footer[6])*0.001
+        if self.footer>=23974 and self.footer<=23976:
+            self.fpsnum = 25000
+            self.fpsden = 1001
         #print "FPS:",self.fps
         self.info = struct.unpack("40i",footerdata[8*4:])
         #print self.footer,self.info
@@ -402,16 +405,21 @@ class MLV:
         self.currentWbal = None
         self.currentLens = None
         self.currentRtc = None
+        self.identity = ("Canon","EOS","",None)
         header,raw,parsedTo,size,ts = self.parseFile(mlvfile,self.framepos)
         self.fps = float(header[16])/float(header[17])
-        print "FPS:",self.fps
+        self.fpsnum = header[16]
+        self.fpsden = header[17] 
+        if header[16]==23976:
+            self.fpsnum = 25000
+            self.fpsden = 1001
+        print "FPS:",self.fps,"(%d/%d)"%(self.fpsnum,self.fpsden)
         self.framecount = header[14]
         self.audioFrameCount = header[15]
         self.preindexed = 0
         self.header = header
         self.raw = raw
         self.ts = ts
-        self.identity = ("Canon","EOS","",None)
         self.files = [(mlvfile,0,header[14],header,parsedTo, size)]
         self.totalSize = size
         self.totalParsed = parsedTo
@@ -558,7 +566,7 @@ class MLV:
             model = "EOS 7D"
         else:
             model = "EOS"
-        print "Identity:",make,model,serial
+        #print "Identity:",make,model,serial
         return make,model,serial,idnt
     def parseLens(self,fh,pos,size):
         fh.seek(pos+8)
@@ -843,6 +851,8 @@ class CDNG:
 
         FrameRate = fd.ifds[0].tags[DNG.Tag.FrameRate[0]][3][0]
         self.fps = float(FrameRate[0])/float(FrameRate[1])
+        self.fpsnum = FrameRate[0]
+        self.fpsden = FrameRate[1]
         print "FPS:",self.fps,FrameRate
 
         self.black = fd.FULL_IFD.tags[DNG.Tag.BlackLevel[0]][3][0]
@@ -938,6 +948,8 @@ class TIFFSEQ:
         fd.readFile(firstName) # Only parse metadata
 
         self.fps = 25.0 # Hardcoded to 25
+        self.fpsnum = 25000
+        self.fpsden = 1000
         print "Assumed FPS:",self.fps
 
         self.black = 0
