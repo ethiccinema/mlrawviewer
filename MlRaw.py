@@ -271,6 +271,9 @@ class MLRAW:
         if self.footer>=23974 and self.footer<=23976:
             self.fpsnum = 24000
             self.fpsden = 1001
+        else:
+            self.fpsnum = self.footer[6]
+            self.fpsden = 1000   
         #print "FPS:",self.fps
         self.info = struct.unpack("40i",footerdata[8*4:])
         #print self.footer,self.info
