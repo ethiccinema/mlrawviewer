@@ -191,11 +191,11 @@ class ExportQueue(threading.Thread):
         print "DNG export to",target
         r.preloadFrame(startFrame)
         r.preloadFrame(startFrame+1) # Preload one ahead
-        d = DNG.DNG()
-        self.setDngHeader(r,d,bits,r.firstFrame)
-        ifd = d.FULL_IFD
         for i in range(endFrame-startFrame+1):
             f = r.frame(startFrame+i)
+            d = DNG.DNG()
+            self.setDngHeader(r,d,bits,f)
+            ifd = d.FULL_IFD
             if ((startFrame+i+1)<r.frames()):
                 r.preloadFrame(startFrame+i+1)
             if bits==14:

@@ -269,7 +269,7 @@ class MLRAW:
         self.footer = struct.unpack("4shhiiiiii",footerdata[:8*4])
         self.fps = float(self.footer[6])*0.001
         if self.footer>=23974 and self.footer<=23976:
-            self.fpsnum = 25000
+            self.fpsnum = 24000
             self.fpsden = 1001
         #print "FPS:",self.fps
         self.info = struct.unpack("40i",footerdata[8*4:])
@@ -411,7 +411,7 @@ class MLV:
         self.fpsnum = header[16]
         self.fpsden = header[17] 
         if header[16]==23976:
-            self.fpsnum = 25000
+            self.fpsnum = 24000
             self.fpsden = 1001
         print "FPS:",self.fps,"(%d/%d)"%(self.fpsnum,self.fpsden)
         self.framecount = header[14]
