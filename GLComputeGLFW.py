@@ -117,6 +117,21 @@ class GLCompute(object):
         self.width = width  
         self.height = height
         self.glfwMonitor = glfw.glfwGetPrimaryMonitor()
+        glfw.glfwWindowHint(glfw.GLFW_RED_BITS, 8)
+        glfw.glfwWindowHint(glfw.GLFW_GREEN_BITS, 8)
+        glfw.glfwWindowHint(glfw.GLFW_BLUE_BITS, 8)
+        glfw.glfwWindowHint(glfw.GLFW_ALPHA_BITS, 8)
+        glfw.glfwWindowHint(glfw.GLFW_DECORATED,False)
+        glfw.glfwWindowHint(glfw.GLFW_RESIZABLE,False)
+        glfw.glfwWindowHint(glfw.GLFW_VISIBLE,False)
+        self.backgroundWindow = glfw.glfwCreateWindow(1,1,self.bgWindowName(),None,None)
+        self.bgDrawn = False
+        self.bgActive = False
+        self.bgVisibility = 0
+        self.bgsync = None
+        glfw.glfwWindowHint(glfw.GLFW_DECORATED,True)
+        glfw.glfwWindowHint(glfw.GLFW_RESIZABLE,True)
+        glfw.glfwWindowHint(glfw.GLFW_VISIBLE,True)
         self.glfwWindow = glfw.glfwCreateWindow(width,height,self.windowName(),None,None)
         glfw.glfwSwapInterval(1)
         self.installCallbacks(self.glfwWindow)
@@ -141,6 +156,9 @@ class GLCompute(object):
         glfw.glfwSetCursorPosCallback(w, self.__motionfunc)
         glfw.glfwSetMouseButtonCallback(w, self.__mousefunc)
         glfw.glfwSetDropCallback(w, self.__dropfunc)
+        glfw.glfwSetWindowPosCallback(w, self.__posfunc)
+    def setBgProcess(self,state):
+        self.bgActive = state
     def toggleFullscreen(self):
         if not self._isFull:
             monitors = glfw.glfwGetMonitors()
@@ -165,6 +183,8 @@ class GLCompute(object):
         self.setCursorVisible(True)
     def run(self):
         while not glfw.glfwWindowShouldClose(self.glfwWindow):
+            glfw.glfwMakeContextCurrent(self.backgroundWindow)
+            self.__bgdraw()
             if self._drawNeeded:
                 if self._isFull:
                     glfw.glfwMakeContextCurrent(self.glfwFullscreenWindow)
@@ -177,10 +197,12 @@ class GLCompute(object):
                     glfw.glfwSwapBuffers(self.glfwWindow)
                 self._drawNeeded = False
             glfw.glfwPollEvents()
-            self.onIdle()
+            self.__idle()
         glfw.glfwTerminate()
     def windowName(self):
         return "GLCompute"
+    def bgWindowName(self):
+        return "GLCompute Background"
     def renderScenes(self):
         for s in self.scenes:
             s.prepareToRender()
@@ -189,6 +211,32 @@ class GLCompute(object):
             s.render()
     def scenesPrepared(self):
         pass
+    def __bgdraw(self):
+        if self.bgsync != None:
+            #print "waiting"
+            res = glClientWaitSync(self.bgsync,0,0)
+            #print "wait over, result =",res
+            if res==GL_TIMEOUT_EXPIRED:
+                #print "timeout expired, not qeueing more work"
+                return
+            #print "next job",time.time()
+        glBindFramebuffer(GL_FRAMEBUFFER, 0)
+        w,h = glfw.glfwGetWindowSize(self.backgroundWindow)
+        #print "bgdraw",w,h
+        glViewport(0,0,w,h)
+        glClearColor(1.0,1.0,0.0,1.0)
+        glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT)
+        try:
+            self.onBgDraw(w,h)
+            self.bgsync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE,0)
+        except:
+            import traceback
+            traceback.print_exc()
+            return    
+        #glFlush()
+        if not self.bgDrawn:
+            glfw.glfwSwapBuffers(self.backgroundWindow)
+            self.bgDrawn = True
     def __draw(self):
         self._last = timeInUsec()
         self.onFboDraw()
@@ -211,9 +259,26 @@ class GLCompute(object):
         self._frames+=1
     def onFboDraw(self):
         pass
+    def onBgDraw(self,w,h):
+        pass
     def onDraw(self,width,height):
         pass
+    def __posfunc(self,window,x,y):
+        if self.bgVisibility:
+            glfw.glfwSetWindowPos(self.backgroundWindow,x+128,y+128)
+    def __bgprocess(self):
+        self.bgVisibility = glfw.glfwGetWindowAttrib(self.backgroundWindow,glfw.GLFW_VISIBLE)
+        if not self.bgActive:
+            if self.bgVisibility:
+                glfw.glfwHideWindow(self.backgroundWindow)
+            return
+        if not self.bgVisibility:
+            mx,my = glfw.glfwGetWindowPos(self.glfwWindow)
+            glfw.glfwSetWindowPos(self.backgroundWindow,mx+128,mx+128)
+            glfw.glfwShowWindow(self.backgroundWindow)
+            glfw.glfwShowWindow(self.glfwWindow)
     def __idle(self):
+        self.__bgprocess()
         self.onIdle()
     def redisplay(self,window=None):
         self._drawNeeded = True

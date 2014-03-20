@@ -34,6 +34,7 @@ try:
     from OpenGL.GL.framebufferobjects import *
     #from OpenGL.GL.ARB.texture_rg import *
     #from OpenGL.GL.EXT.framebuffer_object import *
+    from OpenGL.GL.ARB.sync import *
 except Exception,err:
     print """There is a problem with your python environment.
 I Could not import the pyOpenGL module.
@@ -109,11 +110,21 @@ class GLCompute(object):
     def __init__(self,width=640,height=360,**kwds):
         self.width = width  
         self.height = height
+        self.windowX = 0
+        self.windowY = 0
         glutInit(sys.argv) 
-        glutInitDisplayMode(GLUT_DOUBLE|GLUT_RGB|GLUT_DEPTH)
-        glutInitWindowSize(width,height)
+        glutInitDisplayMode(GLUT_DOUBLE|GLUT_RGB|GLUT_DEPTH|GLUT_BORDERLESS)
+        glutInitWindowSize(256,16)
         glutInitWindowPosition(0,0)
-        glutCreateWindow(self.windowName())
+        self.backgroundWindow = glutCreateWindow(self.bgWindowName())
+        self.bgDrawn = False
+        self.bgActive = False
+        self.bgVisibility = 0
+        glutDisplayFunc(self.__bgdraw)
+        glutVisibilityFunc(self.__bgvisble)
+        glutInitWindowSize(width,height)
+        glutInitDisplayMode(GLUT_DOUBLE|GLUT_RGB|GLUT_DEPTH)
+        self.mainWindow = glutCreateWindow(self.windowName())
         glutSetWindowTitle(self.windowName())  
         glutDisplayFunc(self.__draw)
         glutMouseFunc(self.__mousefunc)
@@ -134,7 +145,10 @@ class GLCompute(object):
         self._last = time.time()
         self.scenes = [] # Render these scenes in order
         self.buttons = [self.BUTTON_UP,self.BUTTON_UP]
+        self.bgsync = None
         super(GLCompute,self).__init__(**kwds)
+    def setBgProcess(self,state):
+        self.bgActive = state
     def toggleFullscreen(self):
         if self._isFull:
             glutReshapeWindow(self.width,self.height)
@@ -149,6 +163,8 @@ class GLCompute(object):
         glutSetWindowTitle(self.windowName())  
     def windowName(self):
         return "GLCompute"
+    def bgWindowName(self):
+        return "GLCompute Background"
     def renderScenes(self):
         for s in self.scenes:
             s.prepareToRender()
@@ -157,6 +173,42 @@ class GLCompute(object):
             s.render()
     def scenesPrepared(self):
         pass
+    def __bgvisble(self,state):
+        if state!=GLUT_NOT_VISIBLE:
+            self.bgDrawn = False
+            self.bgVisibility = state
+    def __bgdraw(self):
+        glutSetWindow(self.backgroundWindow)
+        if self.bgsync != None:
+            #print "waiting"
+            res = glClientWaitSync(self.bgsync,0,0)
+            #print "wait over, result =",res
+            if res==GL_TIMEOUT_EXPIRED:
+                #print "timeout expired, not qeueing more work"
+                glutSetWindow(self.mainWindow)
+                return
+            #print "next job",time.time()
+        glBindFramebuffer(GL_FRAMEBUFFER, 0)
+        glutReshapeWindow(256,16)
+        w = glutGet(GLUT_WINDOW_WIDTH)
+        h = glutGet(GLUT_WINDOW_HEIGHT)
+        #print "bgdraw",w,h
+        glViewport(0,0,w,h)
+        glClearColor(0.0,0.0,0.0,1)
+        glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT)
+        try:
+            self.onBgDraw(w,h)
+            self.bgsync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE,0)
+        except:
+            import traceback
+            traceback.print_exc()
+            glutLeaveMainLoop()
+            return    
+        #glFlush()
+        if not self.bgDrawn:
+            glutSwapBuffers()
+            self.bgDrawn = True
+        glutSetWindow(self.mainWindow)
     def __draw(self):
         self._last = timeInUsec()
         self.onFboDraw()
@@ -180,9 +232,34 @@ class GLCompute(object):
         self._frames+=1
     def onFboDraw(self):
         pass
+    def onBgDraw(self,width,height):
+        pass
     def onDraw(self,width,height):
         pass
+    def __bgprocess(self):
+        if not self.bgActive:
+            if self.bgVisibility != GLUT_NOT_VISIBLE:
+                glutSetWindow(self.backgroundWindow)
+                glutHideWindow()
+                glutSetWindow(self.mainWindow)
+            return
+        mx = glutGet(GLUT_WINDOW_X)
+        my = glutGet(GLUT_WINDOW_Y)
+        glutSetWindow(self.backgroundWindow)
+        if self.bgVisibility==GLUT_NOT_VISIBLE:
+            glutDisplayFunc(self.__bgdraw)
+            glutShowWindow()
+            glutPushWindow()
+        glutReshapeWindow(256,16)
+        x = glutGet(GLUT_WINDOW_X)
+        y = glutGet(GLUT_WINDOW_Y)
+        if x!=mx or y!=my:
+            glutPositionWindow(mx+128,my+128)
+        glutPostRedisplay()
+        glutSetWindow(self.mainWindow)
     def __idle(self):
+        self.__bgprocess()
+        #glutShowWindow()
         self.onIdle()
     def redisplay(self):
         glutPostRedisplay()
