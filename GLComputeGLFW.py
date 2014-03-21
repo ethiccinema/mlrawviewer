@@ -23,7 +23,7 @@ SOFTWARE.
 """
 
 # standard python imports. Should not be missing
-import sys,time,os
+import sys,time,os,threading
 
 # OpenGL. Could be missing
 try:
@@ -129,6 +129,7 @@ class GLCompute(object):
         self.bgActive = False
         self.bgVisibility = 0
         self.bgsync = None
+        self.bgThread = None
         glfw.glfwWindowHint(glfw.GLFW_DECORATED,True)
         glfw.glfwWindowHint(glfw.GLFW_RESIZABLE,True)
         glfw.glfwWindowHint(glfw.GLFW_VISIBLE,True)
@@ -159,6 +160,11 @@ class GLCompute(object):
         glfw.glfwSetWindowPosCallback(w, self.__posfunc)
     def setBgProcess(self,state):
         self.bgActive = state
+        if self.bgActive:
+            if self.bgThread==None:
+                self.bgThread = threading.Thread(target=self.bgdrawthread)
+                self.bgThread.daemon = True
+                self.bgThread.start()
     def toggleFullscreen(self):
         if not self._isFull:
             monitors = glfw.glfwGetMonitors()
@@ -181,10 +187,18 @@ class GLCompute(object):
             self._isFull = False
             self.redisplay()
         self.setCursorVisible(True)
+    def bgdrawthread(self):
+        try:
+            while self.bgActive:
+                glfw.glfwMakeContextCurrent(self.backgroundWindow)
+                self.__bgdraw()
+        except:
+            import traceback
+            print "bgdrawthread exception:"
+            traceback.print_exc()
+        self.bgThread = None
     def run(self):
         while not glfw.glfwWindowShouldClose(self.glfwWindow):
-            glfw.glfwMakeContextCurrent(self.backgroundWindow)
-            self.__bgdraw()
             if self._drawNeeded:
                 if self._isFull:
                     glfw.glfwMakeContextCurrent(self.glfwFullscreenWindow)
@@ -233,7 +247,7 @@ class GLCompute(object):
             import traceback
             traceback.print_exc()
             return    
-        #glFlush()
+        glFlush()
         if not self.bgDrawn:
             glfw.glfwSwapBuffers(self.backgroundWindow)
             self.bgDrawn = True

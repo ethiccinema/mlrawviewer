@@ -50,7 +50,7 @@ varying vec2 texcoord;
 
 void main() {
     float x = texcoord.x;
-    for (int i=0;i<16;i++) {
+    for (int i=0;i<64;i++) {
         x += float(i)/0.00314579;
         x = fract(x);
     }
@@ -92,6 +92,7 @@ class Viewer(GLCompute.GLCompute):
         self.fpsMeasure = None
         self.fpsCount = 0
         self.bgCount = 0
+        self.bgMeasure = None
     def onIdle(self):
         self.redisplay()
     def windowName(self):
@@ -206,8 +207,16 @@ class Viewer(GLCompute.GLCompute):
         self.svbo.bind()
         self.testFbo.bindfbo()
         self.computeShader.draw()
-        self.bgCount += 1
-        if self.bgCount%10==0: print "bg",self.bgCount
+        now = time.time()
+        if self.bgMeasure == None:
+            self.bgMeasure = now
+            self.bgCount = 0
+        elif self.fpsCount == 50:
+            print"BG BPS:",50.0/(now-self.bgMeasure)
+            self.bgCount = 0
+            self.bgMeasure = now
+        else:
+            self.bgCount += 1
     def input2d(self,x,y,buttons):
         #print "input1d",x,y,buttons
         handled = self.scene.input2d(x,y,buttons)
