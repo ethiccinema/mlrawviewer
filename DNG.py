@@ -70,6 +70,10 @@ class Tag:
     Software = (305,Type.Ascii)
     DateTime = (306,Type.Ascii)
     Artist = (315,Type.Ascii)
+    TileWidth = (322,Type.Short)
+    TileLength = (323,Type.Short)
+    TileOffsets = (324,Type.Long)
+    TileByteCounts = (325,Type.Long)
     SubIFD = (330,Type.Long)
     XMP_Metadata = (700,Type.Undefined)
     CFARepeatPatternDim = (33421,Type.Short)
@@ -94,6 +98,9 @@ class Tag:
     TIFF_EP_StandardID = (37398,Type.Byte)
     SubsecTime = (37520,Type.Ascii)
     SubsecTimeOriginal = (37521,Type.Ascii)
+    FocalPlaneXResolution = (41486,Type.Rational)
+    FocalPlaneYResolution = (41487,Type.Rational)
+    FocalPlaneResolutionUnit = (41488,Type.Short)
     FocalLengthIn35mmFilm = (41989,Type.Short)
     EXIFPhotoBodySerialNumber = (42033,Type.Ascii)
     EXIFPhotoLensModel = (42036,Type.Ascii)
@@ -120,6 +127,7 @@ class Tag:
     BaselineSharpness = (50732,Type.Rational)
     BayerGreenSplit = (50733,Type.Long)
     LinearResponseLimit = (50734,Type.Rational)
+    CameraSerialNumber = (50735,Type.Ascii)
     AntiAliasStrength = (50738,Type.Rational)
     ShadowScale = (50739,Type.Rational)
     DNGPrivateData = (50740,Type.Byte)
@@ -132,14 +140,22 @@ class Tag:
     CameraCalibrationSignature = (50931,Type.Ascii)
     ProfileCalibrationSignature = (50932,Type.Ascii)
     NoiseReductionApplied = (50935,Type.Rational)
+    ProfileName = (50936,Type.Ascii)
     ProfileHueSatMapDims = (50937,Type.Long)
     ProfileHueSatMapData1 = (50938,Type.Float)
     ProfileHueSatMapData2 = (50939,Type.Float)
+    ProfileEmbedPolicy = (50941,Type.Long)
+    PreviewApplicationName = (50966,Type.Ascii)
+    PreviewApplicationVersion = (50967,Type.Ascii)
+    PreviewSettingsDigest = (50969,Type.Byte)
+    PreviewColorSpace = (50970,Type.Long)
+    PreviewDateTime = (50971,Type.Ascii)
     NoiseProfile = (51041,Type.Double)
     FrameRate = (51044,Type.Srational)
     OpcodeList1 = (51008,Type.Undefined)
     OpcodeList2 = (51009,Type.Undefined)
     ReelName = (51081,Type.Ascii)
+    NewRawImageDigest = (51111,Type.Byte)
 
 IfdNames = [n for n in dir(Tag) if n!="__doc__" and n!="__module__"]
 IfdValues = [getattr(Tag,n) for n in IfdNames]
@@ -356,7 +372,7 @@ class DNG(object):
         def strips(self):
             if self._strips: return self._strips
             # Load the strips
-            if not self.RowsPerStrip: raise IOError
+            if not self.RowsPerStrip: return []
             if not self.length: raise IOError
             if not self.PlanarConfiguration: raise IOError
             if self.PlanarConfiguration != 1:
