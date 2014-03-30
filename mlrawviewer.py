@@ -1058,10 +1058,11 @@ class Viewer(GLCompute.GLCompute):
         config.setState("encodeType",self.setting_encodeType)
         self.refresh()
     def toggleEncoding(self):
-        if self.setting_encodeType[0] == ENCODE_TYPE_DNG:
-            self.dngExport()
-        elif self.setting_encodeType[0] == ENCODE_TYPE_MOV:   
-            self.movExport()
+        if not self.indexing:
+            if self.setting_encodeType[0] == ENCODE_TYPE_DNG:
+                self.dngExport()
+            elif self.setting_encodeType[0] == ENCODE_TYPE_MOV:   
+                self.movExport()
     def movExport(self):
         if not self.setting_encoding:
             # Start the encoding process
