@@ -32,6 +32,7 @@ try:
 except ImportError:
     import tkinter as tk #python3
 import tkFileDialog
+import tkMessageBox
 
 from Config import Config
 
@@ -1160,9 +1161,18 @@ class Viewer(GLCompute.GLCompute):
             now = time.time()
             offset = now - self.realStartTime
             self.startAudio(offset)
+    def okToExit(self):
+        if self.exporter.busy:
+            root = tk.Tk()
+            root.iconify()
+            ret = tkMessageBox.askyesno("Exit","Cancel export and exit?")
+            root.destroy()
+            return ret
+        else:
+            return True
     def exit(self):
-        self.audio.stop()
         self.exporter.end()
+        self.audio.stop()
     def tempEncoderWav(self,tempname,inframe,outframe):
         """
         Create a temporary wav file starting from the current audioOffset

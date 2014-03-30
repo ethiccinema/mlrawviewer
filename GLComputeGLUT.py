@@ -34,7 +34,6 @@ try:
     from OpenGL.GL.framebufferobjects import *
     #from OpenGL.GL.ARB.texture_rg import *
     #from OpenGL.GL.EXT.framebuffer_object import *
-    from OpenGL.GL.ARB.sync import *
 except Exception,err:
     print """There is a problem with your python environment.
 I Could not import the pyOpenGL module.
@@ -113,7 +112,7 @@ class GLCompute(object):
         self.windowX = 0
         self.windowY = 0
         glutInit(sys.argv) 
-        glutInitDisplayMode(GLUT_DOUBLE|GLUT_RGB|GLUT_DEPTH|GLUT_BORDERLESS)
+        glutInitDisplayMode(GLUT_DOUBLE|GLUT_RGB|GLUT_DEPTH)
         glutInitWindowSize(256,16)
         glutInitWindowPosition(0,0)
         self.backgroundWindow = glutCreateWindow(self.bgWindowName())
@@ -146,6 +145,11 @@ class GLCompute(object):
         self.scenes = [] # Render these scenes in order
         self.buttons = [self.BUTTON_UP,self.BUTTON_UP]
         self.bgsync = None
+        try:
+            self.hasSync = glFenceSync
+            self.hasSync = True
+        except:
+            self.hasSync = False
         super(GLCompute,self).__init__(**kwds)
     def setBgProcess(self,state):
         self.bgActive = state
@@ -179,7 +183,7 @@ class GLCompute(object):
             self.bgVisibility = state
     def __bgdraw(self):
         glutSetWindow(self.backgroundWindow)
-        if self.bgsync != None:
+        if self.bgsync != None and self.hasSync:
             #print "waiting"
             res = glClientWaitSync(self.bgsync,0,0)
             #print "wait over, result =",res
@@ -198,13 +202,16 @@ class GLCompute(object):
         glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT)
         try:
             self.onBgDraw(w,h)
-            self.bgsync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE,0)
+            if self.hasSync:
+                self.bgsync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE,0)
         except:
             import traceback
             traceback.print_exc()
             glutLeaveMainLoop()
             return    
         #glFlush()
+        if not self.hasSync:
+            self.bgDrawn = False
         if not self.bgDrawn:
             glutSwapBuffers()
             self.bgDrawn = True
@@ -265,7 +272,10 @@ class GLCompute(object):
         glutPostRedisplay()
     def onIdle(self):
         pass
+    def okToExit(self):
+        return True
     def __close(self):
+        if not self.okToExit(): return
         self.exit()
         try:
             glutLeaveMainLoop()
@@ -281,7 +291,8 @@ class GLCompute(object):
         m = glutGetModifiers()
         self.key(k,m)
     def __specialkey(self,k,x,y):
-        self.key(k)
+        m = glutGetModifiers()
+        self.key(k,m)
     def key(self,k,m):
         if k==self.KEY_ESCAPE:
             self.__close()

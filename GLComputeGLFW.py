@@ -129,6 +129,11 @@ class GLCompute(object):
         self.bgActive = False
         self.bgVisibility = 0
         self.bgsync = None
+        try:
+            self.hasSync = glFenceSync
+            self.hasSync = True
+        except:
+            self.hasSync = False
         self.bgThread = None
         glfw.glfwWindowHint(glfw.GLFW_DECORATED,True)
         glfw.glfwWindowHint(glfw.GLFW_RESIZABLE,True)
@@ -198,7 +203,13 @@ class GLCompute(object):
             traceback.print_exc()
         self.bgThread = None
     def run(self):
-        while not glfw.glfwWindowShouldClose(self.glfwWindow):
+        while 1:
+            shouldClose = glfw.glfwWindowShouldClose(self.glfwWindow)
+            if shouldClose:
+                if self.okToExit():
+                    break
+                else:
+                    glfw.glfwSetWindowShouldClose(self.glfwWindow,0)
             if self._drawNeeded:
                 if self._isFull:
                     glfw.glfwMakeContextCurrent(self.glfwFullscreenWindow)
@@ -226,7 +237,7 @@ class GLCompute(object):
     def scenesPrepared(self):
         pass
     def __bgdraw(self):
-        if self.bgsync != None:
+        if self.bgsync != None and self.hasSync:
             #print "waiting"
             res = glClientWaitSync(self.bgsync,0,0)
             #print "wait over, result =",res
@@ -242,12 +253,15 @@ class GLCompute(object):
         glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT)
         try:
             self.onBgDraw(w,h)
-            self.bgsync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE,0)
+            if self.hasSync:
+                self.bgsync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE,0)
         except:
             import traceback
             traceback.print_exc()
             return    
-        glFlush()
+        #glFlush()
+        if not self.hasSync:
+            self.bgDrawn = False
         if not self.bgDrawn:
             glfw.glfwSwapBuffers(self.backgroundWindow)
             self.bgDrawn = True
@@ -307,9 +321,10 @@ class GLCompute(object):
     def key(self,k,m):
         if k == self.KEY_ESCAPE:
             glfw.glfwSetWindowShouldClose(self.glfwWindow,1)
-            self.exit()
         if k == self.KEY_TAB:
             self.toggleFullscreen()
+    def okToExit(self):
+        return True
     def __mousefunc(self,window,button,action,mods):
         x,y = glfw.glfwGetCursorPos(window)
         if action==glfw.GLFW_PRESS: state = self.BUTTON_DOWN
