@@ -683,6 +683,7 @@ class Viewer(GLCompute.GLCompute):
             self.demosaic = DemosaicScene(self.raw,self,self,self,size=(self.raw.width(),self.raw.height()))
         else:
             self.demosaic.initTextures()
+            self.demosaic.setSize(self.raw.width(),self.raw.height())
         self.scenes.append(self.demosaic)
         if self.display == None:
             self.display = DisplayScene(self,size=(0,0))
