@@ -838,20 +838,20 @@ class Viewer(GLCompute.GLCompute):
             self.toggleDropFrames()
         elif k==self.KEY_T:
             self.toggleToneMapping()
-        elif k==self.KEY_I:
+        elif k==self.KEY_L:
             self.toggleLooping()
 
         # Mark management
         elif k==self.KEY_R:
             self.markReset()
             self.refresh()
-        elif k==self.KEY_L:
+        elif k==self.KEY_P:
             self.markNext()
-        elif k==self.KEY_H:
+        elif k==self.KEY_U:
             self.markPrev()
-        elif k==self.KEY_J:
+        elif k==self.KEY_I:
             self.markIn()
-        elif k==self.KEY_K:
+        elif k==self.KEY_O:
             self.markOut()
 
         elif k==self.KEY_V:
@@ -863,9 +863,9 @@ class Viewer(GLCompute.GLCompute):
         elif k==self.KEY_M:
             self.slideAudio(0.5)
 
-        elif k==self.KEY_O:
+        elif k==self.KEY_J:
             self.loadNewRawSet(-1)
-        elif k==self.KEY_P:
+        elif k==self.KEY_K:
             self.loadNewRawSet(1)
 
         elif k==self.KEY_W:
