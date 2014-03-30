@@ -107,6 +107,10 @@ vec3 getColour(vec2 coord) {
     return vec3(red(coord),green(coord),blue(coord));
 }
 
+vec3 sRGBgamma(vec3 linear) {
+    return mix(12.92*linear,(1+0.055)*pow(linear,vec3(1.0/2.4))-0.055,step(vec3(0.0031308),linear));
+}
+
 void main() {
     vec3 colour = getColour(texcoord);
     // Simple highlight recovery
@@ -120,8 +124,10 @@ void main() {
     vec3 toneMapped = colour;
     if (tonemap==1.0) {
         toneMapped = colour/(1.0 + colour);
-    } else {
+    } else if (tonemap==2.0) {
         toneMapped = log2(1.0+1024.0*clamp(colour/16.0,0.0,1.0))/10.0;
+    } else if (tonemap==3.0) {
+        toneMapped = sRGBgamma(colour);
     }
     colour = mix(colour,toneMapped,step(0.5,tonemap));
     gl_FragColor = vec4(colour,1.0);
