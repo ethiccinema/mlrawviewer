@@ -127,7 +127,7 @@ class ExportQueue(threading.Thread):
         at(e,DNG.Tag.PhotometricInterpretation,32803) # CFA
         at(e,DNG.Tag.FillOrder,1)
         atm(e,DNG.Tag.Make,r.make()+"\0")
-        atm(e,DNG.Tag.Model,r.model()+"\0")
+        atm(e,DNG.Tag.Model,r.make()+" "+r.model()+"\0")
         at(e,DNG.Tag.StripOffsets,0)
         at(e,DNG.Tag.Orientation,1)
         at(e,DNG.Tag.SamplesPerPixel,1)
