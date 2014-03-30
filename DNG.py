@@ -26,6 +26,8 @@ Logic to read and write DNG/CDNG file sets
 # standard python imports
 import sys,struct,os,math,time,threading,Queue,traceback,wave
 
+import LJ92
+
 class Type:
     # TIFF Type Format = (Tag TYPE value, Size in bytes of one instance)
     Invalid = (0,0) # Should not be used
@@ -351,9 +353,11 @@ class DNG(object):
             self.width = None
             self.length = None
             self.RowsPerStrip = None
+            self.TileWidth = None
             self.PlanarConfiguration = None
             self.BitsPerSample = None
             self._strips = None
+            self._tiles = None
         def subFileType(self):
             t = self.subFileType
             if t&1:
@@ -369,10 +373,18 @@ class DNG(object):
             return self.subFileType&1==0
         def isThumb(self):
             return self.subFileType&1==1
+        def hasStrips(self):
+            if self.RowsPerStrip: return True
+            else: return False 
+        def hasTiles(self):
+            print self.TileWidth
+            if self.TileWidth: return True
+            else: return False 
         def strips(self):
+            if not self.hasStrips(): return None
             if self._strips: return self._strips
             # Load the strips
-            if not self.RowsPerStrip: return []
+            if not self.RowsPerStrip: return IOError
             if not self.length: raise IOError
             if not self.PlanarConfiguration: raise IOError
             if self.PlanarConfiguration != 1:
@@ -386,6 +398,23 @@ class DNG(object):
                 strip = self.dng.readFrom(offset,byteCount)
                 self._strips.append(strip)
             return self._strips
+        def tiles(self):
+            if not self.hasTiles(): return None
+            if self._tiles: return self._tiles
+            TileLength = self.tags[Tag.TileLength[0]][3][0]
+            ImageWidth = self.tags[Tag.ImageWidth[0]][3][0]
+            ImageLength = self.tags[Tag.ImageLength[0]][3][0]
+            TileByteCounts = self.tags[Tag.TileByteCounts[0]][3]
+            TileOffsets = self.tags[Tag.TileOffsets[0]][3]
+            TilesAcross = (ImageWidth + self.TileWidth - 1) / self.TileWidth
+            TilesDown = (ImageLength + TileLength - 1) / TileLength
+            TilesPerImage = TilesAcross * TilesDown
+            print TileLength,ImageWidth,ImageLength,TileByteCounts,TileOffsets,self.TileWidth*TilesAcross,TileLength*TilesDown
+            self._tiles = []
+            for byteCount,offset in zip(TileByteCounts,TileOffsets):
+                tile = self.dng.readFrom(offset,byteCount)
+                self._tiles.append(tile)
+            return self._tiles
         def stripsCombined(self):
             s = self.strips()
             if len(s)==1:
@@ -555,6 +584,8 @@ class DNG(object):
             ifd.PlanarConfiguration = values[0]
         elif itag==Tag.BitsPerSample[0]:
             ifd.BitsPerSample = values
+        elif itag==Tag.TileWidth[0]:
+            ifd.TileWidth = ival
 
         ifdEntry = (itag,itype,icount,values)
         if self.log: print IfdName,ifdEntry
@@ -591,11 +622,21 @@ def testReadDng(filename):
     d = DNG(log=True,parse=True)
     d.readFile(filename)
     if d.THUMB_IFD:
-        thumb = d.THUMB_IFD.stripsCombined()
+        if d.THUMB_IFD.hasStrips():
+            thumb = d.THUMB_IFD.stripsCombined()
+        elif d.THUMB_IFD.hasTiles():
+            thumb = d.THUMB_IFD.tiles()
         print "Thumb:"
         print len(thumb)
-    if d.THUMB_IFD:
-        full = d.FULL_IFD.stripsCombined()
+    if d.FULL_IFD:
+        if d.FULL_IFD.hasStrips():
+            full = d.FULL_IFD.stripsCombined()
+        elif d.FULL_IFD.hasTiles():
+            full = d.FULL_IFD.tiles()
+            lj = LJ92.lj92()
+            for i,t in enumerate(full):
+                lj.parse(t)
+                break
         print "Full:"
         print len(full)
     d.close()
