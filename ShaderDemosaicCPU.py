@@ -48,11 +48,17 @@ uniform vec2 black;
 uniform vec3 colourBalance;
 uniform vec4 rawres;
 uniform sampler2D rawtex;
+uniform mat3 colourMatrix;
+
+vec3 sRGBgamma(vec3 linear) {
+    return mix(12.92*linear,(1+0.055)*pow(linear,vec3(1.0/2.4))-0.055,step(vec3(0.0031308),linear));
+}
 
 void main() {
     vec3 colour = texture2D(rawtex,texcoord).rgb;
     // Simple highlight recovery
     vec3 ocol = colour;
+    colour = colourMatrix * colour;
     colour *= colourBalance;
     if (ocol.g > (black.y-black.x)){
         colour.g = 0.5*(colour.r+colour.b);
@@ -62,8 +68,10 @@ void main() {
     vec3 toneMapped = colour;
     if (tonemap==1.0) {
         toneMapped = colour/(1.0 + colour);
-    } else {
+    } else if (tonemap==2.0) {
         toneMapped = log2(1.0+1024.0*clamp(colour/16.0,0.0,1.0))/10.0;
+    } else if (tonemap==3.0) {
+        toneMapped = sRGBgamma(colour);
     }
     colour = mix(colour,toneMapped,step(0.5,tonemap));
     gl_FragColor = vec4(colour,1.0);

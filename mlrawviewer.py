@@ -128,6 +128,21 @@ class Demosaicer(ui.Drawable):
         frameData = self.frames.currentFrame()
         frameNumber = self.frames.currentFrameNumber()
 
+        camToXYZ = frameData.rawfile.colorMatrix.getI()
+        # D50
+        #XYZtosRGB = np.matrix([[3.1338561, -1.6168667, -0.4906146],
+        #                        [-0.9787684,  1.9161415,  0.0334540],
+        #                        [ 0.0719453, -0.2289914,  1.4052427]])
+        # D65
+        XYZtosRGB = np.matrix([[3.2404542,-1.5371385,-0.4985314],
+                                [-0.9692660,1.8760108,0.0415560],
+                                [0.0556434,-0.2040259,1.0572252]])
+        #XYZtosRGB = np.matrix([[3.2404542,-1.5371385,-0.4985314],
+        #                   [-0.9692660,1.8760108,0.0415560],
+        #                   [0.0556434,-0.2040259,1.0572252]])
+        camToLinearsRGB = XYZtosRGB * camToXYZ
+        #print camToLinearsRGB
+
         brightness = self.settings.brightness()
         rgb = self.settings.rgb()
         balance = (rgb[0]*brightness, rgb[1]*brightness, rgb[2]*brightness)
@@ -147,7 +162,7 @@ class Demosaicer(ui.Drawable):
                     self.rgbUploadTex.update(frameData.rgbimage)
                     PLOG(PLOG_GPU,"RGB texture upload returned for frame %d"%frameNumber)
                     self.rgbFrameUploaded = frameNumber
-                self.shaderQuality.demosaicPass(self.rgbUploadTex,frameData.black,balance=balance,white=frameData.white,tonemap=tone)
+                self.shaderQuality.demosaicPass(self.rgbUploadTex,frameData.black,balance=balance,white=frameData.white,tonemap=tone) #,colourMatrix=camToLinearsRGB)
                 if self.settings.encoding():
                     self.rgb = glReadPixels(0,0,scene.size[0],scene.size[1],GL_RGB,GL_UNSIGNED_SHORT)
                     self.encoder.encode(frameNumber,self.rgb)
@@ -160,7 +175,7 @@ class Demosaicer(ui.Drawable):
                     PLOG(PLOG_CPU,"Bayer 14-16 convert done for frame %d"%frameNumber)
                     self.rawUploadTex.update(frameData.rawimage)
                 PLOG(PLOG_GPU,"Demosaic shader draw for frame %d"%frameNumber)
-                self.shaderNormal.demosaicPass(self.rawUploadTex,frameData.black,balance=balance,white=frameData.white,tonemap=self.settings.tonemap())
+                self.shaderNormal.demosaicPass(self.rawUploadTex,frameData.black,balance=balance,white=frameData.white,tonemap=self.settings.tonemap()) #,colourMatrix=camToLinearsRGB)
                 PLOG(PLOG_GPU,"Demosaic shader draw done for frame %d"%frameNumber)
         self.lastFrameData = frameData
         self.lastFrameNumber = frameNumber

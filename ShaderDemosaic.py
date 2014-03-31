@@ -38,7 +38,7 @@ class ShaderDemosaic(GLCompute.Shader):
     size_minus_one = True
     def __init__(self,**kwds):
         myclass = self.__class__
-        super(ShaderDemosaic,self).__init__(myclass.vertex_src,myclass.fragment_src,["time","rawtex","rawres","black","colourBalance","tonemap"],**kwds)
+        super(ShaderDemosaic,self).__init__(myclass.vertex_src,myclass.fragment_src,["time","rawtex","rawres","black","colourBalance","tonemap","colourMatrix"],**kwds)
         self.svbo = None
     def prepare(self,svbo):
         if self.svbo==None:
@@ -47,7 +47,7 @@ class ShaderDemosaic(GLCompute.Shader):
             vertices = np.array((-1,-1,0,1,-1,0,-1,1,0,1,1,0),dtype=np.float32)
             self.svbo.update(vertices,self.svbobase)
 
-    def demosaicPass(self,texture,black,time=0,balance=(1.0,1.0,1.0),white=(2**14-1),tonemap=1):
+    def demosaicPass(self,texture,black,time=0,balance=(1.0,1.0,1.0),white=(2**14-1),tonemap=1,colourMatrix=np.matrix(np.eye(3))):
         self.use()
         self.blend(False)
         glVertexAttribPointer(self.vertex,3,GL_FLOAT,GL_FALSE,0,self.svbo.vboOffset(self.svbobase))
@@ -64,6 +64,7 @@ class ShaderDemosaic(GLCompute.Shader):
             h = h-1
         iw = 1.0/float(w)
         ih = 1.0/float(h)
+        glUniformMatrix3fv(self.uniforms["colourMatrix"], 1, False, np.array(colourMatrix.flatten()).astype(np.float32))
         glUniform4f(self.uniforms["rawres"], w, h, iw, ih)
         glUniform1f(self.uniforms["time"], time)
         glDrawArrays(GL_TRIANGLE_STRIP, 0, 4)

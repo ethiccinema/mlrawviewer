@@ -49,6 +49,7 @@ uniform float tonemap;
 uniform vec2 black;
 uniform vec4 rawres;
 uniform sampler2D rawtex;
+uniform mat3 colourMatrix;
 
 float get(vec2 bayerpixel) {
     // Ensure we only sample within texture and from same colour as requested
@@ -115,6 +116,7 @@ void main() {
     vec3 colour = getColour(texcoord);
     // Simple highlight recovery
     vec3 ocol = colour;
+    colour = colourMatrix * colour;
     colour *= colourBalance;
     if (ocol.g > (black.y-black.x)){
         colour.g = 0.5*(colour.r+colour.b);
