@@ -128,20 +128,12 @@ class Demosaicer(ui.Drawable):
         frameData = self.frames.currentFrame()
         frameNumber = self.frames.currentFrameNumber()
 
-        camToXYZ = frameData.rawfile.colorMatrix.getI()
-        # D50
-        #XYZtosRGB = np.matrix([[3.1338561, -1.6168667, -0.4906146],
-        #                        [-0.9787684,  1.9161415,  0.0334540],
-        #                        [ 0.0719453, -0.2289914,  1.4052427]])
-        # D65
-        XYZtosRGB = np.matrix([[3.2404542,-1.5371385,-0.4985314],
-                                [-0.9692660,1.8760108,0.0415560],
-                                [0.0556434,-0.2040259,1.0572252]])
-        #XYZtosRGB = np.matrix([[3.2404542,-1.5371385,-0.4985314],
-        #                   [-0.9692660,1.8760108,0.0415560],
-        #                   [0.0556434,-0.2040259,1.0572252]])
-        camToLinearsRGB = XYZtosRGB * camToXYZ
-        #print camToLinearsRGB
+        #r1 = 1.0
+        #g1 = 0.5
+        #b1 = 0.1
+        #testrgb = np.array([r1,g1,b1])
+        #testrgb2 = np.dot(camToLinearsRGB,testrgb)
+        #print camToLinearsRGB,testrgb,testrgb2
 
         brightness = self.settings.brightness()
         rgb = self.settings.rgb()
@@ -162,7 +154,7 @@ class Demosaicer(ui.Drawable):
                     self.rgbUploadTex.update(frameData.rgbimage)
                     PLOG(PLOG_GPU,"RGB texture upload returned for frame %d"%frameNumber)
                     self.rgbFrameUploaded = frameNumber
-                self.shaderQuality.demosaicPass(self.rgbUploadTex,frameData.black,balance=balance,white=frameData.white,tonemap=tone) #,colourMatrix=camToLinearsRGB)
+                self.shaderQuality.demosaicPass(self.rgbUploadTex,frameData.black,balance=balance,white=frameData.white,tonemap=tone,colourMatrix=self.settings.setting_colourMatrix)
                 if self.settings.encoding():
                     self.rgb = glReadPixels(0,0,scene.size[0],scene.size[1],GL_RGB,GL_UNSIGNED_SHORT)
                     self.encoder.encode(frameNumber,self.rgb)
@@ -175,7 +167,7 @@ class Demosaicer(ui.Drawable):
                     PLOG(PLOG_CPU,"Bayer 14-16 convert done for frame %d"%frameNumber)
                     self.rawUploadTex.update(frameData.rawimage)
                 PLOG(PLOG_GPU,"Demosaic shader draw for frame %d"%frameNumber)
-                self.shaderNormal.demosaicPass(self.rawUploadTex,frameData.black,balance=balance,white=frameData.white,tonemap=self.settings.tonemap()) #,colourMatrix=camToLinearsRGB)
+                self.shaderNormal.demosaicPass(self.rawUploadTex,frameData.black,balance=balance,white=frameData.white,tonemap=self.settings.tonemap(),colourMatrix=self.settings.setting_colourMatrix)
                 PLOG(PLOG_GPU,"Demosaic shader draw done for frame %d"%frameNumber)
         self.lastFrameData = frameData
         self.lastFrameNumber = frameNumber
@@ -586,6 +578,8 @@ class Viewer(GLCompute.GLCompute):
         self.setting_tonemap = 1 # Global tone map, 2 = Log
         self.setting_dropframes = True # Real time playback by default
         self.setting_loop = config.getState("loopPlayback")
+        self.setting_colourMatrix = np.matrix(np.eye(3))
+        self.updateColourMatrix()
         if self.setting_loop == None: self.setting_loop = True
         self.setting_encodeType = config.getState("encodeType")
         if self.setting_encodeType == None: self.setting_encodeType = (ENCODE_TYPE_MOV,)       
@@ -662,6 +656,7 @@ class Viewer(GLCompute.GLCompute):
         self._init = False
         self.init()
         self.updateWindowName()
+        self.updateColourMatrix()
         self.refresh()
 
     def drop(self,objects):
@@ -823,21 +818,21 @@ class Viewer(GLCompute.GLCompute):
             self.changeWhiteBalance(2.5, 1.0, 1.5, "Cloudy ")     # ~Cloudy
 
         elif k==self.KEY_FOUR:
-            self.changeWhiteBalance(self.setting_rgb[0]*0.9, self.setting_rgb[1], self.setting_rgb[2], "red-")
+            self.changeWhiteBalance(self.setting_rgb[0]*0.99, self.setting_rgb[1], self.setting_rgb[2], "red-")
         elif k==self.KEY_SEVEN:
-            self.changeWhiteBalance(self.setting_rgb[0]*1.1, self.setting_rgb[1], self.setting_rgb[2], "red+")
+            self.changeWhiteBalance(self.setting_rgb[0]*(1.0/0.99), self.setting_rgb[1], self.setting_rgb[2], "red+")
         elif k==self.KEY_SIX:
-            self.changeWhiteBalance(self.setting_rgb[0], self.setting_rgb[1], self.setting_rgb[2]*0.9, "blue-")
+            self.changeWhiteBalance(self.setting_rgb[0], self.setting_rgb[1], self.setting_rgb[2]*0.99, "blue-")
         elif k==self.KEY_NINE:
-            self.changeWhiteBalance(self.setting_rgb[0], self.setting_rgb[1], self.setting_rgb[2]*1.1, "blue+")
+            self.changeWhiteBalance(self.setting_rgb[0], self.setting_rgb[1], self.setting_rgb[2]*(1.0/0.99), "blue+")
         
         # Green control is now done by modifying R/B/brightness together 
         elif k==self.KEY_FIVE:
-            self.changeWhiteBalance(self.setting_rgb[0]*1.1, self.setting_rgb[1], self.setting_rgb[2]*1.1, "green-")
-            self.scaleBrightness(0.9)
+            self.changeWhiteBalance(self.setting_rgb[0]*(1.0/0.99), self.setting_rgb[1], self.setting_rgb[2]*(1.0/0.99), "green-")
+            self.scaleBrightness(0.99)
         elif k==self.KEY_EIGHT:
-            self.changeWhiteBalance(self.setting_rgb[0]*0.9, self.setting_rgb[1], self.setting_rgb[2]*0.9, "green+")
-            self.scaleBrightness(1.1)
+            self.changeWhiteBalance(self.setting_rgb[0]*0.99, self.setting_rgb[1], self.setting_rgb[2]*0.99, "green+")
+            self.scaleBrightness(1.0/0.99)
 
         elif k==self.KEY_Q:
             self.toggleQuality()
@@ -949,7 +944,7 @@ class Viewer(GLCompute.GLCompute):
         self.anamorLens = (self.anamorLens + 1)%5
         self.refresh()
     def toggleToneMapping(self):
-        self.setting_tonemap = (self.setting_tonemap + 1)%3
+        self.setting_tonemap = (self.setting_tonemap + 1)%5
         self.refresh()
     def toggleLooping(self):
         self.setting_loop = not self.setting_loop
@@ -1430,6 +1425,21 @@ class Viewer(GLCompute.GLCompute):
         self.outfilename = adir
         config.setState("targetDir",adir)
         root.destroy()
+
+    def updateColourMatrix(self):
+        camToXYZ = self.raw.colorMatrix.getI()
+        # D50
+        #XYZtosRGB = np.matrix([[3.1338561, -1.6168667, -0.4906146],
+        #                        [-0.9787684,  1.9161415,  0.0334540],
+        #                        [ 0.0719453, -0.2289914,  1.4052427]])
+        # D65
+        XYZtosRGB = np.matrix([[3.2404542,-1.5371385,-0.4985314],
+                                [-0.9692660,1.8760108,0.0415560],
+                                [0.0556434,-0.2040259,1.0572252]])
+        #XYZtosRGB = np.matrix([[3.2404542,-1.5371385,-0.4985314],
+        #                   [-0.9692660,1.8760108,0.0415560],
+        #                   [0.0556434,-0.2040259,1.0572252]])
+        self.setting_colourMatrix = XYZtosRGB * camToXYZ
 
 def main():
     filename = None

@@ -112,12 +112,17 @@ vec3 sRGBgamma(vec3 linear) {
     return mix(12.92*linear,(1+0.055)*pow(linear,vec3(1.0/2.4))-0.055,step(vec3(0.0031308),linear));
 }
 
+vec3 r709gamma(vec3 linear) {
+    return mix(4.5*linear,(1+0.099)*pow(linear,vec3(0.45))-0.099,step(vec3(0.018),linear));
+}
+
+
 void main() {
     vec3 colour = getColour(texcoord);
     // Simple highlight recovery
     vec3 ocol = colour;
-    colour = colourMatrix * colour;
     colour *= colourBalance;
+    colour = colourMatrix * colour;
     if (ocol.g > (black.y-black.x)){
         colour.g = 0.5*(colour.r+colour.b);
     }
@@ -130,6 +135,8 @@ void main() {
         toneMapped = log2(1.0+1024.0*clamp(colour/16.0,0.0,1.0))/10.0;
     } else if (tonemap==3.0) {
         toneMapped = sRGBgamma(colour);
+    } else if (tonemap==4.0) {
+        toneMapped = r709gamma(colour);
     }
     colour = mix(colour,toneMapped,step(0.5,tonemap));
     gl_FragColor = vec4(colour,1.0);
