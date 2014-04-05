@@ -116,7 +116,6 @@ vec3 r709gamma(vec3 linear) {
     return mix(4.5*linear,(1+0.099)*pow(linear,vec3(0.45))-0.099,step(vec3(0.018),linear));
 }
 
-
 void main() {
     vec3 colour = getColour(texcoord);
     // Simple highlight recovery
@@ -130,6 +129,7 @@ void main() {
     colour *= levelAdjust;
     vec3 toneMapped = colour;
     if (tonemap==1.0) {
+        colour *= 6.0; // To make it perceptually similar level to sRGB gamma
         toneMapped = colour/(1.0 + colour);
     } else if (tonemap==2.0) {
         toneMapped = log2(1.0+1024.0*clamp(colour/16.0,0.0,1.0))/10.0;

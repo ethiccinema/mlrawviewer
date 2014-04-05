@@ -64,6 +64,7 @@ void main() {
     vec3 ocol = colour;
     colour *= colourBalance;
     colour = colourMatrix * colour;
+    
     if (ocol.g > (black.y-black.x)){
         colour.g = 0.5*(colour.r+colour.b);
     }
@@ -71,6 +72,7 @@ void main() {
     colour *= levelAdjust;
     vec3 toneMapped = colour;
     if (tonemap==1.0) {
+        colour *= 6.0; // To make it perceptually similar level to sRGB gamma
         toneMapped = colour/(1.0 + colour);
     } else if (tonemap==2.0) {
         toneMapped = log2(1.0+1024.0*clamp(colour/16.0,0.0,1.0))/10.0;

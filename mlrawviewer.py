@@ -571,11 +571,11 @@ class Viewer(GLCompute.GLCompute):
         self.demosaic = None
         self.markReset()
         # Shared settings
-        self.setting_brightness = 16.0
+        self.setting_brightness = 1.0
         self.setting_rgb = (2.0, 1.0, 1.5)
         self.setting_highQuality = False
         self.setting_encoding = False
-        self.setting_tonemap = 1 # Global tone map, 2 = Log
+        self.setting_tonemap = 3 # 0 = Linear, 1 = Global tone map, 2 = Log, 3 = sRGB Gamma, 4 = Rec.709 Gamma
         self.setting_dropframes = True # Real time playback by default
         self.setting_loop = config.getState("loopPlayback")
         self.setting_colourMatrix = np.matrix(np.eye(3))
@@ -1427,7 +1427,8 @@ class Viewer(GLCompute.GLCompute):
         root.destroy()
 
     def updateColourMatrix(self):
-        camToXYZ = self.raw.colorMatrix.getI()
+        # This calculation should give results matching dcraw
+        camToXYZ = self.raw.colorMatrix
         # D50
         #XYZtosRGB = np.matrix([[3.1338561, -1.6168667, -0.4906146],
         #                        [-0.9787684,  1.9161415,  0.0334540],
@@ -1436,10 +1437,13 @@ class Viewer(GLCompute.GLCompute):
         XYZtosRGB = np.matrix([[3.2404542,-1.5371385,-0.4985314],
                                 [-0.9692660,1.8760108,0.0415560],
                                 [0.0556434,-0.2040259,1.0572252]])
-        #XYZtosRGB = np.matrix([[3.2404542,-1.5371385,-0.4985314],
-        #                   [-0.9692660,1.8760108,0.0415560],
-        #                   [0.0556434,-0.2040259,1.0572252]])
-        self.setting_colourMatrix = XYZtosRGB * camToXYZ
+        rgb2cam = camToXYZ * XYZtosRGB.getI()
+        # Normalise the matrix
+        rgb2cam[0,:]/=np.sum(rgb2cam[0])
+        rgb2cam[1,:]/=np.sum(rgb2cam[1])
+        rgb2cam[2,:]/=np.sum(rgb2cam[2])
+        cam2rgb = rgb2cam.getI()
+        self.setting_colourMatrix = cam2rgb.getT() # Must be transposed
 
 def main():
     filename = None
