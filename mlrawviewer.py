@@ -251,13 +251,13 @@ class DisplayScene(ui.Scene):
         self.mapping = self.newIcon(0,90,128,128,11,self.mappingClick)
         self.mapping.colour = (0.5,0.5,0.5,0.5) # Quite transparent white
         self.mapping.setScale(0.25)
-        self.update = self.newIcon(0,0,128,128,14,self.updateClick)
+        self.update = self.newIcon(0,0,128,128,16,self.updateClick)
         self.update.colour = (0.5,0.1,0.0,0.5)
         self.update.setScale(0.5)
-        self.loop = self.newIcon(0,0,128,128,15,self.loopClick)
+        self.loop = self.newIcon(0,0,128,128,17,self.loopClick)
         self.loop.colour = (0.5,0.5,0.5,0.5)
         self.loop.setScale(0.5)
-        self.outformat = self.newIcon(0,0,128,128,17,self.outfmtClick)
+        self.outformat = self.newIcon(0,0,128,128,19,self.outfmtClick)
         self.outformat.colour = (0.5,0.5,0.5,0.5)
         self.outformat.setScale(0.5)
         self.encode = self.newIcon(0,0,128,128,2,self.encodeClick)
@@ -386,9 +386,10 @@ class DisplayScene(ui.Scene):
             self.fadeAnimation.setTarget(0.0,2.0,0.0,ui.Animation.SMOOTH)
             
             self.frames.setCursorVisible(False)
-        elif idle<=5.0 and self.fadeAnimation.targval == 0.0:
-            self.fadeAnimation.setTarget(1.0,0.5,0.0,ui.Animation.SMOOTH)
+        elif idle<=5.0:
             self.frames.setCursorVisible(True)
+            if self.fadeAnimation.targval == 0.0:
+                self.fadeAnimation.setTarget(1.0,0.5,0.0,ui.Animation.SMOOTH)
         self.overlayOpacity = self.fadeAnimation.value()
         if self.frames.paused: self.overlayOpacity = 1.0
         frameNumber = self.frames.currentFrameNumber()
@@ -594,6 +595,9 @@ class Viewer(GLCompute.GLCompute):
         fn = self.raw.filename
         path,name = os.path.split(fn) # Correct for files and CDNG dirs
         fl = [f for f in os.listdir(path) if f.lower().endswith(".mlv") or f.lower().endswith(".raw")]
+        dirs = [f for f in os.listdir(path) if os.path.isdir(os.path.join(path,f))]
+        cdngs = [f for f in dirs if len([d for d in os.listdir(os.path.join(path,f)) if d.lower().endswith(".dng")])]
+        fl.extend(cdngs)
         fl.sort()
         current = fl.index(name)
         newOne = (current + step)%len(fl)
@@ -1432,8 +1436,8 @@ class Viewer(GLCompute.GLCompute):
         # First do the white balance
         if self.raw.whiteBalance != None:
             self.setting_rgb = self.raw.whiteBalance
-        else:
-            self.setting_rgb = (2.0, 1.0, 1.5)
+        #else:
+        #    self.setting_rgb = (2.0, 1.0, 1.5)
         self.setting_brightness = self.raw.brightness
 
         # This calculation should give results matching dcraw

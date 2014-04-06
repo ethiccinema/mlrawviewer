@@ -150,6 +150,7 @@ class GLCompute(object):
         self._drawNeeded = True
         self.scenes = [] # Render these scenes in order
         self.buttons = [self.BUTTON_UP,self.BUTTON_UP]
+        self.cursorVisible = None
         super(GLCompute,self).__init__(**kwds)
     def updateWindowName(self):
         if not self._isFull:
@@ -339,6 +340,9 @@ class GLCompute(object):
     def input2d(self,x,y,buttons):
         pass
     def setCursorVisible(self,visible):
+        if self.cursorVisible != None:
+            if visible == self.cursorVisible:
+                return
         w = self.glfwWindow 
         if self._isFull:
             w = self.glfwFullscreenWindow
@@ -346,6 +350,7 @@ class GLCompute(object):
             glfw.glfwSetInputMode(w,glfw.GLFW_CURSOR,glfw.GLFW_CURSOR_NORMAL)
         else:
             glfw.glfwSetInputMode(w,glfw.GLFW_CURSOR,glfw.GLFW_CURSOR_HIDDEN)
+        self.cursorVisible = visible
     def __dropfunc(self,window,count,objects):
         result = [objects[i] for i in range(count)]    
         try:
