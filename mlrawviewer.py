@@ -660,7 +660,6 @@ class Viewer(GLCompute.GLCompute):
         self.nextFrameNumber = 0
         self.neededFrame = 0
         self.drawnFrameNumber = None
-        self.playFrame = self.raw.firstFrame
         self.preloadFrame(1) # Immediately try to preload the next frame
         self.indexing = True
         self.markReset()
@@ -1443,19 +1442,33 @@ class Viewer(GLCompute.GLCompute):
         # Read from the current playFrame at x/y
         # Assume that is a neutral colour
         # Set the white balance accordingly
-        f = self.playFrame.rawimage
-        bl = self.playFrame.black
-        f2 = f.reshape(self.raw.height(),self.raw.width())
-        bx = int(x/2)*2
-        by = int(y/2)*2
-        red = f2[by,bx]-bl
-        green = (f2[by,bx+1]+f2[by+1,bx]-bl*2)/2
-        blue = f2[by+1,bx+1]-bl
-        redMul = float(green)/float(red)
-        blueMul = float(green)/float(blue)
-        self.setting_rgb = (redMul,1.0,blueMul)
-        print "Setting white Balance from",x,y,"to",self.setting_rgb
-        self.refresh()
+        haveColour = False
+        if self.playFrame.rawimage != None:
+            f = self.playFrame.rawimage
+            bl = self.playFrame.black
+            f2 = f.reshape(self.raw.height(),self.raw.width())
+            bx = int(x/2)*2
+            by = int(y/2)*2
+            red = f2[by,bx]-bl
+            green = (f2[by,bx+1]+f2[by+1,bx]-bl*2)/2
+            blue = f2[by+1,bx+1]-bl
+            haveColour = True
+        elif self.playFrame.rgbimage != None:
+            f = self.playFrame.rgbimage
+            bl = self.playFrame.black
+            f2 = f.reshape(self.raw.height(),self.raw.width(),3)
+            bx = int(x)
+            by = int(y)
+            red = f2[by,bx,0]
+            green = (f2[by,bx,1]+f2[by,bx,1])/2
+            blue = f2[by,bx,2]
+            haveColour = True
+        if haveColour:
+            redMul = float(green)/float(red)
+            blueMul = float(green)/float(blue)
+            self.setting_rgb = (redMul,1.0,blueMul)
+            print "Setting white Balance from",x,y,"to",self.setting_rgb
+            self.refresh()
 
     def updateColourMatrix(self):
         # First do the white balance
