@@ -61,6 +61,24 @@ with the "prores_ks" codec, which may only be found in newer versions of (real) 
 A new file can be dragged onto an existing window and will be 
 loaded (GLFW backend only).
 
+Usage (gui)
+-----------
+
+The timeline bar can be clicked to jump to anywhere in the current file.
+
+State icons along the left are as follows:
+
+- Fullscreen/windows mode
+- Drop-frame mode (clock) or non-frop-frame mode
+- Colour curve (sRGB, 709, linear, hdr or log)
+- Demosaic quality
+- Export type & export state
+- Playing/paused
+
+They can be clicked to change the current state.
+
+On the bottom right are a brightness (exposure) bar and a white balance box. Also, clicking anywhere else in the image will set the white balance using the given pixel as a neutral colour.
+
 Keys
 ----
 
@@ -76,9 +94,9 @@ UP/DOWN CURSOR - Increase/decrease brightness
 
 0, 1, 2, 3 - Change White Balance
 
-7, 4 - Change red multiplier up and down by 0.1
+7, 4 - Change red multiplier up and down by 0.01
 
-9, 6 - Change blue multiplier up and down by 0.1
+9, 6 - Change blue multiplier up and down by 0.01
 
 F - Toggle between drop-frame mode allowing synchronised audio playback, or sequential frame mode and no audio
 
@@ -94,7 +112,7 @@ D - Choose export type, MOV or DNG
 
 E - Start exporting from the start of the marked range to the export directory. Will use the source name with ".MOV" or "_DNG" appended.
 
-T - Toggle between linear color, global tone mapping, and log mapping
+T - Toggle between sRGB gamma, Rec.709 gamma, linear, global tone mapping, and log mapping curves
 
 J/K - Change to previous/next MLV/RAW file in same directory as current file
 
