@@ -270,6 +270,7 @@ class DisplayScene(ui.Scene):
         self.balanceHandle = self.newIcon(0,0,8,8,2,None)
         self.balanceHandle.colour = (0.5,0.5,0.5,0.5)
         self.balanceHandle.ignoreInput = True
+        self.whitePicker = ui.XYGraph(self.size[0],self.size[1],self.whiteClick,svbo=self.frames.svbo)
         self.brightness = ui.XYGraph(32,128,self.brightnessClick,svbo=self.frames.svbo)
         self.brightness.gradient(32,128,tl=(0.25,0.25,0.25,0.25),tr=(0.25,0.25,0.25,0.25),bl=(0.0,0.0,0.0,0.25),br=(0.0,0.0,0.0,0.25))
         self.brightness.edges = (1.0,1.0,0.2,0.05)
@@ -280,6 +281,7 @@ class DisplayScene(ui.Scene):
         self.iconItems = [self.fullscreen,self.mapping,self.drop,self.quality,self.loop,self.outformat,self.encode,self.play]
         self.overlay = [self.iconBackground,self.progressBackground,self.progress,self.timestamp,self.encodeStatus,self.update,self.balance,self.balanceHandle,self.brightness,self.brightnessHandle,self.mark]
         self.overlay.extend(self.iconItems)
+        self.overlay.append(self.whitePicker) # So it is on the bottom
         self.drawables.extend([self.display])
         self.drawables.extend(self.overlay)
         self.timeline = ui.Timeline()
@@ -287,6 +289,9 @@ class DisplayScene(ui.Scene):
 
     def setRgbImage(self,rgbImage):
         self.display.setRgbImage(rgbImage)
+
+    def whiteClick(self,x,y):
+        self.frames.useWhitePoint(float(x)/float(self.size[0])*self.frames.raw.width(),float(y)/float(self.size[1])*self.frames.raw.height())
 
     def progressClick(self,x,y):
         targetFrame = self.frames.raw.frames()*(float(x)/float(self.progress.size[0]))
@@ -419,6 +424,8 @@ class DisplayScene(ui.Scene):
         r = ((4.0-rgb[0])/4.0)*128.0
         b = (rgb[2]/4.0)*128.0
         self.balanceHandle.setPos(btl+b-4.0,btr+r-4.0)
+        self.whitePicker.setPos(0,0)
+        self.whitePicker.size = self.size
         rtl,rtr = (width-128.0-10.0-32.0-10.0,height-rectHeight-10.0-128.0-5.0)
         self.brightness.setPos(rtl,rtr)
         b = math.log(self.frames.setting_brightness,2.0)
@@ -1431,6 +1438,24 @@ class Viewer(GLCompute.GLCompute):
         self.outfilename = adir
         config.setState("targetDir",adir)
         root.destroy()
+
+    def useWhitePoint(self,x,y):
+        # Read from the current playFrame at x/y
+        # Assume that is a neutral colour
+        # Set the white balance accordingly
+        f = self.playFrame.rawimage
+        bl = self.playFrame.black
+        f2 = f.reshape(self.raw.height(),self.raw.width())
+        bx = int(x/2)*2
+        by = int(y/2)*2
+        red = f2[by,bx]-bl
+        green = (f2[by,bx+1]+f2[by+1,bx]-bl*2)/2
+        blue = f2[by+1,bx+1]-bl
+        redMul = float(green)/float(red)
+        blueMul = float(green)/float(blue)
+        self.setting_rgb = (redMul,1.0,blueMul)
+        print "Setting white Balance from",x,y,"to",self.setting_rgb
+        self.refresh()
 
     def updateColourMatrix(self):
         # First do the white balance
