@@ -51,11 +51,11 @@ uniform sampler2D rawtex;
 uniform mat3 colourMatrix;
 
 vec3 sRGBgamma(vec3 linear) {
-    return mix(12.92*linear,(1+0.055)*pow(linear,vec3(1.0/2.4))-0.055,step(vec3(0.0031308),linear));
+    return mix(12.92*linear,(1.0+0.055)*pow(linear,vec3(1.0/2.4))-0.055,step(vec3(0.0031308),linear));
 }
 
 vec3 r709gamma(vec3 linear) {
-    return mix(4.5*linear,(1+0.099)*pow(linear,vec3(0.45))-0.099,step(vec3(0.018),linear));
+    return mix(4.5*linear,(1.0+0.099)*pow(linear,vec3(0.45))-0.099,step(vec3(0.018),linear));
 }
 
 void main() {
