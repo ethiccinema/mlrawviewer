@@ -67,8 +67,8 @@ class ExportQueue(threading.Thread):
         else:
             return 1.0
     # Queue Job calls
-    def exportDng(self,rawfile,dngdir,startFrame=0,endFrame=None,bits=16):
-        return self.submitJob(self.JOB_DNG,rawfile,dngdir,startFrame,endFrame,bits)
+    def exportDng(self,rawfile,dngdir,startFrame=0,endFrame=None,bits=16,rgbl=None):
+        return self.submitJob(self.JOB_DNG,rawfile,dngdir,startFrame,endFrame,bits,rgbl)
     def submitJob(self,*args):
         ix = self.jobindex
         self.jobindex += 1
@@ -107,7 +107,7 @@ class ExportQueue(threading.Thread):
         else:
             pass
 
-    def setDngHeader(self,r,d,bits,frame):
+    def setDngHeader(self,r,d,bits,frame,rgbl):
         d.stripTotal = 3000000
         d.bo = "<" # Little endian
         # Prepopulate DNG with basic set of tags for a single image
@@ -152,7 +152,16 @@ class ExportQueue(threading.Thread):
         atm(e,DNG.Tag.DefaultCropSize,(r.width(),r.height()))
         m = [(int(v*10000),10000) for v in r.colorMatrix.A1]
         atm(e,DNG.Tag.ColorMatrix1,m)
-        atm(e,DNG.Tag.AsShotNeutral,((473635,1000000),(1000000,1000000),(624000,1000000)))
+        if rgbl==None: # Pick a default
+            atm(e,DNG.Tag.AsShotNeutral,((473635,1000000),(1000000,1000000),(624000,1000000)))
+        else:
+            asnred = int(1000000/rgbl[0])
+            asngreen = int(1000000/rgbl[1])
+            asnblue = int(1000000/rgbl[2])
+            atm(e,DNG.Tag.AsShotNeutral,((asnred,1000000),(asngreen,1000000),(asnblue,1000000)))
+            ev = int(1000000*math.log(rgbl[3],2.0))
+            at(e,DNG.Tag.BaselineExposure,(0,1000000)) # Not yet used by dcraw-based tools :-(
+            at(e,DNG.Tag.BaselineExposureOffset,(ev,1000000)) # Not yet used by dcraw-based tools :-(
         at(e,DNG.Tag.FrameRate,(r.fpsnum,r.fpsden))
         exif = DNG.DNG.IFD(d)
         d.ifds[0].EXIF_IFD = exif
@@ -182,7 +191,7 @@ class ExportQueue(threading.Thread):
             atm(e,DNG.Tag.DateTimeOriginal,"%04d:%02d:%02d %02d:%02d:%02d\0"%(ye+1900,mo,da,ho,mi,se))
             
     def doExportDng(self,jobindex,args):
-        filename,dngdir,startFrame,endFrame,bits = args
+        filename,dngdir,startFrame,endFrame,bits,rgbl = args
         todo = endFrame-startFrame+1
         target = dngdir
         r = MlRaw.loadRAWorMLV(filename)
@@ -194,7 +203,7 @@ class ExportQueue(threading.Thread):
         for i in range(endFrame-startFrame+1):
             f = r.frame(startFrame+i)
             d = DNG.DNG()
-            self.setDngHeader(r,d,bits,f)
+            self.setDngHeader(r,d,bits,f,rgbl)
             ifd = d.FULL_IFD
             if ((startFrame+i+1)<r.frames()):
                 r.preloadFrame(startFrame+i+1)

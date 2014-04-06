@@ -157,6 +157,7 @@ class Tag:
     OpcodeList1 = (51008,Type.Undefined)
     OpcodeList2 = (51009,Type.Undefined)
     ReelName = (51081,Type.Ascii)
+    BaselineExposureOffset = (51109,Type.Srational) # 1.4 Spec says rational but mentions negative values?
     NewRawImageDigest = (51111,Type.Byte)
 
 IfdNames = [n for n in dir(Tag) if n!="__doc__" and n!="__module__"]

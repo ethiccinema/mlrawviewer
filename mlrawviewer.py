@@ -1412,7 +1412,9 @@ class Viewer(GLCompute.GLCompute):
             rhead = os.path.splitext(os.path.split(self.raw.filename)[1])[0]
             tempwavname = os.path.join(outfile, rhead + ".WAV")
             self.tempEncoderWav(tempwavname,self.marks[0][0],self.marks[1][0])
-        self.exporter.exportDng(self.raw.filename,outfile,self.marks[0][0],self.marks[1][0])
+        c = self.setting_rgb
+        rgbl = (c[0],c[1],c[2],self.setting_brightness)
+        self.exporter.exportDng(self.raw.filename,outfile,self.marks[0][0],self.marks[1][0],rgbl=rgbl)
         self.refresh()
 
     def askOutput(self):
@@ -1427,6 +1429,13 @@ class Viewer(GLCompute.GLCompute):
         root.destroy()
 
     def updateColourMatrix(self):
+        # First do the white balance
+        if self.raw.whiteBalance != None:
+            self.setting_rgb = self.raw.whiteBalance
+        else:
+            self.setting_rgb = (2.0, 1.0, 1.5)
+        self.setting_brightness = self.raw.brightness
+
         # This calculation should give results matching dcraw
         camToXYZ = self.raw.colorMatrix
         # D50
@@ -1502,6 +1511,8 @@ def main():
             sys.stderr.write("%s not a recognised RAW/MLV file or CinemaDNG directory.\n"%filename)
             return 1
     except Exception, err:
+        import traceback
+        traceback.print_exc()
         sys.stderr.write('Could not open file %s. Error:%s\n'%(filename,str(err)))
         return 1
 

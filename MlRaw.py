@@ -280,6 +280,8 @@ class MLRAW:
         self.black = self.info[7]
         self.white = self.info[8]
         self.colorMatrix = colorMatrix(self.info)
+        self.whiteBalance = None # Not available in RAW
+        self.brightness = 1.0
         #print "Black level:", self.black, "White level:", self.white
         self.framefiles = []
         for framefilename in allfiles:
@@ -401,6 +403,8 @@ class MLV:
         dirname,allfiles = getRawFileSeries(filename)
         mlvfile = file(filename,'rb')
         self.wav = None
+        self.whiteBalance = None # Not yet read from MLVs
+        self.brightness = 1.0 # Not meaningful in MLV
         self.framepos = {}
         self.audioframepos = {}
         self.metadata = [] # Store small info blocks so frames can reference them
@@ -860,6 +864,19 @@ class CDNG:
 
         self.black = fd.FULL_IFD.tags[DNG.Tag.BlackLevel[0]][3][0]
         self.white = fd.FULL_IFD.tags[DNG.Tag.WhiteLevel[0]][3][0]
+        self.colorMatrix = np.matrix(np.array([float(n)/float(d) for n,d in fd.FULL_IFD.tags[DNG.Tag.ColorMatrix1[0]][3]]).reshape(3,3))
+        baselineExposure = 0.0 # EV
+        if DNG.Tag.BaselineExposure[0] in fd.FULL_IFD.tags:
+            n,d = fd.FULL_IFD.tags[DNG.Tag.BaselineExposure[0]][3][0]
+            baselineExposure = float(n)/float(d)            
+        if DNG.Tag.BaselineExposureOffset[0] in fd.FULL_IFD.tags:
+            n,d = fd.FULL_IFD.tags[DNG.Tag.BaselineExposureOffset[0]][3][0]
+            baselineExposureOffset = float(n)/float(d)
+            baselineExposure += baselineExposureOffset
+        self.brightness = math.pow(2.0,baselineExposure)
+        print "brightness",self.brightness
+
+        #print "color matrix:",self.colorMatrix
         #self.colorMatrix = colorMatrix(self.info)
         print "Black level:", self.black, "White level:", self.white
 
@@ -871,6 +888,10 @@ class CDNG:
         if bps != 14 and bps != 16:
             print "Unsupported BitsPerSample = ",bps,"(should be 14 or 16)"
             raise IOError # Only support 14 or 16 bitsPerSample
+
+        self.whiteBalance = [float(d)/float(n) for n,d in fd.FULL_IFD.tags[DNG.Tag.AsShotNeutral[0]][3]] # Note: immediately take reciprocal
+        print "rgb",self.whiteBalance
+        #self.whiteBalance = 
 
         self.firstFrame = self._loadframe(0,convert=False)
 
@@ -957,7 +978,9 @@ class TIFFSEQ:
 
         self.black = 0
         self.white = 65535
-        #self.colorMatrix = colorMatrix(self.info)
+        self.colorMatrix = np.matrix(np.eye(3))
+        self.whiteBalance = None
+        self.brightness = 1.0
         print "Black level:", self.black, "White level:", self.white
 
         self._width = fd.ifds[0].width
