@@ -411,8 +411,8 @@ def recover_file(fn,target):
             # Does it look like a valid RAWM header?
             footer = struct.unpack("hhiiiiii",v[rawpos+4:rawpos+8*4])
             israwm = True
-            if footer[0]>4000: israwm = False  
-            if footer[1]>2000: israwm = False  
+            if footer[0]<400 or footer[0]>4000: israwm = False  
+            if footer[1]<200 or footer[1]>2000: israwm = False  
             if footer[3]>((footer[0]*footer[1]*10)/8+4096): israwm = False
             if rawpos == -1:
                 break
