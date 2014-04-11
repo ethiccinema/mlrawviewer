@@ -57,7 +57,8 @@ try:
 """
         raise
     def unpacks14np16(rawdata,width,height,byteSwap=0):
-        unpacked,stats = bitunpack.unpack14to16(rawdata,byteSwap)
+        tounpack = width*height*14/8
+        unpacked,stats = bitunpack.unpack14to16(rawdata[:tounpack],byteSwap)
         return np.frombuffer(unpacked,dtype=np.uint16),stats
     def demosaic14(rawdata,width,height,black,byteSwap=0):
         raw = bitunpack.demosaic14(rawdata,width,height,black,byteSwap)
@@ -170,7 +171,7 @@ class Frame:
             if self.bitsPerSample == 14:
                 self.rawimage,self.framestats = unpacks14np16(self.rawdata,self.width,self.height,self.byteSwap)
             elif self.bitsPerSample == 16:
-                self.rawimage,self.framestats = self.rawdata,(0,0)
+                self.rawimage,self.framestats = np.fromstring(self.rawdata,dtype=np.uint16),(0,0)
         else:
             rawimage = np.empty(self.width*self.height,dtype=np.uint16)
             rawimage.fill(self.black)
