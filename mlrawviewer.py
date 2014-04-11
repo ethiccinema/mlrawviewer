@@ -1456,7 +1456,8 @@ class Viewer(GLCompute.GLCompute):
         elif self.playFrame.rgbimage != None:
             f = self.playFrame.rgbimage
             bl = self.playFrame.black
-            f2 = f.reshape(self.raw.height(),self.raw.width(),3)
+            bufsize = self.raw.height()*self.raw.width()*3
+            f2 = f[:bufsize].reshape(self.raw.height(),self.raw.width(),3)
             bx = int(x)
             by = int(y)
             red = f2[by,bx,0]
