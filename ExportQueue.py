@@ -36,20 +36,23 @@ class ExportQueue(threading.Thread):
     """
     Process a queue of export jobs one at a time but as quickly as possible
     Could be any kind of export in future - DNG, LinearDNG (demosacing), ProRes encode...
-    For now, just DNG
     """
     JOB_DNG = 0
+    JOB_MOV = 1
     def __init__(self,**kwds):
         super(ExportQueue,self).__init__(**kwds)
         self.iq = Queue.Queue()
         self.oq = Queue.Queue()
+        self.bgiq = Queue.Queue()
+        self.bgoq = Queue.Queue()
         self.jobs = {}
         self.jobstatus = {}
         self.jobindex = 0
         self.endflag = False
         self.ended = False
         self.busy = False
-	self.daemon = True
+        self.daemon = True
+        self.needBgDraw = False
         self.start()
     def end(self):
         self.endflag = True
@@ -69,6 +72,8 @@ class ExportQueue(threading.Thread):
     # Queue Job calls
     def exportDng(self,rawfile,dngdir,startFrame=0,endFrame=None,bits=16,rgbl=None):
         return self.submitJob(self.JOB_DNG,rawfile,dngdir,startFrame,endFrame,bits,rgbl)
+    def exportMov(self,rawfile,movfile,startFrame=0,endFrame=None,rgbl=None):
+        return self.submitJob(self.JOB_MOV,rawfile,movfile,startFrame,endFrame,rgbl)
     def submitJob(self,*args):
         ix = self.jobindex
         self.jobindex += 1
@@ -91,6 +96,7 @@ class ExportQueue(threading.Thread):
                         print "Export job failed:"
                         import traceback
                         traceback.print_exc()
+                    self.needBgDraw = False
                     del self.jobs[jobindex]
                     del self.jobstatus[jobindex]
                     if self.iq.empty():
@@ -104,6 +110,8 @@ class ExportQueue(threading.Thread):
         jobArgs = job[2:]
         if jobType == self.JOB_DNG:
             self.doExportDng(job[0],jobArgs)
+        elif jobType == self.JOB_MOV:
+            self.doExportMov(job[0],jobArgs)
         else:
             pass
 
@@ -218,4 +226,41 @@ class ExportQueue(threading.Thread):
                 break
         print "DNG export to",target,"finished"
         r.close()
+
+    def doExportMov(self,jobindex,args):
+        self.needBgDraw = True
+        filename,movfile,startFrame,endFrame,rgbl = args
+        todo = endFrame-startFrame+1
+        target = movfile
+         
+        print "Dummy MOV export to",movfile
+        r = MlRaw.loadRAWorMLV(filename)
+        r.preloadFrame(startFrame)
+        r.preloadFrame(startFrame+1) # Preload one ahead
+        for i in range(endFrame-startFrame+1):
+            f = r.frame(startFrame+i)
+            if ((startFrame+i+1)<r.frames()):
+                r.preloadFrame(startFrame+i+1)
+            # Queue job
+            self.bgiq.put(f)
+            # Wait for it to be done
+            result = self.bgoq.get()
+            time.sleep(1)
+            self.jobstatus[jobindex] = float(i)/float(todo)
+            if self.endflag:
+                break
+        self.jobstatus[jobindex] = 1.0
+        print "Dummy MOV export to",movfile,"completed"
+        r.close()
+
+    def onBgDraw(self,w,h):
+        #print "onBgDraw",w,h
+        try:
+            nextJob = self.bgiq.get_nowait()
+            #print "bg job to do",nextJob
+            self.bgoq.put(nextJob)
+        except Queue.Empty:
+            pass
+            #print "no work to do yet"
+
 

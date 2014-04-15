@@ -465,7 +465,12 @@ class DisplayScene(ui.Scene):
         if self.frames.exporter.busy:
             jix = self.frames.exporter.jobs.keys()
             jix.sort()
-            self.encodeStatus.label("DNG export status: %d%% (In queue: %d)"%(100.0*self.frames.exporter.status(jix[0]),len(self.frames.exporter.jobs)))
+            jobtype = self.frames.exporter.jobs[jix[0]][1]
+            if jobtype == ExportQueue.ExportQueue.JOB_DNG:
+                jt = "DNG"
+            elif jobtype == ExportQueue.ExportQueue.JOB_MOV:
+                jt = "MOV"
+            self.encodeStatus.label(jt+" export status: %d%% (In queue: %d)"%(100.0*self.frames.exporter.status(jix[0]),len(self.frames.exporter.jobs)))
             self.encodeStatus.opacity = self.overlayOpacity
             self.encodeStatus.colour = (1.0,0.0,0.0,0.8)
         else:
@@ -971,6 +976,9 @@ class Viewer(GLCompute.GLCompute):
         self.refresh()
     def onIdle(self):
         PLOG(PLOG_FRAME,"onIdle start")
+        if self.exporter.needBgDraw != self.bgActive:
+            print "changing bg draw to",self.exporter.needBgDraw
+            self.setBgProcess(self.exporter.needBgDraw)
         #if self.exporter.busy:
         #    for index in self.exporter.jobs.keys():
         #        print "export",index,self.exporter.status(index)
@@ -1084,6 +1092,20 @@ class Viewer(GLCompute.GLCompute):
             elif self.setting_encodeType[0] == ENCODE_TYPE_MOV:   
                 self.movExport()
     def movExport(self):
+        backgroundEncoder = False
+        if backgroundEncoder:
+            outfile = self.checkoutfile(".MOV")
+            os.mkdir(outfile)
+            if self.wav:
+                rhead = os.path.splitext(os.path.split(self.raw.filename)[1])[0]
+                tempwavname = os.path.join(outfile, rhead + ".WAV")
+                self.tempEncoderWav(tempwavname,self.marks[0][0],self.marks[1][0])
+            c = self.setting_rgb
+            rgbl = (c[0],c[1],c[2],self.setting_brightness)
+            self.exporter.exportMov(self.raw.filename,outfile,self.marks[0][0],self.marks[1][0],rgbl=rgbl)
+            self.refresh()
+            return
+
         if not self.setting_encoding:
             # Start the encoding process
             now = time.time()
@@ -1139,7 +1161,7 @@ class Viewer(GLCompute.GLCompute):
                 self.encoderProcess = None
                 self.paused = True
                 self.refresh()
-
+        
     def handleIndexing(self):
         # Do anything we need to do when indexing has completed
         if self.indexing and self.raw.indexingStatus()==1.0:
@@ -1496,6 +1518,8 @@ class Viewer(GLCompute.GLCompute):
         rgb2cam[2,:]/=np.sum(rgb2cam[2])
         cam2rgb = rgb2cam.getI()
         self.setting_colourMatrix = cam2rgb.getT() # Must be transposed
+    def onBgDraw(self,w,h):
+        self.exporter.onBgDraw(w,h)
 
 def main():
     filename = None
