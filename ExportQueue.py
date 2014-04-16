@@ -21,7 +21,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
-import os,threading,Queue,time,math
+import sys,os,threading,Queue,time,math,subprocess
 
 import MlRaw,DNG
 
@@ -72,8 +72,8 @@ class ExportQueue(threading.Thread):
     # Queue Job calls
     def exportDng(self,rawfile,dngdir,startFrame=0,endFrame=None,bits=16,rgbl=None):
         return self.submitJob(self.JOB_DNG,rawfile,dngdir,startFrame,endFrame,bits,rgbl)
-    def exportMov(self,rawfile,movfile,startFrame=0,endFrame=None,rgbl=None):
-        return self.submitJob(self.JOB_MOV,rawfile,movfile,startFrame,endFrame,rgbl)
+    def exportMov(self,rawfile,movfile,tempwavfile,startFrame=0,endFrame=None,rgbl=None):
+        return self.submitJob(self.JOB_MOV,rawfile,movfile,tempwavfile,startFrame,endFrame,rgbl)
     def submitJob(self,*args):
         ix = self.jobindex
         self.jobindex += 1
@@ -96,7 +96,6 @@ class ExportQueue(threading.Thread):
                         print "Export job failed:"
                         import traceback
                         traceback.print_exc()
-                    self.needBgDraw = False
                     del self.jobs[jobindex]
                     del self.jobstatus[jobindex]
                     if self.iq.empty():
@@ -229,12 +228,60 @@ class ExportQueue(threading.Thread):
 
     def doExportMov(self,jobindex,args):
         self.needBgDraw = True
-        filename,movfile,startFrame,endFrame,rgbl = args
+        filename,movfile,tempwavfile,startFrame,endFrame,rgbl = args
+        try:
+            self.processExportMov(jobindex,filename,movfile,tempwavfile,startFrame,endFrame,rgbl)
+        except:
+            import traceback
+            traceback.print_exc()
+            pass
+        # Clean up 
+        self.needBgDraw = False
+        if tempwavfile!=None:
+            os.remove(tempwavfile)
+        if self.encoderProcess:
+            self.encoderProcess.stdin.close()
+            self.encoderProcess = None
+        self.encoderOutput = None
+        self.stdoutReader = None
+
+    def processExportMov(self,jobindex,filename,movfile,tempwavfile,startFrame,endFrame,rgbl):
         todo = endFrame-startFrame+1
         target = movfile
          
         print "Dummy MOV export to",movfile
         r = MlRaw.loadRAWorMLV(filename)
+
+        if subprocess.mswindows:
+            exe = "ffmpeg.exe"
+        else:
+            exe = "ffmpeg"
+        programpath = os.path.abspath(os.path.split(sys.argv[0])[0])
+        if getattr(sys,'frozen',False):
+            programpath = sys._MEIPASS
+        localexe = os.path.join(programpath,exe)
+        print localexe
+        if os.path.exists(localexe):
+            exe = localexe
+        kwargs = {"stdin":subprocess.PIPE,"stdout":subprocess.PIPE,"stderr":subprocess.STDOUT}
+        if subprocess.mswindows:
+            su = subprocess.STARTUPINFO()
+            su.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+            su.wShowWindow = subprocess.SW_HIDE
+            kwargs["startupinfo"] = su
+        if tempwavfile != None: # Includes Audio
+            args = [exe,"-f","rawvideo","-pix_fmt","rgb48","-s","%dx%d"%(r.width(),r.height()),"-r","%.03f"%r.fps,"-i","-","-i",tempwavfile,"-f","mov","-vf","vflip","-vcodec","prores_ks","-profile:v","3","-r","%.03f"%r.fps,"-acodec","copy",movfile]
+        else: # No audio
+            args = [exe,"-f","rawvideo","-pix_fmt","rgb48","-s","%dx%d"%(r.width(),r.height()),"-r","%.03f"%r.fps,"-i","-","-an","-f","mov","-vf","vflip","-vcodec","prores_ks","-profile:v","3","-r","%.03f"%r.fps,movfile]
+        print "Encoder args:",args
+        print "Subprocess args:",kwargs
+        self.encoderProcess = subprocess.Popen(args,**kwargs)
+        self.encoderProcess.poll()
+        self.stdoutReader = threading.Thread(target=self.stdoutReaderLoop)
+        self.stdoutReader.daemon = True
+        self.encoderOutput = []
+        self.stdoutReader.start()
+
         r.preloadFrame(startFrame)
         r.preloadFrame(startFrame+1) # Preload one ahead
         for i in range(endFrame-startFrame+1):
@@ -245,13 +292,26 @@ class ExportQueue(threading.Thread):
             self.bgiq.put(f)
             # Wait for it to be done
             result = self.bgoq.get()
-            time.sleep(1)
+            f.demosaic()    
+            self.encoderProcess.stdin.write(f.rgbimage.astype(np.uint16).tostring())
+
             self.jobstatus[jobindex] = float(i)/float(todo)
             if self.endflag:
                 break
         self.jobstatus[jobindex] = 1.0
         print "Dummy MOV export to",movfile,"completed"
         r.close()
+
+    def stdoutReaderLoop(self):
+        try:
+            buf = self.encoderProcess.stdout.readline().strip()
+            while len(buf)>0:
+                self.encoderOutput.append(buf)
+                print "Encoder:",buf
+                buf = self.encoderProcess.stdout.readline().strip()
+        except:
+            pass
+        print "ENCODER FINISHED!"
 
     def onBgDraw(self,w,h):
         #print "onBgDraw",w,h

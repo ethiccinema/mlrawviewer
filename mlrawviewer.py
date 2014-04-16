@@ -1095,14 +1095,13 @@ class Viewer(GLCompute.GLCompute):
         backgroundEncoder = False
         if backgroundEncoder:
             outfile = self.checkoutfile(".MOV")
-            os.mkdir(outfile)
+            tempwavname = None
             if self.wav:
-                rhead = os.path.splitext(os.path.split(self.raw.filename)[1])[0]
-                tempwavname = os.path.join(outfile, rhead + ".WAV")
+                tempwavname = outfile[:-4] + ".WAV"
                 self.tempEncoderWav(tempwavname,self.marks[0][0],self.marks[1][0])
             c = self.setting_rgb
             rgbl = (c[0],c[1],c[2],self.setting_brightness)
-            self.exporter.exportMov(self.raw.filename,outfile,self.marks[0][0],self.marks[1][0],rgbl=rgbl)
+            self.exporter.exportMov(self.raw.filename,outfile,tempwavname,self.marks[0][0],self.marks[1][0],rgbl=rgbl)
             self.refresh()
             return
 
