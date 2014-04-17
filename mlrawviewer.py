@@ -1588,9 +1588,6 @@ def main():
     PerformanceLog.PLOG_PRINT()
     return ret
 
-def launchFromGui(rawfile,outfilename=None): ##broken now
-    rmc = Viewer(rawfile,outfilename)
-    return rmc.run()
 
 if __name__ == '__main__':
     sys.exit(main())
