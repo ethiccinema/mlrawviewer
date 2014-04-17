@@ -1531,9 +1531,19 @@ def main():
         mlFT2 = ('*.MLV', '*.mlv')
         mlFT3 = ('*.DNG', '*.dng')
         mlFileTypes = [('ML', mlFT1 + mlFT2 + mlFT3), ('RAW', mlFT1), ('MLV', mlFT2), ('DNG', mlFT3), ('All', '*.*')]
-        afile = tkFileDialog.askopenfilename(title='Open ML video...', initialdir='~', filetypes=mlFileTypes)
+        if os.path.exists(os.path.join(os.path.expanduser('~'), '.mlrawviewer', 'directory')):
+            filepathopen = open(os.path.join(os.path.expanduser('~'), '.mlrawviewer', 'directory'), 'r')
+            directory = filepathopen.readline().rstrip('\n')
+            filepathopen.close()
+        else:
+            directory = '~'
+        afile = tkFileDialog.askopenfilename(title='Open ML video...', initialdir=directory, filetypes=mlFileTypes)
         if afile != None:
             filename = afile
+            if afile != '':
+                filepathsave = open(os.path.join(os.path.expanduser('~'), '.mlrawviewer', 'directory'), 'w')
+                filepathsave.write(os.path.dirname(filename))
+                filepathsave.close()
     root.destroy()
     if filename == None:
         filename = sys.argv[1]
