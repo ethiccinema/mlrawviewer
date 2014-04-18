@@ -814,6 +814,8 @@ class Viewer(GLCompute.GLCompute):
         self.refresh()
     def key(self,k,m):
         now = time.time()
+        if (now - self.lastEventTime)>5.0:
+            self.refresh()
         self.lastEventTime = now
         if k==self.KEY_SPACE:
             self.togglePlay()
@@ -896,6 +898,11 @@ class Viewer(GLCompute.GLCompute):
         elif k==self.KEY_W:
             self.askOutput()
 
+        elif k==self.KEY_Z:
+            self.exporter.cancelAllJobs()
+        elif k==self.KEY_X:
+            self.exporter.cancelCurrentJob()
+
         elif k==self.KEY_LEFT: # Left cursor
             self.jump(-self.fps) # Go back 1 second (will wrap)
         elif k==self.KEY_RIGHT: # Right cursor
@@ -916,6 +923,8 @@ class Viewer(GLCompute.GLCompute):
         now = time.time()
         if self.display != None:
             handled = self.display.input2d(x,y,buttons)
+        if (now - self.lastEventTime)>5.0:
+            self.refresh()
         self.lastEventTime = now
 
     def scaleBrightness(self,scale):
@@ -977,7 +986,7 @@ class Viewer(GLCompute.GLCompute):
     def onIdle(self):
         PLOG(PLOG_FRAME,"onIdle start")
         if self.exporter.needBgDraw != self.bgActive:
-            print "changing bg draw to",self.exporter.needBgDraw
+            #print "changing bg draw to",self.exporter.needBgDraw
             self.setBgProcess(self.exporter.needBgDraw)
         #if self.exporter.busy:
         #    for index in self.exporter.jobs.keys():
@@ -988,7 +997,10 @@ class Viewer(GLCompute.GLCompute):
             self.refresh() 
         if self.wasExporting and not self.exporter.busy:
             self.wasExporting = False
-        
+       
+        if self.userIdleTime()>5.0 and self.userIdleTime()<7.0:
+            self.refresh()
+ 
         self.handleIndexing()
         self.checkForLoadedFrames()
         wrongFrame = self.neededFrame != self.drawnFrameNumber
@@ -1092,7 +1104,7 @@ class Viewer(GLCompute.GLCompute):
             elif self.setting_encodeType[0] == ENCODE_TYPE_MOV:   
                 self.movExport()
     def movExport(self):
-        backgroundEncoder = False
+        backgroundEncoder = True
         if backgroundEncoder:
             outfile = self.checkoutfile(".MOV")
             tempwavname = None
@@ -1101,7 +1113,7 @@ class Viewer(GLCompute.GLCompute):
                 self.tempEncoderWav(tempwavname,self.marks[0][0],self.marks[1][0])
             c = self.setting_rgb
             rgbl = (c[0],c[1],c[2],self.setting_brightness)
-            self.exporter.exportMov(self.raw.filename,outfile,tempwavname,self.marks[0][0],self.marks[1][0],rgbl=rgbl)
+            self.exporter.exportMov(self.raw.filename,outfile,tempwavname,self.marks[0][0],self.marks[1][0],rgbl=rgbl,tm=self.setting_tonemap,matrix=self.setting_colourMatrix)
             self.refresh()
             return
 

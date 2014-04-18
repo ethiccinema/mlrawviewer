@@ -125,3 +125,7 @@ U/P - Jump to the previous/next marks
 R - Reset the marks to start/end of the file
 
 L - Toggle looping or play-once mode
+
+X - Cancel current export job (and start next one in queue)
+
+Z - Cancel all export jobs

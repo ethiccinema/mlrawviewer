@@ -211,7 +211,9 @@ bitunpack_demosaic16(PyObject* self, PyObject *args)
         bluerows[rr] = blue + rr*width;
     }
 
+    Py_BEGIN_ALLOW_THREADS;
     demosaic(rrows,redrows,greenrows,bluerows,0,0,width,height);
+    Py_END_ALLOW_THREADS;
 
     // Now interleave into final RGB float array
     float* outptr = (float*)PyByteArray_AS_STRING(ba);

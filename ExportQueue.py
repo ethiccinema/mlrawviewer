@@ -23,7 +23,23 @@ SOFTWARE.
 
 import sys,os,threading,Queue,time,math,subprocess
 
+try:
+    import OpenGL
+    #OpenGL.ERROR_CHECKING = False # Only for one erroneously-failing Framebuffer2DEXT call on Windows with Intel...grrr
+    from OpenGL.GL import *
+    from OpenGL.GL.framebufferobjects import *
+except Exception,err:
+    print """There is a problem with your python environment.
+I Could not import the pyOpenGL module.
+On Debian/Ubuntu try "sudo apt-get install python-opengl"
+"""
+    sys.exit(1)
+
 import MlRaw,DNG
+
+import GLCompute
+import GLComputeUI as ui
+from ShaderDemosaicCPU import *
 
 import numpy as np
 
@@ -45,15 +61,26 @@ class ExportQueue(threading.Thread):
         self.oq = Queue.Queue()
         self.bgiq = Queue.Queue()
         self.bgoq = Queue.Queue()
+        self.wq = Queue.Queue()
         self.jobs = {}
         self.jobstatus = {}
         self.jobindex = 0
+        self.cancelCurrent = False
+        self.cancelAll = False
         self.endflag = False
         self.ended = False
         self.busy = False
         self.daemon = True
         self.needBgDraw = False
+        self.shaderQuality = None
+        self.rgbUploadTex = None
+        self.rgbImage = None
+        self.svbo = None
         self.start()
+    def cancelCurrentJob(self):
+        self.cancelCurrent = True
+    def cancelAllJobs(self):
+        self.cancelAll = True
     def end(self):
         self.endflag = True
         self.iq.put(None)
@@ -72,8 +99,8 @@ class ExportQueue(threading.Thread):
     # Queue Job calls
     def exportDng(self,rawfile,dngdir,startFrame=0,endFrame=None,bits=16,rgbl=None):
         return self.submitJob(self.JOB_DNG,rawfile,dngdir,startFrame,endFrame,bits,rgbl)
-    def exportMov(self,rawfile,movfile,tempwavfile,startFrame=0,endFrame=None,rgbl=None):
-        return self.submitJob(self.JOB_MOV,rawfile,movfile,tempwavfile,startFrame,endFrame,rgbl)
+    def exportMov(self,rawfile,movfile,tempwavfile,startFrame=0,endFrame=None,rgbl=None,tm=None,matrix=None):
+        return self.submitJob(self.JOB_MOV,rawfile,movfile,tempwavfile,startFrame,endFrame,rgbl,tm,matrix)
     def submitJob(self,*args):
         ix = self.jobindex
         self.jobindex += 1
@@ -87,6 +114,11 @@ class ExportQueue(threading.Thread):
             while 1: # Wait for the next job in the Queue
                 if self.endflag:
                     break
+                if self.cancelAll:
+                    while not self.iq.empty():
+                        self.iq.get()
+                    self.cancelAll = False
+                    self.busy = False
                 jobindex = self.iq.get()
                 if jobindex != None:
                     self.busy = True
@@ -113,6 +145,7 @@ class ExportQueue(threading.Thread):
             self.doExportMov(job[0],jobArgs)
         else:
             pass
+        self.cancelCurrent = False
 
     def setDngHeader(self,r,d,bits,frame,rgbl):
         d.stripTotal = 3000000
@@ -221,16 +254,16 @@ class ExportQueue(threading.Thread):
                 ifd._strips = [np.frombuffer(f.rawimage,dtype=np.uint16).tostring()]
             d.writeFile(target+"_%06d.dng"%i)
             self.jobstatus[jobindex] = float(i)/float(todo)
-            if self.endflag:
+            if self.endflag or self.cancelCurrent or self.cancelAll:
                 break
         print "DNG export to",target,"finished"
         r.close()
 
     def doExportMov(self,jobindex,args):
         self.needBgDraw = True
-        filename,movfile,tempwavfile,startFrame,endFrame,rgbl = args
+        filename,movfile,tempwavfile,startFrame,endFrame,rgbl,tm,matrix = args
         try:
-            self.processExportMov(jobindex,filename,movfile,tempwavfile,startFrame,endFrame,rgbl)
+            self.processExportMov(jobindex,filename,movfile,tempwavfile,startFrame,endFrame,rgbl,tm,matrix)
         except:
             import traceback
             traceback.print_exc()
@@ -245,7 +278,7 @@ class ExportQueue(threading.Thread):
         self.encoderOutput = None
         self.stdoutReader = None
 
-    def processExportMov(self,jobindex,filename,movfile,tempwavfile,startFrame,endFrame,rgbl):
+    def processExportMov(self,jobindex,filename,movfile,tempwavfile,startFrame,endFrame,rgbl,tm,matrix):
         todo = endFrame-startFrame+1
         target = movfile
          
@@ -263,16 +296,16 @@ class ExportQueue(threading.Thread):
         print localexe
         if os.path.exists(localexe):
             exe = localexe
-        kwargs = {"stdin":subprocess.PIPE,"stdout":subprocess.PIPE,"stderr":subprocess.STDOUT}
+        kwargs = {"stdin":subprocess.PIPE,"stdout":subprocess.PIPE,"stderr":subprocess.STDOUT,"bufsize":-1}
         if subprocess.mswindows:
             su = subprocess.STARTUPINFO()
             su.dwFlags |= subprocess.STARTF_USESHOWWINDOW
             su.wShowWindow = subprocess.SW_HIDE
             kwargs["startupinfo"] = su
         if tempwavfile != None: # Includes Audio
-            args = [exe,"-f","rawvideo","-pix_fmt","rgb48","-s","%dx%d"%(r.width(),r.height()),"-r","%.03f"%r.fps,"-i","-","-i",tempwavfile,"-f","mov","-vf","vflip","-vcodec","prores_ks","-profile:v","3","-r","%.03f"%r.fps,"-acodec","copy",movfile]
+            args = [exe,"-f","rawvideo","-pix_fmt","rgb48","-s","%dx%d"%(r.width(),r.height()),"-r","%.03f"%r.fps,"-i","-","-i",tempwavfile,"-f","mov","-vf","vflip","-vcodec","prores_ks","-profile:v","4","-alpha_bits","0","-vendor","ap4h","-q:v","4","-r","%.03f"%r.fps,"-acodec","copy",movfile]
         else: # No audio
-            args = [exe,"-f","rawvideo","-pix_fmt","rgb48","-s","%dx%d"%(r.width(),r.height()),"-r","%.03f"%r.fps,"-i","-","-an","-f","mov","-vf","vflip","-vcodec","prores_ks","-profile:v","3","-r","%.03f"%r.fps,movfile]
+            args = [exe,"-f","rawvideo","-pix_fmt","rgb48","-s","%dx%d"%(r.width(),r.height()),"-r","%.03f"%r.fps,"-i","-","-an","-f","mov","-vf","vflip","-vcodec","prores_ks","-profile:v","4","-alpha_bits","0","-vendor","ap4h","-q:v","4","-r","%.03f"%r.fps,movfile]
         print "Encoder args:",args
         print "Subprocess args:",kwargs
         self.encoderProcess = subprocess.Popen(args,**kwargs)
@@ -281,6 +314,9 @@ class ExportQueue(threading.Thread):
         self.stdoutReader.daemon = True
         self.encoderOutput = []
         self.stdoutReader.start()
+        self.writer = threading.Thread(target=self.stdoutWriter)
+        self.writer.daemon = True
+        self.writer.start()
 
         r.preloadFrame(startFrame)
         r.preloadFrame(startFrame+1) # Preload one ahead
@@ -289,36 +325,105 @@ class ExportQueue(threading.Thread):
             if ((startFrame+i+1)<r.frames()):
                 r.preloadFrame(startFrame+i+1)
             # Queue job
-            self.bgiq.put(f)
-            # Wait for it to be done
-            result = self.bgoq.get()
             f.demosaic()    
-            self.encoderProcess.stdin.write(f.rgbimage.astype(np.uint16).tostring())
+            self.bgiq.put((f,r.width(),r.height(),rgbl,tm,matrix))
+
+            # We need to make sure we don't buffer too many frames. Check what frame the encoder is at
+            latest = ""
+            if len(self.encoderOutput)>0:
+                latest = self.encoderOutput[-1].split()
+            frame = None
+            if len(latest)>1:
+                if latest[0].startswith("frame="):
+                    try:
+                        frame = int(latest[1])
+                    except ValueError:
+                        frame = None
+            
+            if frame != None:
+                if frame < (i-10):
+                    time.sleep(0.5) # Give encoder some time to empty buffers
 
             self.jobstatus[jobindex] = float(i)/float(todo)
-            if self.endflag:
+            if self.endflag or self.cancelCurrent or self.cancelAll:
                 break
+        self.bgiq.put(None)
+        self.bgiq.join()
+        self.wq.join() # Wait for the writing task to finish
         self.jobstatus[jobindex] = 1.0
         print "Dummy MOV export to",movfile,"completed"
         r.close()
 
     def stdoutReaderLoop(self):
+        chars = []
+        buf = ""
         try:
-            buf = self.encoderProcess.stdout.readline().strip()
-            while len(buf)>0:
-                self.encoderOutput.append(buf)
-                print "Encoder:",buf
-                buf = self.encoderProcess.stdout.readline().strip()
+            while 1:
+                c = self.encoderProcess.stdout.read(1)
+                if len(c)==0:
+                    break
+                if c[0]=='\n' or c[0]=='\r':
+                    buf = ''.join(chars)
+                    chars = []
+                else:
+                    chars.append(c)
+                if len(buf)>0:
+                    self.encoderOutput.append(buf)
+                    print "Encoder:",buf
+                    buf = ""
         except:
             pass
         print "ENCODER FINISHED!"
+
+    def stdoutWriter(self):
+        nextbuf = self.wq.get()
+        while nextbuf != None:
+            self.encoderProcess.stdin.write(nextbuf)
+            self.wq.task_done()
+            time.sleep(0.016) # Yield
+            nextbuf = self.wq.get()
+        self.wq.task_done()
+        print "WRITER FINISHED!"
+
+    def cpuDemosaicPostProcess(self,args):
+        frame,w,h,rgbl,tm,matrix = args
+        if self.svbo == None:
+            self.svbo = ui.SharedVbo()
+        if self.shaderQuality == None:
+            self.shaderQuality = ShaderDemosaicCPU()
+        if self.rgbUploadTex:
+            if self.rgbUploadTex.width != w or self.rgbUploadTex.height != h:
+                self.rgbUploadTex.free()
+                self.rgbImage.free()
+                self.rgbUploadTex = None
+                self.rgbImage = None
+
+        if self.rgbUploadTex == None:
+            self.rgbUploadTex = GLCompute.Texture((w,h),None,hasalpha=False,mono=False,sixteen=True)
+            try: self.rgbImage = GLCompute.Texture((w,h),None,hasalpha=False,mono=False,fp=True)
+            except GLError: self.rgbImage = GLCompute.Texture((w,h),None,hasalpha=False,sixteen=True)
+
+        self.rgbUploadTex.update(frame.rgbimage)
+        self.rgbImage.bindfbo()
+        self.svbo.bind()
+        self.shaderQuality.prepare(self.svbo)
+        self.svbo.upload()
+        self.shaderQuality.demosaicPass(self.rgbUploadTex,frame.black,balance=rgbl[0:3],white=frame.white,tonemap=tm,colourMatrix=matrix)
+        rgb = glReadPixels(0,0,w,h,GL_RGB,GL_UNSIGNED_SHORT)
+        return rgb
 
     def onBgDraw(self,w,h):
         #print "onBgDraw",w,h
         try:
             nextJob = self.bgiq.get_nowait()
             #print "bg job to do",nextJob
-            self.bgoq.put(nextJob)
+            if nextJob == None:
+                self.wq.put(None)
+                self.wq.join()
+            else:
+                result = self.cpuDemosaicPostProcess(nextJob)
+                self.wq.put(result)
+            self.bgiq.task_done()
         except Queue.Empty:
             pass
             #print "no work to do yet"

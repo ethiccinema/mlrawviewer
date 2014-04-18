@@ -185,12 +185,20 @@ class GLCompute(object):
             glfw.glfwHideWindow(self.glfwWindow)
             glfw.glfwSwapInterval(1)
             self._isFull = True
+            if self.cursorVisible:
+                glfw.glfwSetInputMode(self.glfwFullscreenWindow,glfw.GLFW_CURSOR,glfw.GLFW_CURSOR_NORMAL)
+            else:
+                glfw.glfwSetInputMode(self.glfwFullscreenWindow,glfw.GLFW_CURSOR,glfw.GLFW_CURSOR_HIDDEN)
             self.redisplay()
         else:
             glfw.glfwDestroyWindow(self.glfwFullscreenWindow)
             glfw.glfwShowWindow(self.glfwWindow)
             glfw.glfwSwapInterval(1)
             self._isFull = False
+            if self.cursorVisible:
+                glfw.glfwSetInputMode(self.glfwWindow,glfw.GLFW_CURSOR,glfw.GLFW_CURSOR_NORMAL)
+            else:
+                glfw.glfwSetInputMode(self.glfwWindow,glfw.GLFW_CURSOR,glfw.GLFW_CURSOR_HIDDEN)
             self.redisplay()
         self.setCursorVisible(True)
     def bgdrawthread(self):
@@ -305,7 +313,10 @@ class GLCompute(object):
             mx,my = glfw.glfwGetWindowPos(self.glfwWindow)
             glfw.glfwSetWindowPos(self.backgroundWindow,mx+128,mx+128)
             glfw.glfwShowWindow(self.backgroundWindow)
-            glfw.glfwShowWindow(self.glfwWindow)
+            if self._isFull:
+                glfw.glfwShowWindow(self.glfwFullscreenWindow)
+            else:
+                glfw.glfwShowWindow(self.glfwWindow)
     def __idle(self):
         self.__bgprocess()
         self.onIdle()
