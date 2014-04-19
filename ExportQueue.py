@@ -305,7 +305,10 @@ class ExportQueue(threading.Thread):
         if tempwavfile != None: # Includes Audio
             args = [exe,"-f","rawvideo","-pix_fmt","rgb48","-s","%dx%d"%(r.width(),r.height()),"-r","%.03f"%r.fps,"-i","-","-i",tempwavfile,"-f","mov","-vf","vflip","-vcodec","prores_ks","-profile:v","4","-alpha_bits","0","-vendor","ap4h","-q:v","4","-r","%.03f"%r.fps,"-acodec","copy",movfile]
         else: # No audio
+            # ProRes 4444 with fixed qscale. Can be much smaller and faster to encode
             args = [exe,"-f","rawvideo","-pix_fmt","rgb48","-s","%dx%d"%(r.width(),r.height()),"-r","%.03f"%r.fps,"-i","-","-an","-f","mov","-vf","vflip","-vcodec","prores_ks","-profile:v","4","-alpha_bits","0","-vendor","ap4h","-q:v","4","-r","%.03f"%r.fps,movfile]
+            # ProRes 4444 with fixed bitrate. Can be bigger and slower
+            #args = [exe,"-f","rawvideo","-pix_fmt","rgb48","-s","%dx%d"%(r.width(),r.height()),"-r","%.03f"%r.fps,"-i","-","-an","-f","mov","-vf","vflip","-vcodec","prores_ks","-profile:v","4","-alpha_bits","0","-vendor","ap4h","-r","%.03f"%r.fps,movfile]
         print "Encoder args:",args
         print "Subprocess args:",kwargs
         self.encoderProcess = subprocess.Popen(args,**kwargs)

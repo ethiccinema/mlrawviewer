@@ -22,14 +22,12 @@ SOFTWARE.
 """
 
 # standard python imports
-import sys,struct,os,math,time,threading,Queue,traceback,wave
+import sys,struct,os,math,time,threading,Queue,traceback,wave,multiprocessing,mutex
 
 # MlRawViewer imports
 import DNG
 from PerformanceLog import PLOG
 PLOG_CPU = 0
-
-haveDemosaic = False
 
 # numpy. Could be missing
 try:
@@ -48,7 +46,7 @@ try:
     numpy in case it hasn't been compiled
     """
     import bitunpack
-    if ("__version__" not in dir(bitunpack)) or bitunpack.__version__!="1.6":
+    if ("__version__" not in dir(bitunpack)) or bitunpack.__version__!="2.0":
         print """
 
 !!! Wrong version of bitunpack found !!!
@@ -56,52 +54,120 @@ try:
 
 """
         raise
-    def unpacks14np16(rawdata,width,height,byteSwap=0):
-        tounpack = width*height*14/8
-        unpacked,stats = bitunpack.unpack14to16(rawdata[:tounpack],byteSwap)
-        return np.frombuffer(unpacked,dtype=np.uint16),stats
-    def demosaic14(rawdata,width,height,black,byteSwap=0):
-        raw = bitunpack.demosaic14(rawdata,width,height,black,byteSwap)
-        return np.frombuffer(raw,dtype=np.float32)
-    def demosaic16(rawdata,width,height,black,byteSwap=0):
-        raw = bitunpack.demosaic16(rawdata,width,height,black,byteSwap)
-        return np.frombuffer(raw,dtype=np.float32)
-    haveDemosaic = True
 except:
-    print """Falling back to Numpy for bit unpacking operations.
-Consider compiling bitunpack module for faster conversion and export."""
-    def unpacks14np16(rawdata,width,height,byteSwap=0):
-        pixels = width*height
-        packed = pixels/8.0*7.0
-        rawzero = np.fromstring(rawdata,dtype=np.uint16)
-        if byteSwap:
-            rawzero = rawzero.byteswap()
-        packing = rawzero[:packed].reshape((packed/7.0,7))
-        unpacked = np.zeros((pixels/8,8),dtype=np.uint16)
-        packing0 = packing[:,0]
-        packing1 = packing[:,1]
-        packing2 = packing[:,2]
-        packing3 = packing[:,3]
-        packing4 = packing[:,4]
-        packing5 = packing[:,5]
-        packing6 = packing[:,6]
-        unpacked[:,0] = packing0>>2
-        unpacked[:,1] = (packing1>>4)|((packing0&0x3)<<12)
-        unpacked[:,2] = packing2>>6|(np.bitwise_and(packing1,0xF)<<10)
-        unpacked[:,3] = packing3>>8|(np.bitwise_and(packing2,0x3F)<<8)
-        unpacked[:,4] = packing4>>10|(np.bitwise_and(packing3,0xFF)<<6)
-        unpacked[:,5] = packing5>>12|(np.bitwise_and(packing4,0x3FF)<<4)
-        unpacked[:,6] = packing6>>14|(np.bitwise_and(packing5,0xFFF)<<2)
-        unpacked[:,7] = packing6&0x3FFF
-        stats = (np.min(unpacked),np.max(unpacked))
-        return unpacked,stats
-    def demosaic14(rawdata,width,height,black,byteSwap=0):
-        # No numpy implementation
-        return np.zeros(shape=(width*height,),dtype=np.float32)
-    def demosaic16(rawdata,width,height,black,byteSwap=0):
-        # No numpy implementation
-        return np.zeros(shape=(width*height,),dtype=np.float32)
+    print """
 
+!!! Please build bitunpack module !!!
+
+"""
+    raise
+
+class SerialiseCPUDemosaic(object):
+    class DemosaicWorker(threading.Thread):
+        def __init__(self,jobq):
+            threading.Thread.__init__(self)
+            self.daemon = True
+            self.jobq = jobq
+            self.start()
+        def run(self):
+            while True:
+                job = self.jobq.get()
+                bitunpack.demosaic(*job)
+                self.jobq.task_done()
+
+    def __init__(self):
+        self.mutex = mutex.mutex()
+        self.serq = Queue.Queue(1) # Using as Mutex
+        self.jobq = Queue.Queue()
+        pool = [self.DemosaicWorker(self.jobq) for i in range(multiprocessing.cpu_count())]
+        self.demosaicer = None
+        self.dw = 0
+        self.dh = 0
+    def getdemosaicer(self,width,height):
+        if self.serq.empty(): 
+            raise # Cannot call this if you don't hold the mutex
+        if self.demosaicer != None:
+            if width==self.dw and height==self.dh:
+                return self.demosaicer
+            else:
+                del self.demosaicer # Wrong size
+                self.demosaicer = None
+        self.demosaicer = bitunpack.demosaicer(width,height)
+        self.dw = width
+        self.dh = height
+        return self.demosaicer
+
+    def doDemosaic(self,demosaicer,width,height):
+        # Submit 16 jobs to be spread amongst available threads
+        bw = (width/4)
+        bw = bw + (bw%2) # Round up
+        bh = height/4
+        bh = bh + (bh%2) # Round up
+        for y in range(4):
+            for x in range(4):
+                aw = bw
+                ah = bh
+                re = (x+1)*bw
+                if re>=width:
+                    aw -= (re-width)
+                be = (y+1)*bh
+                if be>=height:
+                    ah -= (be-height)
+                #print x*bw,y*bh,x*bw+aw,y*bh+ah,width,height,aw,ah,re,be
+                self.jobq.put((demosaicer,x*bw,y*bh,aw,ah))
+        self.jobq.join() 
+
+    def demosaic14(self,rawdata,width,height,black,byteSwap=0):
+        self.serq.put(True) # Let us run
+        demosaicer = self.getdemosaicer(width,height)
+        bitunpack.predemosaic14(demosaicer,rawdata,width,height,black,byteSwap)
+        self.doDemosaic(demosaicer,width,height)
+        result = bitunpack.postdemosaic(demosaicer)
+        self.serq.get() # Let someone else work
+        return np.frombuffer(result,dtype=np.float32)
+
+    def demosaic16(self,rawdata,width,height,black,byteSwap=0):
+        self.serq.put(True) # Let us run
+        demosaicer = self.getdemosaicer(width,height)
+        bitunpack.predemosaic16(demosaicer,rawdata,width,height,black,byteSwap)
+        self.doDemosaic(demosaicer,width,height)
+        result = bitunpack.postdemosaic(demosaicer)
+        self.serq.get() # Let someone else work
+        return np.frombuffer(result,dtype=np.float32)
+
+DemosaicThread = SerialiseCPUDemosaic()
+
+def testdemosaicer():
+    d = bitunpack.demosaicer(128,128)
+    del d
+    d1 = bitunpack.demosaicer(3000,2000)
+    d2 = bitunpack.demosaicer(1024,1024)
+    del d2
+    del d1
+    d3 = bitunpack.demosaicer(1024,768)
+    buf = (np.arange(1024*768,dtype=np.uint32)%256).astype(np.uint8)
+    len14 = 1024*768*14/8
+    len16 = 1024*768*2
+    bitunpack.predemosaic14(d3,buf[:len14],1024,768,2000,0)
+    bitunpack.predemosaic16(d3,buf[:len16],1024,768,2000,0)
+    dembuf = DemosaicThread.demosaic14(buf[:len14],1024,768,2000,0)
+    print buf,dembuf.shape,dembuf.reshape((1024,768,3))[:,300]
+
+#testdemosaicer()
+#print "test demosaicer done"
+
+def unpacks14np16(rawdata,width,height,byteSwap=0):
+    tounpack = width*height*14/8
+    unpacked,stats = bitunpack.unpack14to16(rawdata[:tounpack],byteSwap)
+    return np.frombuffer(unpacked,dtype=np.uint16),stats
+
+def demosaic14(rawdata,width,height,black,byteSwap=0):
+    raw = DemosaicThread.demosaic14(rawdata,width,height,black,byteSwap)
+    return np.frombuffer(raw,dtype=np.float32)
+
+def demosaic16(rawdata,width,height,black,byteSwap=0):
+    raw = DemosaicThread.demosaic16(rawdata,width,height,black,byteSwap)
+    return np.frombuffer(raw,dtype=np.float32)
 
 class FrameConverter(threading.Thread):
     def __init__(self):
@@ -125,7 +191,6 @@ FrameConverterThread = FrameConverter()
 
 class Frame:
     def __init__(self,rawfile,rawdata,width,height,black,white,byteSwap=0,bitsPerSample=14,bayer=True,rgb=False,convert=True,rtc=None,lens=None,expo=None,wbal=None):
-        global haveDemosaic
         #print "opening frame",len(rawdata),width,height
         #print width*height
         self.rawfile = rawfile
@@ -134,7 +199,7 @@ class Frame:
         self.rawdata = rawdata
         self.width = width
         self.height = height
-        self.canDemosaic = haveDemosaic
+        self.canDemosaic = True
         self.rawimage = None
         self.byteSwap = byteSwap
         self.bitsPerSample = bitsPerSample
@@ -149,9 +214,9 @@ class Frame:
             self.rgbimage = rawdata
         else:
             self.rgbimage = None
-            if convert:
-                self.convertQueued = True
-                FrameConverterThread.process(self)
+        if convert:
+            self.convertQueued = True
+            FrameConverterThread.process(self)
                 
     def convert(self):
         if not self.convertQueued:
