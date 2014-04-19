@@ -270,11 +270,12 @@ class ExportQueue(threading.Thread):
             pass
         # Clean up 
         self.needBgDraw = False
-        if tempwavfile!=None:
-            os.remove(tempwavfile)
         if self.encoderProcess:
             self.encoderProcess.stdin.close()
+	    self.encoderProcess.wait()
             self.encoderProcess = None
+        if tempwavfile!=None:
+            os.remove(tempwavfile)
         self.encoderOutput = None
         self.stdoutReader = None
 

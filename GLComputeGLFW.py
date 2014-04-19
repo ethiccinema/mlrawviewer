@@ -138,7 +138,8 @@ class GLCompute(object):
         glfw.glfwWindowHint(glfw.GLFW_DECORATED,True)
         glfw.glfwWindowHint(glfw.GLFW_RESIZABLE,True)
         glfw.glfwWindowHint(glfw.GLFW_VISIBLE,True)
-        self.glfwWindow = glfw.glfwCreateWindow(width,height,self.windowName(),None,None)
+	uname = self.windowName().decode().encode("utf-8")
+        self.glfwWindow = glfw.glfwCreateWindow(width,height,uname,None,None)
         glfw.glfwSwapInterval(1)
         self.installCallbacks(self.glfwWindow)
         glfw.glfwMakeContextCurrent(self.glfwWindow)
@@ -153,10 +154,11 @@ class GLCompute(object):
         self.cursorVisible = None
         super(GLCompute,self).__init__(**kwds)
     def updateWindowName(self):
+	uname = self.windowName().decode().encode("utf-8")
         if not self._isFull:
-            glfw.glfwSetWindowTitle(self.glfwWindow,self.windowName())
+            glfw.glfwSetWindowTitle(self.glfwWindow,uname)
         else:
-            glfw.glfwSetWindowTitle(self.glfwFullscreenWindow,self.windowName())
+            glfw.glfwSetWindowTitle(self.glfwFullscreenWindow,uname)
     def installCallbacks(self,w):
         glfw.glfwSetWindowRefreshCallback(w,self.redisplay)
         glfw.glfwSetKeyCallback(w, self.__key)
@@ -180,7 +182,8 @@ class GLCompute(object):
             glfw.glfwWindowHint(glfw.GLFW_GREEN_BITS, 8)
             glfw.glfwWindowHint(glfw.GLFW_BLUE_BITS, 8)
             glfw.glfwWindowHint(glfw.GLFW_ALPHA_BITS, 8)
-            self.glfwFullscreenWindow = glfw.glfwCreateWindow(mode[0],mode[1],self.windowName(),m,self.glfwWindow)
+	    uname = self.windowName().decode().encode("utf-8")
+            self.glfwFullscreenWindow = glfw.glfwCreateWindow(mode[0],mode[1],uname,m,self.glfwWindow)
             self.installCallbacks(self.glfwFullscreenWindow)
             glfw.glfwHideWindow(self.glfwWindow)
             glfw.glfwSwapInterval(1)
