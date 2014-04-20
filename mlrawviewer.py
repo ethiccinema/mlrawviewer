@@ -868,6 +868,11 @@ class Viewer(GLCompute.GLCompute):
         elif k==self.KEY_L:
             self.toggleLooping()
 
+        elif k==self.KEY_G:
+            self.loadBalance()
+        elif k==self.KEY_H:
+            self.saveBalance()
+
         # Mark management
         elif k==self.KEY_R:
             self.markReset()
@@ -1464,6 +1469,11 @@ class Viewer(GLCompute.GLCompute):
         """
         Temporary way to set output target
         """
+        askThread = threading.Thread(target=self.askOutputFunction)
+        askThread.daemon = True
+        askThread.start()
+
+    def askOutputFunction(self):
         root = tk.Tk()
         root.iconify()
         adir = tkFileDialog.askdirectory(title='Choose DNG or ProRes output directory...', initialdir=self.outfilename)
@@ -1532,6 +1542,22 @@ class Viewer(GLCompute.GLCompute):
     def onBgDraw(self,w,h):
         self.exporter.onBgDraw(w,h)
 
+    def saveBalance(self):
+        """
+        Save current colour balance and brightness
+        globally for matching takes
+        """
+        config.setState("balance",(self.setting_rgb,self.setting_brightness))
+
+    def loadBalance(self):
+        """
+        Load saved colour balance and brightness
+        """
+        rgbl = config.getState("balance")
+        if rgbl != None:
+            self.setting_rgb,self.setting_brightness = rgbl
+            self.refresh()
+
 def main():
     filename = None
     root = tk.Tk() # Must always do otherwise can't open tk windows later on Mac
@@ -1543,19 +1569,14 @@ def main():
         mlFT2 = ('*.MLV', '*.mlv')
         mlFT3 = ('*.DNG', '*.dng')
         mlFileTypes = [('ML', mlFT1 + mlFT2 + mlFT3), ('RAW', mlFT1), ('MLV', mlFT2), ('DNG', mlFT3), ('All', '*.*')]
-        if os.path.exists(os.path.join(os.path.expanduser('~'), '.mlrawviewer', 'directory')):
-            filepathopen = open(os.path.join(os.path.expanduser('~'), '.mlrawviewer', 'directory'), 'r')
-            directory = filepathopen.readline().rstrip('\n')
-            filepathopen.close()
-        else:
+        directory = config.getState("directory")
+        if directory == None: 
             directory = '~'
         afile = tkFileDialog.askopenfilename(title='Open ML video...', initialdir=directory, filetypes=mlFileTypes)
         if afile != None:
             filename = afile
             if afile != '':
-                filepathsave = open(os.path.join(os.path.expanduser('~'), '.mlrawviewer', 'directory'), 'w')
-                filepathsave.write(os.path.dirname(filename))
-                filepathsave.close()
+                config.setState("directory",os.path.dirname(filename))
     root.destroy()
     if filename == None:
         filename = sys.argv[1]

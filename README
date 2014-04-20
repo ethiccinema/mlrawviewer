@@ -129,3 +129,5 @@ L - Toggle looping or play-once mode
 X - Cancel current export job (and start next one in queue)
 
 Z - Cancel all export jobs
+
+H/G - Save/load current colour balance & brightness (for matching multiple takes)
