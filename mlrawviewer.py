@@ -277,16 +277,18 @@ class DisplayScene(ui.Scene):
         self.brightnessHandle = self.newIcon(0,0,8,8,2,None)
         self.brightnessHandle.colour = (0.5,0.5,0.5,0.5)
         self.brightnessHandle.ignoreInput = True
+        self.metadata = ui.Text("",svbo=self.frames.svbo)
+        self.metadata.setScale(0.25)
         self.timestamp = ui.Geometry(svbo=frames.svbo)
         self.iconItems = [self.fullscreen,self.mapping,self.drop,self.quality,self.loop,self.outformat,self.encode,self.play]
-        self.overlay = [self.iconBackground,self.progressBackground,self.progress,self.timestamp,self.encodeStatus,self.update,self.balance,self.balanceHandle,self.brightness,self.brightnessHandle,self.mark]
+        self.overlay = [self.iconBackground,self.progressBackground,self.progress,self.timestamp,self.encodeStatus,self.update,self.balance,self.balanceHandle,self.brightness,self.brightnessHandle,self.mark,self.metadata]
         self.overlay.extend(self.iconItems)
         self.overlay.append(self.whitePicker) # So it is on the bottom
         self.drawables.extend([self.display])
         self.drawables.extend(self.overlay)
         self.timeline = ui.Timeline()
         self.fadeAnimation = ui.Animation(self.timeline,1.0)
-
+            
     def setRgbImage(self,rgbImage):
         self.display.setRgbImage(rgbImage)
 
@@ -449,7 +451,9 @@ class DisplayScene(ui.Scene):
         else:
             self.timestamp.label("%02d:%02d.%03d (%d/%d) Indexing %s: %d%%"%(minutes,seconds,fsec,frameNumber+1,self.frames.raw.frames(),self.frames.raw.description(),self.frames.raw.indexingStatus()*100.0),maxchars=100)
         self.timestamp.colour = (0.0,0.0,0.0,1.0)
-        
+        self.metadata.setPos(66.0,10.0)       
+        self.metadata.update()
+ 
         ua = config.isUpdateAvailable()
         uc = config.versionUpdateClicked()
         showUpdate = ua and (ua != uc)

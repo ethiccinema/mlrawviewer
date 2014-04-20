@@ -381,7 +381,6 @@ class Text(Button):
         #self.motionWhileClicked = True
     def update(self):
         if self.oldtext != self.text:
-            print "update",self.text
             self.label(self.text)
             self.oldtext = self.text
     def clickHandler(self,x,y):

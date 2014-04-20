@@ -188,6 +188,10 @@ void main() {
             ci = ord(c)
             if ci>0xFF:
                 continue
+            if ci==10: # new line
+                x = 0
+                y += 70
+                continue
             if pi:
                 kernkey = (pi<<8) + ci
                 kerning = k.get(kernkey,0)/64.0
