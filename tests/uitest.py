@@ -111,8 +111,35 @@ class Viewer(GLCompute.GLCompute):
         self.childbox.children.append(self.hw)
         self.box.children.append(self.childbox)
         self.scene.drawables.append(self.box)
+
+        self.flicker = ui.Flickable(400,200,svbo=self.svbo)
+        self.scene.drawables.append(self.flicker)
+        self.flicker.rectangle(400,200,rgba=(0.5,0.5,0.5,0.5))
+        self.flicker.colour = (1.0,1.0,1.0,0.5)
+        self.flicker.setPos(500.0,300.0)
+        self.flicker.allowx = False
+        self.canvas = ui.Geometry(self.svbo)
+        self.canvas.size = (1000,1000)
+        self.flicker.children.append(self.canvas)
+        self.cliptest = ui.Text(text="Am I clipped?",svbo=self.svbo)
+        self.cliptest.setScale(1.0)
+        self.cliptest.update()
+        self.cliptest.setTransformOffset(200.0,50.0)
+        self.cliptest.setPos(200.0,100.0)
+        self.clipbut = ui.Button(100,100,self.clipbutClick,svbo=self.svbo)
+        self.clipbut.rectangle(100,100,rgba=(1.0,1.0,1.0,1.0))
+        self.clipbut.colour = (1.0,1.0,0.0,1.0)
+        self.clipbut.edges = (1.0,1.0,0.1,0.25)
+        self.clipbut.setPos(100,200)
+        self.flicker.clip = True
+        self.canvas.children.append(self.cliptest)
+        self.canvas.children.append(self.clipbut)
+
         self.svbo.upload()
         self._init = True
+    def clipbutClick(self,x,y):
+        print "clip",x,y
+
     def onDraw(self,width,height):
         self.init()
         if self._isFull != self.wasFull:
@@ -127,6 +154,8 @@ class Viewer(GLCompute.GLCompute):
         self.scene.setSize(width,height)
         
         self.box.setRotation(self.box.rotation - 0.1)
+        self.cliptest.setRotation(self.box.rotation*10 - 0.1)
+        self.flicker.setRotation(-self.box.rotation - 0.1)
 
         self.svbo.upload() # In case there are changes
         """

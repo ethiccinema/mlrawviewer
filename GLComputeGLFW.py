@@ -121,6 +121,7 @@ class GLCompute(object):
         glfw.glfwWindowHint(glfw.GLFW_GREEN_BITS, 8)
         glfw.glfwWindowHint(glfw.GLFW_BLUE_BITS, 8)
         glfw.glfwWindowHint(glfw.GLFW_ALPHA_BITS, 8)
+        glfw.glfwWindowHint(glfw.GLFW_STENCIL_BITS, 8)
         glfw.glfwWindowHint(glfw.GLFW_DECORATED,False)
         glfw.glfwWindowHint(glfw.GLFW_RESIZABLE,False)
         glfw.glfwWindowHint(glfw.GLFW_VISIBLE,False)
@@ -262,7 +263,7 @@ class GLCompute(object):
         #print "bgdraw",w,h
         glViewport(0,0,w,h)
         glClearColor(1.0,1.0,0.0,1.0)
-        glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT)
+        glClear(GL_COLOR_BUFFER_BIT|GL_STENCIL_BUFFER_BIT)
         try:
             self.onBgDraw(w,h)
             if self.hasSync:
@@ -289,7 +290,7 @@ class GLCompute(object):
         self.height = h
         glViewport(0,0,w,h)
         glClearColor(0.0,0.0,0.0,1)
-        glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT)
+        glClear(GL_COLOR_BUFFER_BIT|GL_STENCIL_BUFFER_BIT)
         try:
             self.onDraw(w,h)
         except:

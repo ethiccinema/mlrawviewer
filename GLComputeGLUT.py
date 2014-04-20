@@ -112,7 +112,7 @@ class GLCompute(object):
         self.windowX = 0
         self.windowY = 0
         glutInit(sys.argv) 
-        glutInitDisplayMode(GLUT_DOUBLE|GLUT_RGB|GLUT_DEPTH)
+        glutInitDisplayMode(GLUT_DOUBLE|GLUT_RGB|GLUT_STENCIL)
         glutInitWindowSize(256,16)
         glutInitWindowPosition(0,0)
         self.backgroundWindow = glutCreateWindow(self.bgWindowName())
@@ -122,7 +122,7 @@ class GLCompute(object):
         glutDisplayFunc(self.__bgdraw)
         glutVisibilityFunc(self.__bgvisble)
         glutInitWindowSize(width,height)
-        glutInitDisplayMode(GLUT_DOUBLE|GLUT_RGB|GLUT_DEPTH)
+        glutInitDisplayMode(GLUT_DOUBLE|GLUT_RGB|GLUT_STENCIL)
         self.mainWindow = glutCreateWindow(self.windowName())
         glutSetWindowTitle(self.windowName())  
         glutDisplayFunc(self.__draw)
@@ -199,7 +199,7 @@ class GLCompute(object):
         #print "bgdraw",w,h
         glViewport(0,0,w,h)
         glClearColor(0.0,0.0,0.0,1)
-        glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT)
+        glClear(GL_COLOR_BUFFER_BIT|GL_STENCIL_BUFFER_BIT)
         try:
             self.onBgDraw(w,h)
             if self.hasSync:
@@ -227,7 +227,7 @@ class GLCompute(object):
             self.height = h
         glViewport(0,0,w,h)
         glClearColor(0.0,0.0,0.0,1)
-        glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT)
+        glClear(GL_COLOR_BUFFER_BIT|GL_STENCIL_BUFFER_BIT)
         try:
             self.onDraw(w,h)
         except:

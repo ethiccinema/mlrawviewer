@@ -144,6 +144,7 @@ class Drawable(object):
         super(Drawable,self).__init__(**kwds)
         self.ignoreInput = True
         self.motionWhileClicked = False
+        self.hasPointerFocus = False
     def render(self,scene,matrix):
         pass
     def input2d(self,matrix,x,y,buttons):
@@ -196,10 +197,17 @@ class Scene(object):
                 if d.ignoreInput: continue
                 self.eventHandler = d.input2d(self.inputMatrix,x,y,buttons)
                 if self.eventHandler != None: break
+            if self.eventHandler:
+                self.eventHandler.hasPointerFocus = True
             return self.eventHandler
         else:
             if self.eventHandler.motionWhileClicked or (buttons[0]==0 and buttons[1]==0):
-                self.eventHandler = self.eventHandler.input2d(self.inputMatrix,x,y,buttons)
+                newEventHandler = self.eventHandler.input2d(self.inputMatrix,x,y,buttons)
+                if newEventHandler != None:
+                    newEventHandler.hasPointerFocus = True
+                if self.eventHandler != newEventHandler:
+                    self.eventHandler.hasPointerFocus = False
+                self.eventHandler = newEventHandler
 
 class Geometry(Drawable):
     def __init__(self,svbo,**kwds):
@@ -223,6 +231,7 @@ class Geometry(Drawable):
         self.vab = None
         self.texture = None
         self.matrixDirty = True
+        self.clip = False
     def updateMatrix(self):
         if self.matrixDirty:
             PLOG(PLOG_CPU,"Updating matrix %d,%d"%self.pos)
@@ -290,15 +299,26 @@ class Geometry(Drawable):
         self.texture = texture
     def render(self,scene,matrix):
         PLOG(PLOG_CPU,"Geometry render %d,%d"%self.pos)
+        self.updateMatrix()
+        m = self.matrix.copy()
+        m.mult(matrix);
         if self.vab != None and self.opacity>0.0:
-            self.updateMatrix()
-            m = self.matrix.copy()
-            m.mult(matrix);
             PLOG(PLOG_CPU,"Geometry render draw %d,%d"%self.pos)
+            if self.clip:
+                glEnable(GL_STENCIL_TEST)
+                glStencilFunc(GL_ALWAYS, 1, 0xFF);
+                glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);
+                glStencilMask(0xFF);
             self.shader.draw(self.vab,self.texture,m,self.colour,self.opacity,self.edges)
-        PLOG(PLOG_CPU,"Geometry render children %d,%d"%self.pos)
+            PLOG(PLOG_CPU,"Geometry render children %d,%d"%self.pos)
+        if self.clip:
+            glStencilFunc(GL_EQUAL, 1, 0xFF)
+            glStencilMask(0x00);
         for c in self.children:
             c.render(scene,m) # Relative to parent
+        if self.clip:
+            glDisable(GL_STENCIL_TEST)
+            glStencilMask(0xFF);
         PLOG(PLOG_CPU,"Geometry render done %d,%d"%self.pos)
     def input2d(self,matrix,x,y,buttons):
         # Update matrix
@@ -308,10 +328,16 @@ class Geometry(Drawable):
         # Transform the scene coords into object space
         lx,ly,lz = m.multveci(x,y)
         #print lx,ly,self.size[0],self.size[1]
-        if lx>=0.0 and lx<=(self.size[0]) and ly>=0.0 and ly<=(self.size[1]):
-            return self.event2d(lx,ly,buttons)
-        else:
-            return None # Not handled
+        handler = None
+        # Try all children first
+        if not self.hasPointerFocus:
+            for c in self.children:
+                handler = c.input2d(m,x,y,buttons)
+                if handler != None:
+                    break
+        if (handler == None) and not self.ignoreInput and ((lx>=0.0 and lx<=(self.size[0]) and ly>=0.0 and ly<=(self.size[1])) or self.hasPointerFocus):
+            handler = self.event2d(lx,ly,buttons)
+        return handler # Not handled
     def event2d(self,lx,ly,buttons):
         """
         A 2d event ocurred in our active region    
@@ -378,4 +404,40 @@ class Text(Button):
             self.text += chr(c) 
         else:
             print "edit",k
+
+class Flickable(Button):
+    def __init__(self,width,height,**kwds):
+        super(Flickable,self).__init__(width,height,self.clickdrag,**kwds)
+        self.motionWhileClicked = True
+        self.offsetx = 0
+        self.offsety = 0
+        self.dragging = False
+        self.dragstartx = 0
+        self.dragstarty = 0
+        self.canvdragstartx = 0
+        self.canvdragstarty = 0
+        self.allowx = True 
+        self.allowy = True
+    def event2d(self,lx,ly,buttons):
+        if buttons[0] == 1:
+            if self.dragging == False:
+                self.dragging = True
+                self.dragstartx = lx
+                self.dragstarty = ly
+                if len(self.children)>0:
+                    self.canvdragstartx,self.canvdragstarty = self.children[0].pos
+            # Clicked
+            self.onclick(lx,ly)
+            return self
+        else:
+            self.dragging = False
+            return None
+    def clickdrag(self,x,y):
+        if len(self.children)>0:
+            newx,newy = self.children[0].pos
+            if self.allowx:
+                newx = self.canvdragstartx + (x-self.dragstartx)
+            if self.allowy:
+                newy = self.canvdragstarty + (y-self.dragstarty)
+            self.children[0].setPos(newx,newy)
  
