@@ -664,6 +664,7 @@ class Viewer(GLCompute.GLCompute):
         self.playFrameNumber = 0
         self.nextFrameNumber = 0
         self.neededFrame = 0
+        self.audioOffset = 0.0
         self.drawnFrameNumber = None
         self.preloadFrame(1) # Immediately try to preload the next frame
         self.indexing = True
