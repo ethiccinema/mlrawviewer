@@ -63,10 +63,10 @@ shaders = {}
 class SharedVbo(object):
     def __init__(self,**kwds):
         super(SharedVbo,self).__init__(**kwds)
-        self.data = np.zeros(shape=(1024*128,),dtype=np.float32)
+        self.data = np.zeros(shape=(1024*1024,),dtype=np.float32)
         self.vbo = vbo.VBO(self.data)
         self.bound = False
-        self.avail = 1024*128
+        self.avail = 1024*1024
         self.allocated = 0
     def bind(self):
         PLOG(PLOG_CPU,"SharedVbo bind")
@@ -145,7 +145,7 @@ class Drawable(object):
         self.ignoreInput = True
         self.motionWhileClicked = False
         self.hasPointerFocus = False
-    def render(self,scene,matrix):
+    def render(self,scene,matrix,opacity):
         pass
     def input2d(self,matrix,x,y,buttons):
         return None # Not handled
@@ -177,7 +177,7 @@ class Scene(object):
     def render(self):
         self.setTarget()
         for d in self.drawables:
-            d.render(self,self.matrix)
+            d.render(self,self.matrix,1.0)
         self.renderComplete()
     def prepareToRender(self):
         pass
@@ -293,29 +293,31 @@ class Geometry(Drawable):
         if self.svbobase == None:
             #print "chars in",args[0],chars
             self.reserve(6*12*4*chars)
-        texture,vertices = self.shader.label(*args,**kwargs)
+        texture,vertices,width,height = self.shader.label(*args,**kwargs)
+        self.size = (width*self.scale,height*self.scale)
         #print vertices
         self.setVab(vertices)
         self.texture = texture
-    def render(self,scene,matrix):
+    def render(self,scene,matrix,opacity):
         PLOG(PLOG_CPU,"Geometry render %d,%d"%self.pos)
         self.updateMatrix()
         m = self.matrix.copy()
         m.mult(matrix);
-        if self.vab != None and self.opacity>0.0:
+        finalopacity = self.opacity * opacity
+        if self.vab != None and finalopacity>0.0:
             PLOG(PLOG_CPU,"Geometry render draw %d,%d"%self.pos)
             if self.clip:
                 glEnable(GL_STENCIL_TEST)
                 glStencilFunc(GL_ALWAYS, 1, 0xFF);
                 glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);
                 glStencilMask(0xFF);
-            self.shader.draw(self.vab,self.texture,m,self.colour,self.opacity,self.edges)
+            self.shader.draw(self.vab,self.texture,m,self.colour,finalopacity,self.edges)
             PLOG(PLOG_CPU,"Geometry render children %d,%d"%self.pos)
         if self.clip:
             glStencilFunc(GL_EQUAL, 1, 0xFF)
             glStencilMask(0x00);
         for c in self.children:
-            c.render(scene,m) # Relative to parent
+            c.render(scene,m,finalopacity) # Relative to parent
         if self.clip:
             glDisable(GL_STENCIL_TEST)
             glStencilMask(0xFF);
@@ -433,10 +435,18 @@ class Flickable(Button):
             return None
     def clickdrag(self,x,y):
         if len(self.children)>0:
+            w,h = self.size
+            cw,ch = self.children[0].size
+            miny = min(0,h - ch)
+            maxy = max(0,h - ch)
             newx,newy = self.children[0].pos
+            print w,h,cw,ch,miny,maxy,newy
             if self.allowx:
                 newx = self.canvdragstartx + (x-self.dragstartx)
             if self.allowy:
                 newy = self.canvdragstarty + (y-self.dragstarty)
+            newy = max(newy,miny)
+            newy = min(newy,maxy)    
+            print newx,newy
             self.children[0].setPos(newx,newy)
  

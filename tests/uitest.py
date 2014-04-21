@@ -117,15 +117,17 @@ class Viewer(GLCompute.GLCompute):
         self.flicker.rectangle(400,200,rgba=(0.5,0.5,0.5,0.5))
         self.flicker.colour = (1.0,1.0,1.0,0.5)
         self.flicker.setPos(500.0,300.0)
-        self.flicker.allowx = False
+        #self.flicker.allowx = False
         self.canvas = ui.Geometry(self.svbo)
         self.canvas.size = (1000,1000)
         self.flicker.children.append(self.canvas)
-        self.cliptest = ui.Text(text="Am I clipped?",svbo=self.svbo)
+        self.cliptest = ui.Text(text="Am I clipped? I certainly hope so.\nThis is the second line.\nHello! I'm the third line.\nThis is number 4.\nI'm 5.\nAnd I'm 6.\nI'm only 7.",svbo=self.svbo)
         self.cliptest.setScale(1.0)
         self.cliptest.update()
-        self.cliptest.setTransformOffset(200.0,50.0)
-        self.cliptest.setPos(200.0,100.0)
+        self.cliptest.ignoreInput = True
+        self.canvas.size = self.cliptest.size
+        self.cliptest.setTransformOffset(0.0,0.0)
+        self.cliptest.setPos(0.0,0.0)
         self.clipbut = ui.Button(100,100,self.clipbutClick,svbo=self.svbo)
         self.clipbut.rectangle(100,100,rgba=(1.0,1.0,1.0,1.0))
         self.clipbut.colour = (1.0,1.0,0.0,1.0)
@@ -154,8 +156,8 @@ class Viewer(GLCompute.GLCompute):
         self.scene.setSize(width,height)
         
         self.box.setRotation(self.box.rotation - 0.1)
-        self.cliptest.setRotation(self.box.rotation*10 - 0.1)
-        self.flicker.setRotation(-self.box.rotation - 0.1)
+        #self.cliptest.setRotation(self.box.rotation*10 - 0.1)
+        #self.flicker.setRotation(-self.box.rotation - 0.1)
 
         self.svbo.upload() # In case there are changes
         """

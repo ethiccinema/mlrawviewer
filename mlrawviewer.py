@@ -124,7 +124,7 @@ class Demosaicer(ui.Drawable):
         self.rawUploadTex = rawUploadTex
         self.rgbUploadTex = rgbUploadTex
 
-    def render(self,scene,matrix):
+    def render(self,scene,matrix,opacity):
         frameData = self.frames.currentFrame()
         frameNumber = self.frames.currentFrameNumber()
 
@@ -208,7 +208,7 @@ class Display(ui.Drawable):
         self.displayShader = ShaderDisplaySimple()
     def setRgbImage(self,rgbImage):
         self.rgbImage = rgbImage
-    def render(self,scene,matrix):
+    def render(self,scene,matrix,opacity):
         # Now display the RGB image
         #self.rgbImage.addmipmap()
         # Balance now happens in demosaicing shader
@@ -279,9 +279,17 @@ class DisplayScene(ui.Scene):
         self.brightnessHandle.ignoreInput = True
         self.metadata = ui.Text("",svbo=self.frames.svbo)
         self.metadata.setScale(0.25)
+        self.exportq = ui.Flickable(400.0,200.0,svbo=frames.svbo)
+        self.exportq.edges = (1.0,1.0,0.01,0.01)
+        self.exportq.colour = (1.0,1.0,1.0,1.0)
+        self.exportq.clip = True
+        self.exportq.allowx = False
+        self.exportqlist = ui.Text("",svbo=self.frames.svbo)
+        self.exportqlist.setScale(0.25)
+        self.exportq.children.append(self.exportqlist)
         self.timestamp = ui.Geometry(svbo=frames.svbo)
         self.iconItems = [self.fullscreen,self.mapping,self.drop,self.quality,self.loop,self.outformat,self.encode,self.play]
-        self.overlay = [self.iconBackground,self.progressBackground,self.progress,self.timestamp,self.encodeStatus,self.update,self.balance,self.balanceHandle,self.brightness,self.brightnessHandle,self.mark,self.metadata]
+        self.overlay = [self.iconBackground,self.progressBackground,self.progress,self.timestamp,self.encodeStatus,self.update,self.balance,self.balanceHandle,self.brightness,self.brightnessHandle,self.mark,self.metadata]#,self.exportq]
         self.overlay.extend(self.iconItems)
         self.overlay.append(self.whitePicker) # So it is on the bottom
         self.drawables.extend([self.display])
@@ -473,6 +481,10 @@ class DisplayScene(ui.Scene):
         self.metadata.setPos(66.0,10.0)      
         self.metadata.text = self.summariseMetadata() 
         self.metadata.update()
+        self.exportq.setPos(60.0,height-rectHeight-200.0-15.0)
+        self.exportq.rectangle(400.0,200.0,rgba=(0.0,0.0,0.0,0.25))
+        self.exportqlist.text = ''.join(["This is text line number %d.\n"%i for i in range(10)])
+        self.exportqlist.update()
  
         ua = config.isUpdateAvailable()
         uc = config.versionUpdateClicked()

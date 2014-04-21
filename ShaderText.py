@@ -166,7 +166,9 @@ void main() {
         v = v.reshape((v.shape[0]*v.shape[1],))
         return (texture,v)
 
-    def label(self,text,rgba=(1.0,1.0,1.0,1.0)):
+    def label(self,text,rgba=(1.0,1.0,1.0,1.0),linespace=70):
+        lw = 0
+        lh = linespace
         f = self.font
         kerning = 0
         pi = None
@@ -190,7 +192,8 @@ void main() {
                 continue
             if ci==10: # new line
                 x = 0
-                y += 70
+                y += linespace
+                lh += linespace
                 continue
             if pi:
                 kernkey = (pi<<8) + ci
@@ -221,6 +224,7 @@ void main() {
             x0 = x + l + kerning - 4.0
             y0 = y + (50 - t) - 4.0
             x1 = x0 + w + 8.0
+            lw = max(x1,lw)
             y1 = y0 + h + 8.0
             tx = (64.0*(ci%16)+ox-4.0)/1024.0
             ty = (64.0*(ci/16)+oy-4.0)/1024.0
@@ -266,5 +270,5 @@ void main() {
             y += ay/64.0
             pi = ci
         v = v.reshape((v.shape[0]*v.shape[1],))
-        return (f.texture(),v)
+        return (f.texture(),v,lw,lh)
 
