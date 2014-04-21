@@ -439,14 +439,18 @@ class Flickable(Button):
             cw,ch = self.children[0].size
             miny = min(0,h - ch)
             maxy = max(0,h - ch)
+            minx = min(0,w - cw)
+            maxx = max(0,w - cw)
             newx,newy = self.children[0].pos
-            print w,h,cw,ch,miny,maxy,newy
+            #print w,h,cw,ch,miny,maxy,newy
             if self.allowx:
                 newx = self.canvdragstartx + (x-self.dragstartx)
             if self.allowy:
                 newy = self.canvdragstarty + (y-self.dragstarty)
             newy = max(newy,miny)
             newy = min(newy,maxy)    
-            print newx,newy
+            newx = max(newx,minx)
+            newx = min(newx,maxx)    
+            #print newx,newy
             self.children[0].setPos(newx,newy)
  
