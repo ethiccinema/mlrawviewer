@@ -222,11 +222,11 @@ const char* DEMOSAICER_NAME = "demosaicer";
 static void
 bitunpack_freedemosaicer(PyObject* self)
 {
-    printf("Free demosaicer called\n");
+    //printf("Free demosaicer called\n");
     demosaicer* dem = (demosaicer*)PyCapsule_GetPointer(self,DEMOSAICER_NAME);
     if (dem == NULL)
         return;
-    printf("Free demosaicer releasing buffer w:%d h:%d\n",dem->width,dem->height);
+    //printf("Free demosaicer releasing buffer w:%d h:%d\n",dem->width,dem->height);
     free(dem->raw);
     free(dem->rrows);
     free(dem->red);
