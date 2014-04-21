@@ -381,6 +381,25 @@ class DisplayScene(ui.Scene):
         #    for index in self.exporter.jobs.keys():
         #        print "export",index,self.exporter.status(index)
 
+    def summariseMetadata(self):
+        r = self.frames.raw
+        f = self.frames.playFrame
+        s = r.make()+" "+r.model()
+        if f.lens != None:
+            s += ", "+f.lens[0]+"\n"
+        else:
+            s += "\n"
+        if f.expo != None and f.lens != None:
+            ll = "%d"%f.lens[2][1]
+            s += "1/%d sec, f%.01f, ISO %d, %dmm\n"%(1000000.0/f.expo[-1],f.lens[2][3]/100.0,f.expo[2],f.lens[2][1])
+        s += "%d x %d, %.03f FPS\n"%(r.width(),r.height(),r.fps)
+        if f.rtc != None:
+            se,mi,ho,da,mo,ye = f.rtc[1:7]
+            s += "%02d:%02d:%02d %02d:%02d:%04d\n"%(ho,mi,se,da,mo+1,ye+1900)
+        return s
+        #make = self.frames.raw.
+        #self.frames.playFrame.
+
     def prepareToRender(self):
         """
         f = self.frame
@@ -451,7 +470,8 @@ class DisplayScene(ui.Scene):
         else:
             self.timestamp.label("%02d:%02d.%03d (%d/%d) Indexing %s: %d%%"%(minutes,seconds,fsec,frameNumber+1,self.frames.raw.frames(),self.frames.raw.description(),self.frames.raw.indexingStatus()*100.0),maxchars=100)
         self.timestamp.colour = (0.0,0.0,0.0,1.0)
-        self.metadata.setPos(66.0,10.0)       
+        self.metadata.setPos(66.0,10.0)      
+        self.metadata.text = self.summariseMetadata() 
         self.metadata.update()
  
         ua = config.isUpdateAvailable()

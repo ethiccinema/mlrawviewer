@@ -63,10 +63,10 @@ shaders = {}
 class SharedVbo(object):
     def __init__(self,**kwds):
         super(SharedVbo,self).__init__(**kwds)
-        self.data = np.zeros(shape=(1024*16,),dtype=np.float32)
+        self.data = np.zeros(shape=(1024*128,),dtype=np.float32)
         self.vbo = vbo.VBO(self.data)
         self.bound = False
-        self.avail = 1024*64
+        self.avail = 1024*128
         self.allocated = 0
     def bind(self):
         PLOG(PLOG_CPU,"SharedVbo bind")
