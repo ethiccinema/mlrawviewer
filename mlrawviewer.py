@@ -515,7 +515,7 @@ class DisplayScene(ui.Scene):
             if jobtype == ExportQueue.ExportQueue.JOB_DNG:
                 rfile = os.path.split(job[2])[1]
                 targ = os.path.split(job[3])[1]
-                start,end = job[4:6]
+                start,end = job[5:7]
             elif jobtype == ExportQueue.ExportQueue.JOB_MOV:
                 rfile = os.path.split(job[2])[1]
                 targ = os.path.split(job[3])[1]
@@ -1184,11 +1184,10 @@ class Viewer(GLCompute.GLCompute):
         config.setState("encodeType",self.setting_encodeType)
         self.refresh()
     def addEncoding(self):
-        if not self.indexing:
-            if self.setting_encodeType[0] == ENCODE_TYPE_DNG:
-                self.dngExport()
-            elif self.setting_encodeType[0] == ENCODE_TYPE_MOV:   
-                self.movExport()
+        if self.setting_encodeType[0] == ENCODE_TYPE_DNG:
+            self.dngExport()
+        elif self.setting_encodeType[0] == ENCODE_TYPE_MOV:   
+            self.movExport()
     def toggleEncoding(self):
         if self.exportActive:
             self.exporter.pause()
@@ -1197,15 +1196,12 @@ class Viewer(GLCompute.GLCompute):
             self.exporter.process()
             self.exportActive = True
         self.refresh()
+
     def movExport(self):
         outfile = self.checkoutfile(".MOV")
-        tempwavname = None
-        if self.wav:
-            tempwavname = outfile[:-4] + ".WAV"
-            self.tempEncoderWav(tempwavname,self.marks[0][0],self.marks[1][0])
         c = self.setting_rgb
         rgbl = (c[0],c[1],c[2],self.setting_brightness)
-        self.exporter.exportMov(self.raw.filename,outfile,tempwavname,self.marks[0][0],self.marks[1][0],rgbl=rgbl,tm=self.setting_tonemap,matrix=self.setting_colourMatrix)
+        self.exporter.exportMov(self.raw.filename,outfile,self.wavname,self.marks[0][0],self.marks[1][0],self.audioOffset,rgbl=rgbl,tm=self.setting_tonemap,matrix=self.setting_colourMatrix)
         self.refresh()
         return
 
@@ -1264,35 +1260,6 @@ class Viewer(GLCompute.GLCompute):
     def exit(self):
         self.exporter.end()
         self.audio.stop()
-    def tempEncoderWav(self,tempname,inframe,outframe):
-        """
-        Create a temporary wav file starting from the current audioOffset
-        Start and end frames match the given in/out marks
-        outframe is included
-        This will be fed as one stream to the external encoder
-        """
-        if not self.wav:
-            return
-        tempwav = wave.open(tempname,'w')
-        tempwav.setparams(self.wav.getparams())
-        channels,width,framerate,nframe,comptype,compname = self.wav.getparams()
-        frameCount = int(framerate * float(outframe-inframe+1)/float(self.fps))
-        startFrame = int((self.audioOffset+(float(inframe)/float(self.fps)))*framerate)
-        padframes = 0
-        readPos = startFrame
-        if startFrame<0:
-            padframes = -startFrame
-            readPos = 0
-        self.wav.setpos(readPos)
-        if (startFrame+frameCount)>=(nframe):
-            frames = self.wav.readframes(nframe-startFrame) # Less than all
-        else:
-            frames = self.wav.readframes(frameCount) # All
-        if padframes>0:
-            pad = "\0"*padframes*channels*width
-            tempwav.writeframes(pad)
-        tempwav.writeframes(frames)
-        tempwav.close()
 
     # Settings interface to the scene
     def brightness(self):
@@ -1486,14 +1453,9 @@ class Viewer(GLCompute.GLCompute):
 
     def dngExport(self):
         outfile = self.checkoutfile("_DNG")
-        os.mkdir(outfile)
-        if self.wav:
-            rhead = os.path.splitext(os.path.split(self.raw.filename)[1])[0]
-            tempwavname = os.path.join(outfile, rhead + ".WAV")
-            self.tempEncoderWav(tempwavname,self.marks[0][0],self.marks[1][0])
         c = self.setting_rgb
         rgbl = (c[0],c[1],c[2],self.setting_brightness)
-        self.exporter.exportDng(self.raw.filename,outfile,self.marks[0][0],self.marks[1][0],rgbl=rgbl)
+        self.exporter.exportDng(self.raw.filename,outfile,self.wavname,self.marks[0][0],self.marks[1][0],self.audioOffset,rgbl=rgbl)
         self.refresh()
 
     def askOutput(self):

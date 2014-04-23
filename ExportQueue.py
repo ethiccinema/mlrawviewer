@@ -21,7 +21,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
-import sys,os,threading,Queue,time,math,subprocess
+import sys,os,threading,Queue,time,math,subprocess,wave
 
 try:
     import OpenGL
@@ -148,10 +148,10 @@ class ExportQueue(threading.Thread):
         else:
             return 1.0
     # Queue Job calls
-    def exportDng(self,rawfile,dngdir,startFrame=0,endFrame=None,bits=16,rgbl=None):
-        return self.submitJob(self.JOB_DNG,rawfile,dngdir,startFrame,endFrame,bits,rgbl)
-    def exportMov(self,rawfile,movfile,tempwavfile,startFrame=0,endFrame=None,rgbl=None,tm=None,matrix=None):
-        return self.submitJob(self.JOB_MOV,rawfile,movfile,tempwavfile,startFrame,endFrame,rgbl,tm,matrix)
+    def exportDng(self,rawfile,dngdir,wavfile,startFrame=0,endFrame=None,audioOffset=0.0,bits=16,rgbl=None):
+        return self.submitJob(self.JOB_DNG,rawfile,dngdir,wavfile,startFrame,endFrame,audioOffset,bits,rgbl)
+    def exportMov(self,rawfile,movfile,wavfile,startFrame=0,endFrame=None,audioOffset=0.0,rgbl=None,tm=None,matrix=None):
+        return self.submitJob(self.JOB_MOV,rawfile,movfile,wavfile,startFrame,endFrame,audioOffset,rgbl,tm,matrix)
     def submitJob(self,*args):
         ix = self.jobindex
         self.jobindex += 1
@@ -280,12 +280,48 @@ class ExportQueue(threading.Thread):
         if frame.rtc != None:
             se,mi,ho,da,mo,ye = frame.rtc[1:7]
             atm(e,DNG.Tag.DateTimeOriginal,"%04d:%02d:%02d %02d:%02d:%02d\0"%(ye+1900,mo,da,ho,mi,se))
+
+    def tempEncoderWav(self,wavfile,fps,tempname,inframe,outframe,audioOffset):
+        wav = wave.open(wavfile,'r')
+        tempwav = wave.open(tempname,'w')
+        tempwav.setparams(wav.getparams())
+        channels,width,framerate,nframe,comptype,compname = wav.getparams()
+        frameCount = int(framerate * float(outframe-inframe+1)/float(fps))
+        startFrame = int((audioOffset+(float(inframe)/float(fps)))*framerate)
+        padframes = 0
+        readPos = startFrame
+        if startFrame<0:
+            padframes = -startFrame
+            readPos = 0
+        wav.setpos(readPos)
+        if (startFrame+frameCount)>=(nframe):
+            frames = wav.readframes(nframe-startFrame) # Less than all
+        else:
+            frames = wav.readframes(frameCount) # All
+        if padframes>0:
+            pad = "\0"*padframes*channels*width
+            tempwav.writeframes(pad)
+        tempwav.writeframes(frames)
+        tempwav.close()
+        wav.close()
             
     def doExportDng(self,jobindex,args):
-        filename,dngdir,startFrame,endFrame,bits,rgbl = args
+        filename,dngdir,wavfile,startFrame,endFrame,audioOffset,bits,rgbl = args
+        os.mkdir(dngdir)
         todo = endFrame-startFrame+1
         target = dngdir
         r = MlRaw.loadRAWorMLV(filename)
+        if endFrame == None:
+            endFrame = r.frames()
+        if r.audioFrames()>0:
+            # Must index the whole file in order that we have the wav file
+            while r.indexingStatus()<1.0:
+                time.sleep(0.1) 
+        if os.path.exists(wavfile):
+            d = file(wavfile,'rb').read()
+            rhead = os.path.splitext(os.path.split(filename)[1])[0]
+            outwavname = os.path.join(dngdir, rhead + ".WAV")
+            self.tempEncoderWav(wavfile,r.fps,outwavname,startFrame,endFrame,audioOffset)
         targfile = os.path.splitext(os.path.split(r.filename)[1])[0]
         target = os.path.join(target,targfile)
         print "DNG export to",target,"started"
@@ -315,9 +351,9 @@ class ExportQueue(threading.Thread):
 
     def doExportMov(self,jobindex,args):
         self.needBgDraw = True
-        filename,movfile,tempwavfile,startFrame,endFrame,rgbl,tm,matrix = args
+        filename,movfile,wavfile,startFrame,endFrame,audioOffset,rgbl,tm,matrix = args
         try:
-            self.processExportMov(jobindex,filename,movfile,tempwavfile,startFrame,endFrame,rgbl,tm,matrix)
+            self.processExportMov(jobindex,filename,movfile,wavfile,startFrame,endFrame,audioOffset,rgbl,tm,matrix)
         except:
             import traceback
             traceback.print_exc()
@@ -328,18 +364,27 @@ class ExportQueue(threading.Thread):
             self.encoderProcess.stdin.close()
 	    self.encoderProcess.wait()
             self.encoderProcess = None
-        if tempwavfile!=None:
+        tempwavfile = movfile[:-4] + ".WAV"
+        if os.path.exists(tempwavfile):
             os.remove(tempwavfile)
         self.encoderOutput = None
         self.stdoutReader = None
 
-    def processExportMov(self,jobindex,filename,movfile,tempwavfile,startFrame,endFrame,rgbl,tm,matrix):
+    def processExportMov(self,jobindex,filename,movfile,wavfile,startFrame,endFrame,audioOffset,rgbl,tm,matrix):
         todo = endFrame-startFrame+1
         target = movfile
         print "MOV export to",movfile,"started"
-         
-        #print "Dummy MOV export to",movfile
+        tempwavname = None 
         r = MlRaw.loadRAWorMLV(filename)
+        if endFrame == None:
+            endFrame = r.frames()
+        if r.audioFrames()>0:
+            # Must index the whole file in order that we have the wav file
+            while r.indexingStatus()<1.0:
+                time.sleep(0.1) 
+        if os.path.exists(wavfile): 
+            tempwavname = movfile[:-4] + ".WAV"
+            self.tempEncoderWav(wavfile,r.fps,tempwavname,startFrame,endFrame,audioOffset)
 
         if subprocess.mswindows:
             exe = "ffmpeg.exe"
@@ -358,8 +403,8 @@ class ExportQueue(threading.Thread):
             su.dwFlags |= subprocess.STARTF_USESHOWWINDOW
             su.wShowWindow = subprocess.SW_HIDE
             kwargs["startupinfo"] = su
-        if tempwavfile != None: # Includes Audio
-            args = [exe,"-f","rawvideo","-pix_fmt","rgb48","-s","%dx%d"%(r.width(),r.height()),"-r","%.03f"%r.fps,"-i","-","-i",tempwavfile,"-f","mov","-vf","vflip","-vcodec","prores_ks","-profile:v","4","-alpha_bits","0","-vendor","ap4h","-q:v","4","-r","%.03f"%r.fps,"-acodec","copy",movfile]
+        if tempwavname != None: # Includes Audio
+            args = [exe,"-f","rawvideo","-pix_fmt","rgb48","-s","%dx%d"%(r.width(),r.height()),"-r","%.03f"%r.fps,"-i","-","-i",tempwavname,"-f","mov","-vf","vflip","-vcodec","prores_ks","-profile:v","4","-alpha_bits","0","-vendor","ap4h","-q:v","4","-r","%.03f"%r.fps,"-acodec","copy",movfile]
         else: # No audio
             # ProRes 4444 with fixed qscale. Can be much smaller and faster to encode
             args = [exe,"-f","rawvideo","-pix_fmt","rgb48","-s","%dx%d"%(r.width(),r.height()),"-r","%.03f"%r.fps,"-i","-","-an","-f","mov","-vf","vflip","-vcodec","prores_ks","-profile:v","4","-alpha_bits","0","-vendor","ap4h","-q:v","4","-r","%.03f"%r.fps,movfile]
