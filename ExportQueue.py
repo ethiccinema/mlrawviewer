@@ -109,8 +109,9 @@ class ExportQueue(threading.Thread):
             elif ct==self.COMMAND_REMOVE_JOB:
                 ix = command[1]
                 #print "removing job",ix
-                del self.jobs[ix]
-                del self.jobstatus[ix]
+                if ix in self.jobs:
+                    del self.jobs[ix]
+                    del self.jobstatus[ix]
                 if self.currentjob == ix:
                     self.cancel = True # Terminate early
             elif ct==self.COMMAND_REMOVE_ALL_JOBS:

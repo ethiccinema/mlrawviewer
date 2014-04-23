@@ -1198,75 +1198,17 @@ class Viewer(GLCompute.GLCompute):
             self.exportActive = True
         self.refresh()
     def movExport(self):
-        backgroundEncoder = True
-        if backgroundEncoder:
-            outfile = self.checkoutfile(".MOV")
-            tempwavname = None
-            if self.wav:
-                tempwavname = outfile[:-4] + ".WAV"
-                self.tempEncoderWav(tempwavname,self.marks[0][0],self.marks[1][0])
-            c = self.setting_rgb
-            rgbl = (c[0],c[1],c[2],self.setting_brightness)
-            self.exporter.exportMov(self.raw.filename,outfile,tempwavname,self.marks[0][0],self.marks[1][0],rgbl=rgbl,tm=self.setting_tonemap,matrix=self.setting_colourMatrix)
-            self.refresh()
-            return
+        outfile = self.checkoutfile(".MOV")
+        tempwavname = None
+        if self.wav:
+            tempwavname = outfile[:-4] + ".WAV"
+            self.tempEncoderWav(tempwavname,self.marks[0][0],self.marks[1][0])
+        c = self.setting_rgb
+        rgbl = (c[0],c[1],c[2],self.setting_brightness)
+        self.exporter.exportMov(self.raw.filename,outfile,tempwavname,self.marks[0][0],self.marks[1][0],rgbl=rgbl,tm=self.setting_tonemap,matrix=self.setting_colourMatrix)
+        self.refresh()
+        return
 
-        if not self.setting_encoding:
-            # Start the encoding process
-            now = time.time()
-            startframe = self.marks[0][0]
-            self.realStartTime = now - startframe / self.fps
-            self.neededFrame = startframe
-            self.nextFrameNumber = startframe
-            self.audio.stop()
-            if self.setting_dropframes:
-                self.toggleDropFrames()
-            self.setting_encoding = True
-            self.lastEncodedFrame = None
-            self.paused = False # In case we were paused
-            if subprocess.mswindows:
-                exe = "ffmpeg.exe"
-            else:
-                exe = "ffmpeg"
-            localexe = os.path.join(programpath,exe)
-            print localexe
-            if os.path.exists(localexe):
-                exe = localexe
-            outfile = self.checkoutfile(".MOV")
-            tempwavname = None
-            if self.wav:
-                tempwavname = outfile[:-4] + ".WAV"
-                self.tempEncoderWav(tempwavname,self.marks[0][0],self.marks[1][0])
-            kwargs = {"stdin":subprocess.PIPE,"stdout":subprocess.PIPE,"stderr":subprocess.STDOUT}
-            if subprocess.mswindows:
-                su = subprocess.STARTUPINFO()
-                su.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-                su.wShowWindow = subprocess.SW_HIDE
-                kwargs["startupinfo"] = su
-            if tempwavname != None: # Includes Audio
-                args = [exe,"-f","rawvideo","-pix_fmt","rgb48","-s","%dx%d"%(self.raw.width(),self.raw.height()),"-r","%.03f"%self.fps,"-i","-","-i",tempwavname,"-f","mov","-vf","vflip","-vcodec","prores_ks","-profile:v","3","-r","%.03f"%self.fps,"-acodec","copy",outfile]
-            else: # No audio
-                args = [exe,"-f","rawvideo","-pix_fmt","rgb48","-s","%dx%d"%(self.raw.width(),self.raw.height()),"-r","%.03f"%self.fps,"-i","-","-an","-f","mov","-vf","vflip","-vcodec","prores_ks","-profile:v","3","-r","%.03f"%self.fps,outfile]
-            print "Encoder args:",args
-            print "Subprocess args:",kwargs
-            self.encoderProcess = subprocess.Popen(args,**kwargs)
-            self.encoderProcess.poll()
-            self.stdoutReader = Thread(target=self.stdoutReaderLoop)
-            self.stdoutReader.daemon = True
-            self.encoderOutput = []
-            self.stdoutReader.start()
-            if self.encoderProcess.returncode != None:
-                self.encoderProcess = None # Failed to start encoder for some reason
-                self.setting_encoding = False
-        else:
-            # Stop/cancel the encoding process
-            self.setting_encoding = False
-            if self.encoderProcess:
-                self.encoderProcess.stdin.close()
-                self.encoderProcess = None
-                self.paused = True
-                self.refresh()
-        
     def handleIndexing(self):
         # Do anything we need to do when indexing has completed
         if self.indexing and self.raw.indexingStatus()==1.0:

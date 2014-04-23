@@ -139,7 +139,7 @@ class GLCompute(object):
         glfw.glfwWindowHint(glfw.GLFW_DECORATED,True)
         glfw.glfwWindowHint(glfw.GLFW_RESIZABLE,True)
         glfw.glfwWindowHint(glfw.GLFW_VISIBLE,True)
-	uname = self.windowName().decode().encode("utf-8")
+        uname = self.windowName().decode().encode("utf-8")
         self.glfwWindow = glfw.glfwCreateWindow(width,height,uname,None,None)
         glfw.glfwSwapInterval(1)
         self.installCallbacks(self.glfwWindow)
@@ -155,7 +155,7 @@ class GLCompute(object):
         self.cursorVisible = None
         super(GLCompute,self).__init__(**kwds)
     def updateWindowName(self):
-	uname = self.windowName().decode().encode("utf-8")
+        uname = self.windowName().decode().encode("utf-8")
         if not self._isFull:
             glfw.glfwSetWindowTitle(self.glfwWindow,uname)
         else:
@@ -183,7 +183,7 @@ class GLCompute(object):
             glfw.glfwWindowHint(glfw.GLFW_GREEN_BITS, 8)
             glfw.glfwWindowHint(glfw.GLFW_BLUE_BITS, 8)
             glfw.glfwWindowHint(glfw.GLFW_ALPHA_BITS, 8)
-	    uname = self.windowName().decode().encode("utf-8")
+            uname = self.windowName().decode().encode("utf-8")
             self.glfwFullscreenWindow = glfw.glfwCreateWindow(mode[0],mode[1],uname,m,self.glfwWindow)
             self.installCallbacks(self.glfwFullscreenWindow)
             glfw.glfwHideWindow(self.glfwWindow)
@@ -311,16 +311,17 @@ class GLCompute(object):
         self.bgVisibility = glfw.glfwGetWindowAttrib(self.backgroundWindow,glfw.GLFW_VISIBLE)
         if not self.bgActive:
             if self.bgVisibility:
-                glfw.glfwHideWindow(self.backgroundWindow)
+                pass
+                #glfw.glfwHideWindow(self.backgroundWindow)
             return
         if not self.bgVisibility:
             mx,my = glfw.glfwGetWindowPos(self.glfwWindow)
             glfw.glfwSetWindowPos(self.backgroundWindow,mx+128,mx+128)
-            glfw.glfwShowWindow(self.backgroundWindow)
-            if self._isFull:
-                glfw.glfwShowWindow(self.glfwFullscreenWindow)
-            else:
-                glfw.glfwShowWindow(self.glfwWindow)
+            #glfw.glfwShowWindow(self.backgroundWindow)
+            #if self._isFull:
+            #    glfw.glfwShowWindow(self.glfwFullscreenWindow)
+            #else:
+            #    glfw.glfwShowWindow(self.glfwWindow)
     def __idle(self):
         self.__bgprocess()
         self.onIdle()
