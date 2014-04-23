@@ -263,7 +263,7 @@ class DisplayScene(ui.Scene):
         self.encode = self.newIcon(0,0,128,128,2,self.encodeClick)
         self.encode.colour = (0.2,0.0,0.0,0.5)
         self.encode.setScale(0.5)
-        self.encodeStatus = ui.Geometry(svbo=frames.svbo)
+        #self.encodeStatus = ui.Geometry(svbo=frames.svbo)
         self.balance = ui.XYGraph(128,128,self.balanceClick,svbo=self.frames.svbo)
         self.balance.gradient(128,128,tl=(0.25,0.0,0.0,0.25),tr=(0.25,0.0,0.25,0.25),bl=(0.0,0.0,0.0,0.25),br=(0.0,0.0,0.25,0.25))
         self.balance.edges = (1.0,1.0,0.05,0.05)
@@ -277,6 +277,8 @@ class DisplayScene(ui.Scene):
         self.brightnessHandle = self.newIcon(0,0,8,8,2,None)
         self.brightnessHandle.colour = (0.5,0.5,0.5,0.5)
         self.brightnessHandle.ignoreInput = True
+        self.mdbg = ui.Geometry(svbo=frames.svbo)
+        self.mdbg.edges = (1.0,1.0,0.05,0.10)
         self.metadata = ui.Text("",svbo=self.frames.svbo)
         self.metadata.setScale(0.25)
         self.exportq = ui.Flickable(400.0,200.0,svbo=frames.svbo)
@@ -289,14 +291,20 @@ class DisplayScene(ui.Scene):
         self.exportq.children.append(self.exportqlist)
         self.timestamp = ui.Geometry(svbo=frames.svbo)
         self.iconItems = [self.fullscreen,self.mapping,self.drop,self.quality,self.loop,self.outformat,self.encode,self.play]
-        self.overlay = [self.iconBackground,self.progressBackground,self.progress,self.timestamp,self.encodeStatus,self.update,self.balance,self.balanceHandle,self.brightness,self.brightnessHandle,self.mark,self.metadata]#,self.exportq]
+        self.overlay = [self.iconBackground,self.progressBackground,self.progress,self.timestamp,self.update,self.balance,self.balanceHandle,self.brightness,self.brightnessHandle,self.mark,self.mdbg,self.metadata,self.exportq]
         self.overlay.extend(self.iconItems)
         self.overlay.append(self.whitePicker) # So it is on the bottom
         self.drawables.extend([self.display])
         self.drawables.extend(self.overlay)
         self.timeline = ui.Timeline()
         self.fadeAnimation = ui.Animation(self.timeline,1.0)
-            
+        
+    def isDirty(self):
+        dirty = False
+        for d in self.drawables:
+            if d.matrixDirty: dirty = True
+        return dirty
+    
     def setRgbImage(self,rgbImage):
         self.display.setRgbImage(rgbImage)
 
@@ -381,7 +389,7 @@ class DisplayScene(ui.Scene):
                 if state: state = 1
                 else: state = 0
             self.setIcon(itm,128,128,itm.idx+state)
-        if self.frames.encoding() or self.frames.exporter.busy:
+        if self.frames.exportActive:
             self.encode.colour = (0.5,0.0,0.0,0.5)
         else:
             self.encode.colour = (0.2,0.0,0.0,0.5)
@@ -400,10 +408,10 @@ class DisplayScene(ui.Scene):
         if f.expo != None and f.lens != None:
             ll = "%d"%f.lens[2][1]
             s += "1/%d sec, f%.01f, ISO %d, %dmm\n"%(1000000.0/f.expo[-1],f.lens[2][3]/100.0,f.expo[2],f.lens[2][1])
-        s += "%d x %d, %.03f FPS\n"%(r.width(),r.height(),r.fps)
+        s += "%d x %d, %.03f FPS"%(r.width(),r.height(),r.fps)
         if f.rtc != None:
             se,mi,ho,da,mo,ye = f.rtc[1:7]
-            s += "%02d:%02d:%02d %02d:%02d:%04d\n"%(ho,mi,se,da,mo+1,ye+1900)
+            s += ", %02d:%02d:%02d %02d:%02d:%04d"%(ho,mi,se,da,mo+1,ye+1900)
         return s
         #make = self.frames.raw.
         #self.frames.playFrame.
@@ -466,8 +474,8 @@ class DisplayScene(ui.Scene):
         self.progress.rectangle(progWidth,rectHeight,rgba=(0.2,0.2,0.01,0.2))
         self.timestamp.setPos(66.0,height-rectHeight-1.0)
         self.timestamp.setScale(9.0/30.0)
-        self.encodeStatus.setPos(66.0,height-rectHeight-41.0)
-        self.encodeStatus.setScale(9.0/30.0)
+        #self.encodeStatus.setPos(66.0,height-rectHeight-41.0)
+        #self.encodeStatus.setScale(9.0/30.0)
         totsec = float(frameNumber)/self.frames.raw.fps
         minutes = int(totsec/60.0)
         seconds = int(totsec%60.0)
@@ -481,10 +489,8 @@ class DisplayScene(ui.Scene):
         self.metadata.setPos(66.0,10.0)      
         self.metadata.text = self.summariseMetadata() 
         self.metadata.update()
-        self.exportq.setPos(60.0,height-rectHeight-200.0-15.0)
-        self.exportq.rectangle(400.0,200.0,rgba=(0.0,0.0,0.0,0.25))
-        self.exportqlist.text = ''.join(["This is text line number %d.\n"%i for i in range(10)])
-        self.exportqlist.update()
+        self.mdbg.setPos(54.0,4.0)
+        self.mdbg.rectangle(self.metadata.size[0]+24.0,self.metadata.size[1]+12.0,rgba=(0.0,0.0,0.0,0.25))
  
         ua = config.isUpdateAvailable()
         uc = config.versionUpdateClicked()
@@ -498,19 +504,36 @@ class DisplayScene(ui.Scene):
             self.update.opacity = 0.0
             self.update.ignoreInput = True
 
-        if self.frames.exporter.busy:
-            jix = self.frames.exporter.jobs.keys()
-            jix.sort()
-            jobtype = self.frames.exporter.jobs[jix[0]][1]
+        jix = self.frames.exporter.jobs.keys()
+        jix.sort()
+        exports = ""
+        for ix in jix:
+            if len(exports)>0:
+                exports += "\n"
+            job = self.frames.exporter.jobs[ix]
+            jobtype = job[1] 
             if jobtype == ExportQueue.ExportQueue.JOB_DNG:
-                jt = "DNG"
+                rfile = os.path.split(job[2])[1]
+                targ = os.path.split(job[3])[1]
+                start,end = job[4:6]
             elif jobtype == ExportQueue.ExportQueue.JOB_MOV:
-                jt = "MOV"
-            self.encodeStatus.label(jt+" export status: %d%% (In queue: %d)"%(100.0*self.frames.exporter.status(jix[0]),len(self.frames.exporter.jobs)))
-            self.encodeStatus.opacity = self.overlayOpacity
-            self.encodeStatus.colour = (1.0,0.0,0.0,0.8)
+                rfile = os.path.split(job[2])[1]
+                targ = os.path.split(job[3])[1]
+                start,end = job[5:7]
+            jobinfo = rfile+" %d:%d to "%(start+1,end+1)+targ+": %.02f%%"%(100.0*self.frames.exporter.status(ix),)
+            exports += jobinfo
+        self.exportqlist.text = exports
+        self.exportqlist.update()
+        if len(exports)==0:
+            self.exportq.opacity = 0.0
         else:
-            self.encodeStatus.opacity = 0.0
+            self.exportq.opacity = self.overlayOpacity
+            mlh = height-12.0-rectHeight-5.0-self.metadata.size[1]-12.0
+            lh = min(self.exportqlist.size[1]+12.0,mlh)
+            self.exportq.setPos(60.0,height-lh-rectHeight-5.0)
+            self.exportq.rectangle(self.exportqlist.size[0]+12.0,lh,rgba=(0.0,0.0,0.0,0.25))
+            self.exportq.size = (self.exportqlist.size[0]+12.0,lh)
+            self.exportqlist.setPos(6.0,6.0)
 
 class Audio(object):
     INIT = 0
@@ -638,7 +661,8 @@ class Viewer(GLCompute.GLCompute):
 
         self.exporter = ExportQueue.ExportQueue()
         self.wasExporting = False
-
+        self.exportActive = False  
+        self.exportLastStatus = 0.0
     def loadNewRawSet(self,step):
         fn = self.raw.filename
         path,name = os.path.split(fn) # Correct for files and CDNG dirs
@@ -895,6 +919,8 @@ class Viewer(GLCompute.GLCompute):
         elif k==self.KEY_S:
             self.toggleAnamorLens() #anamorphic for lenses
         elif k==self.KEY_E:
+            self.addEncoding()
+        elif k==self.KEY_Y:
             self.toggleEncoding()
         elif k==self.KEY_D:
             self.toggleEncodeType()
@@ -942,8 +968,16 @@ class Viewer(GLCompute.GLCompute):
 
         elif k==self.KEY_Z:
             self.exporter.cancelAllJobs()
+            self.refresh()
         elif k==self.KEY_X:
-            self.exporter.cancelCurrentJob()
+            if self.exporter.currentjob != -1:
+                self.exporter.cancelJob(self.exporter.currentjob)
+            else:
+                nextjobs = self.exporter.jobs.keys()
+                if len(nextjobs)>0: 
+                    nextjobs.sort()
+                    self.exporter.cancelJob(nextjobs[0])
+            self.refresh()
 
         elif k==self.KEY_LEFT: # Left cursor
             self.jump(-self.fps) # Go back 1 second (will wrap)
@@ -1036,11 +1070,21 @@ class Viewer(GLCompute.GLCompute):
         if self.exporter.busy:
             self.wasExporting = True
         if self.wasExporting:
-            self.refresh() 
+            newstat = 0.0
+            try:
+                newstat = self.exporter.jobstatus[self.exporter.currentjob]
+            except:
+                pass
+            if (newstat < self.exportLastStatus) or ((newstat - self.exportLastStatus)>0.01):
+                self.exportLastStatus = newstat
+                self.refresh() 
         if self.wasExporting and not self.exporter.busy:
             self.wasExporting = False
        
         if self.userIdleTime()>5.0 and self.userIdleTime()<7.0:
+            self.refresh()
+
+        if self.display.isDirty():
             self.refresh()
  
         self.handleIndexing()
@@ -1139,12 +1183,20 @@ class Viewer(GLCompute.GLCompute):
             self.setting_encodeType = (newEncodeType,) # Could be more params here
         config.setState("encodeType",self.setting_encodeType)
         self.refresh()
-    def toggleEncoding(self):
+    def addEncoding(self):
         if not self.indexing:
             if self.setting_encodeType[0] == ENCODE_TYPE_DNG:
                 self.dngExport()
             elif self.setting_encodeType[0] == ENCODE_TYPE_MOV:   
                 self.movExport()
+    def toggleEncoding(self):
+        if self.exportActive:
+            self.exporter.pause()
+            self.exportActive = False
+        else:
+            self.exporter.process()
+            self.exportActive = True
+        self.refresh()
     def movExport(self):
         backgroundEncoder = True
         if backgroundEncoder:

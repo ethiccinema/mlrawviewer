@@ -147,7 +147,7 @@ class GLCompute(object):
         self.bgsync = None
         try:
             self.hasSync = glFenceSync
-            self.hasSync = True
+            self.hasSync = False# True - Doesn't work on Mac/Win
         except:
             self.hasSync = False
         super(GLCompute,self).__init__(**kwds)

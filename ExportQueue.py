@@ -53,20 +53,24 @@ class ExportQueue(threading.Thread):
     Process a queue of export jobs one at a time but as quickly as possible
     Could be any kind of export in future - DNG, LinearDNG (demosacing), ProRes encode...
     """
+    COMMAND_ADD_JOB = 0
+    COMMAND_REMOVE_JOB = 1
+    COMMAND_REMOVE_ALL_JOBS = 2
+    COMMAND_PAUSE = 3
+    COMMAND_PROCESS = 4
+    COMMAND_END = 5
     JOB_DNG = 0
     JOB_MOV = 1
     def __init__(self,**kwds):
         super(ExportQueue,self).__init__(**kwds)
         self.iq = Queue.Queue()
-        self.oq = Queue.Queue()
         self.bgiq = Queue.Queue()
-        self.bgoq = Queue.Queue()
         self.wq = Queue.Queue()
         self.jobs = {}
         self.jobstatus = {}
         self.jobindex = 0
-        self.cancelCurrent = False
-        self.cancelAll = False
+        self.currentjob = -1 
+        self.cancel = False
         self.endflag = False
         self.ended = False
         self.busy = False
@@ -76,14 +80,60 @@ class ExportQueue(threading.Thread):
         self.rgbUploadTex = None
         self.rgbImage = None
         self.svbo = None
+        self.pauseState = True
         self.start()
-    def cancelCurrentJob(self):
-        self.cancelCurrent = True
+    def pause(self):
+        self.iq.put((self.COMMAND_PAUSE,))
+    def process(self):
+        self.iq.put((self.COMMAND_PROCESS,))
+    def processCommands(self,block):
+        once = True
+        #print "processCommand",self.iq.empty()
+        while self.pauseState or once or not self.iq.empty():
+            if block or self.pauseState:
+                command = self.iq.get()
+            else:
+                try:
+                    command = self.iq.get_nowait()
+                except Queue.Empty:
+                    return # Nothing to do
+
+            # Process the command
+            ct = command[0]
+            if ct==self.COMMAND_ADD_JOB:
+                job = command[1]
+                ix = job[0]
+                self.jobs[ix] = job
+                self.jobstatus[ix] = 0.0
+                #print "added job",ix 
+            elif ct==self.COMMAND_REMOVE_JOB:
+                ix = command[1]
+                #print "removing job",ix
+                del self.jobs[ix]
+                del self.jobstatus[ix]
+                if self.currentjob == ix:
+                    self.cancel = True # Terminate early
+            elif ct==self.COMMAND_REMOVE_ALL_JOBS:
+                self.jobs = {}
+                self.jobstatus = {}
+                self.cancel = True
+                #print "removed all jobs"
+            elif ct==self.COMMAND_PAUSE:
+                self.pauseState = True
+            elif ct==self.COMMAND_PROCESS:
+                self.pauseState = False
+            elif ct==self.COMMAND_END:
+                self.endflag = True
+            once = False
+
+    def cancelJob(self,ix):
+        #print "requesting cancel of",ix
+        self.iq.put((self.COMMAND_REMOVE_JOB,ix))
     def cancelAllJobs(self):
-        self.cancelAll = True
+        #print "requesting cancel of all"
+        self.iq.put((self.COMMAND_REMOVE_ALL_JOBS,))
     def end(self):
-        self.endflag = True
-        self.iq.put(None)
+        self.iq.put((self.COMMAND_END,))
     def hasEnded(self):
         return self.ended
     def waitForEnd(self):
@@ -104,33 +154,34 @@ class ExportQueue(threading.Thread):
     def submitJob(self,*args):
         ix = self.jobindex
         self.jobindex += 1
-        self.jobstatus[ix] = 0.0
         job = tuple([ix]+list(args))
-        self.jobs[ix] = job
-        self.iq.put(ix)
+        self.iq.put((self.COMMAND_ADD_JOB,job))
         return ix
     def run(self):
         try:
             while 1: # Wait for the next job in the Queue
                 if self.endflag:
                     break
-                if self.cancelAll:
-                    while not self.iq.empty():
-                        self.iq.get()
-                    self.cancelAll = False
-                    self.busy = False
-                jobindex = self.iq.get()
-                if jobindex != None:
+                self.processCommands(block=(len(self.jobs)==0))
+                if len(self.jobs)>0: 
+                    # There is something to do
+                    pendingJobs = self.jobs.keys()
+                    pendingJobs.sort()
+                    self.currentjob = pendingJobs[0]
                     self.busy = True
+                    self.cancel = False
                     try:
-                        self.nextJob(self.jobs[jobindex])
+                        self.nextJob(self.jobs[self.currentjob])
                     except:
                         print "Export job failed:"
                         import traceback
                         traceback.print_exc()
-                    del self.jobs[jobindex]
-                    del self.jobstatus[jobindex]
-                    if self.iq.empty():
+                    if self.currentjob in self.jobs:
+                        del self.jobs[self.currentjob]
+                        del self.jobstatus[self.currentjob]
+                    self.currentjob = -1
+                    self.cancel = False
+                    if len(self.jobs)==0:
                         self.busy = False
         except:
             pass
@@ -145,7 +196,6 @@ class ExportQueue(threading.Thread):
             self.doExportMov(job[0],jobArgs)
         else:
             pass
-        self.cancelCurrent = False
 
     def setDngHeader(self,r,d,bits,frame,rgbl):
         d.stripTotal = 3000000
@@ -237,10 +287,11 @@ class ExportQueue(threading.Thread):
         r = MlRaw.loadRAWorMLV(filename)
         targfile = os.path.splitext(os.path.split(r.filename)[1])[0]
         target = os.path.join(target,targfile)
-        print "DNG export to",target
+        print "DNG export to",target,"started"
         r.preloadFrame(startFrame)
         r.preloadFrame(startFrame+1) # Preload one ahead
         for i in range(endFrame-startFrame+1):
+            self.processCommands(block=False)
             f = r.frame(startFrame+i)
             d = DNG.DNG()
             self.setDngHeader(r,d,bits,f,rgbl)
@@ -253,8 +304,10 @@ class ExportQueue(threading.Thread):
                 f.convert() # Will block if still processing
                 ifd._strips = [np.frombuffer(f.rawimage,dtype=np.uint16).tostring()]
             d.writeFile(target+"_%06d.dng"%i)
-            self.jobstatus[jobindex] = float(i)/float(todo)
-            if self.endflag or self.cancelCurrent or self.cancelAll:
+            st = float(i)/float(todo)
+            print "%.02f%%"%(st*100.0)
+            self.jobstatus[jobindex] = st
+            if self.endflag or self.cancel:
                 break
         print "DNG export to",target,"finished"
         r.close()
@@ -282,8 +335,9 @@ class ExportQueue(threading.Thread):
     def processExportMov(self,jobindex,filename,movfile,tempwavfile,startFrame,endFrame,rgbl,tm,matrix):
         todo = endFrame-startFrame+1
         target = movfile
+        print "MOV export to",movfile,"started"
          
-        print "Dummy MOV export to",movfile
+        #print "Dummy MOV export to",movfile
         r = MlRaw.loadRAWorMLV(filename)
 
         if subprocess.mswindows:
@@ -294,7 +348,7 @@ class ExportQueue(threading.Thread):
         if getattr(sys,'frozen',False):
             programpath = sys._MEIPASS
         localexe = os.path.join(programpath,exe)
-        print localexe
+        #print localexe
         if os.path.exists(localexe):
             exe = localexe
         kwargs = {"stdin":subprocess.PIPE,"stdout":subprocess.PIPE,"stderr":subprocess.STDOUT,"bufsize":-1}
@@ -310,8 +364,8 @@ class ExportQueue(threading.Thread):
             args = [exe,"-f","rawvideo","-pix_fmt","rgb48","-s","%dx%d"%(r.width(),r.height()),"-r","%.03f"%r.fps,"-i","-","-an","-f","mov","-vf","vflip","-vcodec","prores_ks","-profile:v","4","-alpha_bits","0","-vendor","ap4h","-q:v","4","-r","%.03f"%r.fps,movfile]
             # ProRes 4444 with fixed bitrate. Can be bigger and slower
             #args = [exe,"-f","rawvideo","-pix_fmt","rgb48","-s","%dx%d"%(r.width(),r.height()),"-r","%.03f"%r.fps,"-i","-","-an","-f","mov","-vf","vflip","-vcodec","prores_ks","-profile:v","4","-alpha_bits","0","-vendor","ap4h","-r","%.03f"%r.fps,movfile]
-        print "Encoder args:",args
-        print "Subprocess args:",kwargs
+        #print "Encoder args:",args
+        #print "Subprocess args:",kwargs
         self.encoderProcess = subprocess.Popen(args,**kwargs)
         self.encoderProcess.poll()
         self.stdoutReader = threading.Thread(target=self.stdoutReaderLoop)
@@ -325,6 +379,7 @@ class ExportQueue(threading.Thread):
         r.preloadFrame(startFrame)
         r.preloadFrame(startFrame+1) # Preload one ahead
         for i in range(endFrame-startFrame+1):
+            self.processCommands(block=False)
             f = r.frame(startFrame+i)
             if ((startFrame+i+1)<r.frames()):
                 r.preloadFrame(startFrame+i+1)
@@ -347,15 +402,16 @@ class ExportQueue(threading.Thread):
             if frame != None:
                 if frame < (i-10):
                     time.sleep(0.5) # Give encoder some time to empty buffers
-
-            self.jobstatus[jobindex] = float(i)/float(todo)
-            if self.endflag or self.cancelCurrent or self.cancelAll:
+            st = float(i)/float(todo)
+            print "%.02f%%"%(st*100.0)
+            self.jobstatus[jobindex] = st
+            if self.endflag or self.cancel:
                 break
         self.bgiq.put(None)
         self.bgiq.join()
         self.wq.join() # Wait for the writing task to finish
         self.jobstatus[jobindex] = 1.0
-        print "Dummy MOV export to",movfile,"completed"
+        print "MOV export to",movfile,"finished"
         r.close()
 
     def stdoutReaderLoop(self):
@@ -373,21 +429,26 @@ class ExportQueue(threading.Thread):
                     chars.append(c)
                 if len(buf)>0:
                     self.encoderOutput.append(buf)
-                    print "Encoder:",buf
+                    #print "Encoder:",buf
                     buf = ""
         except:
             pass
-        print "ENCODER FINISHED!"
+        #print "ENCODER FINISHED!"
 
     def stdoutWriter(self):
         nextbuf = self.wq.get()
         while nextbuf != None:
-            self.encoderProcess.stdin.write(nextbuf)
+            try:
+                self.encoderProcess.stdin.write(nextbuf)
+            except:
+                import traceback
+                traceback.print_exc()
+                self.cancel = True
             self.wq.task_done()
             time.sleep(0.016) # Yield
             nextbuf = self.wq.get()
         self.wq.task_done()
-        print "WRITER FINISHED!"
+        #print "WRITER FINISHED!"
 
     def cpuDemosaicPostProcess(self,args):
         frame,w,h,rgbl,tm,matrix = args

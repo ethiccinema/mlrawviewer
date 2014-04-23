@@ -145,6 +145,7 @@ class Drawable(object):
         self.ignoreInput = True
         self.motionWhileClicked = False
         self.hasPointerFocus = False
+        self.matrixDirty = False
     def render(self,scene,matrix,opacity):
         pass
     def input2d(self,matrix,x,y,buttons):
@@ -379,11 +380,15 @@ class Text(Button):
     def __init__(self,text="",**kwds):
         self.text = text
         self.oldtext = None
+        self.maxchars = 64*20
         super(Text,self).__init__(0,0,onclick=self.clickHandler,**kwds)
         #self.motionWhileClicked = True
     def update(self):
         if self.oldtext != self.text:
-            self.label(self.text)
+            text = self.text
+            if len(text)>self.maxchars:
+                text = text[:self.maxchars] 
+            self.label(text,maxchars=self.maxchars)
             self.oldtext = self.text
     def clickHandler(self,x,y):
         pass
