@@ -139,7 +139,13 @@ class Texture:
         glBindFramebuffer(GL_FRAMEBUFFER, 0)
 
     def free(self):
-        glDeleteFramebuffers((self.fbo,))
+        import OpenGL.GL.framebufferobjects
+        if bool(OpenGL.GL.framebufferobjects.glDeleteFramebuffers):
+            OpenGL.GL.framebufferobjects.glDeleteFramebuffers((self.fbo,))
+        elif bool(OpenGL.GL.framebufferobjects.glDeleteFramebuffersEXT):
+            OpenGL.GL.framebufferobjects.glDeleteFramebuffersEXT((self.fbo,))
+        else:
+            print "Could not delete framebuffer",self.fbo
         glDeleteTextures(self.id)
 
     def setupFbo(self):

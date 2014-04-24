@@ -23,7 +23,7 @@ SOFTWARE.
 """
 
 # standard python imports. Should not be missing
-import sys,time,os,threading
+import sys,time,os,threading,Queue
 
 # OpenGL. Could be missing
 try:
@@ -132,10 +132,11 @@ class GLCompute(object):
         self.bgsync = None
         try:
             self.hasSync = glFenceSync
-            self.hasSync = False# True - Doesn't work on Mac/Win
+            self.hasSync = False # True # - Doesn't work on Mac/Win
         except:
             self.hasSync = False
         self.bgThread = None
+        self.bgControl = Queue.Queue()
         glfw.glfwWindowHint(glfw.GLFW_DECORATED,True)
         glfw.glfwWindowHint(glfw.GLFW_RESIZABLE,True)
         glfw.glfwWindowHint(glfw.GLFW_VISIBLE,True)
@@ -168,12 +169,12 @@ class GLCompute(object):
         glfw.glfwSetDropCallback(w, self.__dropfunc)
         glfw.glfwSetWindowPosCallback(w, self.__posfunc)
     def setBgProcess(self,state):
-        self.bgActive = state
-        if self.bgActive:
+        if state:
             if self.bgThread==None:
                 self.bgThread = threading.Thread(target=self.bgdrawthread)
                 self.bgThread.daemon = True
                 self.bgThread.start()
+        self.bgControl.put(state)
     def toggleFullscreen(self):
         if not self._isFull:
             monitors = glfw.glfwGetMonitors()
@@ -207,14 +208,22 @@ class GLCompute(object):
         self.setCursorVisible(True)
     def bgdrawthread(self):
         try:
-            while self.bgActive:
-                glfw.glfwMakeContextCurrent(self.backgroundWindow)
-                self.__bgdraw()
+            while 1:
+                while not self.bgActive:
+                    self.bgActive = self.bgControl.get()
+                while self.bgActive:
+                    glfw.glfwMakeContextCurrent(self.backgroundWindow)
+                    self.__bgdraw()
+                    try:
+                        self.bgActive = self.bgControl.get_nowait()
+                    except Queue.Empty:
+                        pass
         except:
             import traceback
             print "bgdrawthread exception:"
             traceback.print_exc()
         self.bgThread = None
+        print "!!!! bgThread EXITED !!!!"
     def run(self):
         while 1:
             shouldClose = glfw.glfwWindowShouldClose(self.glfwWindow)
@@ -311,8 +320,8 @@ class GLCompute(object):
         self.bgVisibility = glfw.glfwGetWindowAttrib(self.backgroundWindow,glfw.GLFW_VISIBLE)
         if not self.bgActive:
             if self.bgVisibility:
-                pass
                 #glfw.glfwHideWindow(self.backgroundWindow)
+                pass
             return
         if not self.bgVisibility:
             mx,my = glfw.glfwGetWindowPos(self.glfwWindow)

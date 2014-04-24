@@ -520,7 +520,10 @@ class DisplayScene(ui.Scene):
                 rfile = os.path.split(job[2])[1]
                 targ = os.path.split(job[3])[1]
                 start,end = job[5:7]
-            jobinfo = rfile+" %d:%d to "%(start+1,end+1)+targ+": %.02f%%"%(100.0*self.frames.exporter.status(ix),)
+            if end==None:
+                jobinfo = rfile+" to "+targ+": %.02f%%"%(100.0*self.frames.exporter.status(ix),)
+            else:
+                jobinfo = rfile+" %d:%d to "%(start+1,end+1)+targ+": %.02f%%"%(100.0*self.frames.exporter.status(ix),)
             exports += jobinfo
         self.exportqlist.text = exports
         self.exportqlist.update()
@@ -663,14 +666,20 @@ class Viewer(GLCompute.GLCompute):
         self.wasExporting = False
         self.exportActive = False  
         self.exportLastStatus = 0.0
-    def loadNewRawSet(self,step):
-        fn = self.raw.filename
+
+    def candidatesInDir(self,fn):
         path,name = os.path.split(fn) # Correct for files and CDNG dirs
         fl = [f for f in os.listdir(path) if f.lower().endswith(".mlv") or f.lower().endswith(".raw")]
         dirs = [f for f in os.listdir(path) if os.path.isdir(os.path.join(path,f))]
         cdngs = [f for f in dirs if len([d for d in os.listdir(os.path.join(path,f)) if d.lower().endswith(".dng")])]
         fl.extend(cdngs)
         fl.sort()
+        return fl
+ 
+    def loadNewRawSet(self,step):
+        fn = self.raw.filename
+        path,name = os.path.split(fn) # Correct for files and CDNG dirs
+        fl = self.candidatesInDir(fn)
         current = fl.index(name)
         newOne = (current + step)%len(fl)
         found = False
@@ -920,6 +929,8 @@ class Viewer(GLCompute.GLCompute):
             self.toggleAnamorLens() #anamorphic for lenses
         elif k==self.KEY_E:
             self.addEncoding()
+        elif k==self.KEY_C:
+            self.addEncodingAll()
         elif k==self.KEY_Y:
             self.toggleEncoding()
         elif k==self.KEY_D:
@@ -1156,11 +1167,12 @@ class Viewer(GLCompute.GLCompute):
     def refresh(self):
         self.needsRefresh = True
 
-    def checkoutfile(self,ext):
-        rfn = os.path.splitext(os.path.split(self.raw.filename)[1])[0]
+    def checkoutfile(self,fn,ext):
+        rfn = os.path.splitext(os.path.split(fn)[1])[0]
         i = 1
         full = os.path.join(self.outfilename,rfn+"_%06d"%i+ext)
-        while os.path.exists(full):
+        queuedfiles = [j[1][3] for j in self.exporter.jobs.items()]
+        while os.path.exists(full) or full in queuedfiles:
             i += 1
             full = os.path.join(self.outfilename,rfn+"_%06d"%i+ext)
         return full    
@@ -1188,6 +1200,54 @@ class Viewer(GLCompute.GLCompute):
             self.dngExport()
         elif self.setting_encodeType[0] == ENCODE_TYPE_MOV:   
             self.movExport()
+    def addEncodingAll(self):
+        """
+        Magic button for smoe workflows?
+        Auto-add all files in current directory using current settings
+        """
+        fn = self.raw.filename
+        path,name = os.path.split(fn) # Correct for files and CDNG dirs
+        fl = self.candidatesInDir(fn)
+        c = self.setting_rgb
+        rgbl = (c[0],c[1],c[2],self.setting_brightness)
+        if self.setting_encodeType[0] == ENCODE_TYPE_DNG:
+            for cand in fl:
+                filename = os.path.join(path,cand)
+                outfile = self.checkoutfile(filename,"_DNG")
+                wavname = os.path.splitext(filename)[0]+".WAV"
+                if os.path.isdir(filename):
+                    wavdir = filename
+                else:
+                    wavdir = os.path.split(filename)[0]
+                print filename,wavdir
+                wavnames = [w for w in os.listdir(wavdir) if w.lower().endswith(".wav")]
+                if os.path.isdir(filename) and len(wavnames)>0:
+                    wavfilename = os.path.join(wavdir,wavnames[0])
+                else:
+                    wavfilename = wavname # Expect this to be extracted by indexing of MLV with SND
+                print cand,outfile,wavfilename
+                self.exporter.exportDng(filename,outfile,wavfilename,0,None,0.0,rgbl=rgbl)
+
+        elif self.setting_encodeType[0] == ENCODE_TYPE_MOV:   
+            for cand in fl:
+                filename = os.path.join(path,cand)
+                outfile = self.checkoutfile(filename,".MOV")
+                wavname = os.path.splitext(filename)[0]+".WAV"
+                if os.path.isdir(filename):
+                    wavdir = filename
+                else:
+                    wavdir = os.path.split(filename)[0]
+                print filename,wavdir,wavname
+                wavnames = [w for w in os.listdir(wavdir) if w.lower().endswith(".wav")]
+                if os.path.isdir(filename) and len(wavnames)>0:
+                    wavfilename = os.path.join(wavdir,wavnames[0])
+                else:
+                    wavfilename = wavname # Expect this to be extracted by indexing of MLV with SND
+                print filename,outfile,wavfilename
+                self.exporter.exportMov(filename,outfile,wavfilename,0,None,0.0,rgbl=rgbl,tm=self.setting_tonemap,matrix=self.setting_colourMatrix)
+                # Hmmm, colour matrix should be in the raw file.. shouldn't be a parameter?
+        self.refresh()
+
     def toggleEncoding(self):
         if self.exportActive:
             self.exporter.pause()
@@ -1198,7 +1258,7 @@ class Viewer(GLCompute.GLCompute):
         self.refresh()
 
     def movExport(self):
-        outfile = self.checkoutfile(".MOV")
+        outfile = self.checkoutfile(self.raw.filename,".MOV")
         c = self.setting_rgb
         rgbl = (c[0],c[1],c[2],self.setting_brightness)
         self.exporter.exportMov(self.raw.filename,outfile,self.wavname,self.marks[0][0],self.marks[1][0],self.audioOffset,rgbl=rgbl,tm=self.setting_tonemap,matrix=self.setting_colourMatrix)
@@ -1452,7 +1512,7 @@ class Viewer(GLCompute.GLCompute):
         self.refresh()
 
     def dngExport(self):
-        outfile = self.checkoutfile("_DNG")
+        outfile = self.checkoutfile(self.raw.filename,"_DNG")
         c = self.setting_rgb
         rgbl = (c[0],c[1],c[2],self.setting_brightness)
         self.exporter.exportDng(self.raw.filename,outfile,self.wavname,self.marks[0][0],self.marks[1][0],self.audioOffset,rgbl=rgbl)

@@ -308,11 +308,11 @@ class ExportQueue(threading.Thread):
     def doExportDng(self,jobindex,args):
         filename,dngdir,wavfile,startFrame,endFrame,audioOffset,bits,rgbl = args
         os.mkdir(dngdir)
-        todo = endFrame-startFrame+1
         target = dngdir
         r = MlRaw.loadRAWorMLV(filename)
         if endFrame == None:
             endFrame = r.frames()
+        todo = endFrame-startFrame+1
         if r.audioFrames()>0:
             # Must index the whole file in order that we have the wav file
             while r.indexingStatus()<1.0:
@@ -371,13 +371,13 @@ class ExportQueue(threading.Thread):
         self.stdoutReader = None
 
     def processExportMov(self,jobindex,filename,movfile,wavfile,startFrame,endFrame,audioOffset,rgbl,tm,matrix):
-        todo = endFrame-startFrame+1
         target = movfile
         print "MOV export to",movfile,"started"
         tempwavname = None 
         r = MlRaw.loadRAWorMLV(filename)
         if endFrame == None:
             endFrame = r.frames()
+        todo = endFrame-startFrame+1
         if r.audioFrames()>0:
             # Must index the whole file in order that we have the wav file
             while r.indexingStatus()<1.0:
@@ -499,7 +499,7 @@ class ExportQueue(threading.Thread):
     def cpuDemosaicPostProcess(self,args):
         frame,w,h,rgbl,tm,matrix = args
         if self.svbo == None:
-            self.svbo = ui.SharedVbo()
+            self.svbo = ui.SharedVbo(1024*16)
         if self.shaderQuality == None:
             self.shaderQuality = ShaderDemosaicCPU()
         if self.rgbUploadTex:
