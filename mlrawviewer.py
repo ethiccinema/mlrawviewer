@@ -622,7 +622,7 @@ class Viewer(GLCompute.GLCompute):
         self.drawnFrameNumber = None
         self.playFrame = self.raw.firstFrame
         self.frameCache = {0:self.raw.firstFrame}
-        self.preloadingFrame = 0
+        self.preloadingFrame = []
         self.preloadingFrames = []
         self.preloadFrame(1) # Immediately try to preload the next frame
         self.fps = raw.fps
@@ -727,7 +727,7 @@ class Viewer(GLCompute.GLCompute):
         self.raw = raw
         self.playFrame = self.raw.firstFrame
         self.frameCache = {0:self.raw.firstFrame}
-        self.preloadingFrame = 0
+        self.preloadingFrame = []
         self.preloadingFrames = []
         self.playTime = 0
         self.playFrameNumber = 0
@@ -1136,19 +1136,45 @@ class Viewer(GLCompute.GLCompute):
             # Do we have the needed frame available?
             if self.neededFrame in self.frameCache:
                 PLOG(PLOG_FRAME,"Using frame %d"%self.neededFrame)
-                #print "using frame",neededFrame
                 # Yes we do. Update the frame details and queue display
                 self.playFrameNumber = self.neededFrame
                 self.nextFrameNumber = self.playFrameNumber + 1
                 self.playTime = self.neededFrame * self.fps
                 self.playFrame = self.frameCache[self.neededFrame]
-                #if self.playFrame.wbal:
-                #    ts,mode,temp,r,g,b,d1,d2 = self.playFrame.wbal
-                #    self.setting_rgb = (1024.0/r,1024.0/g,1024.0/b)
                 self.needsRefresh = True
                 self.redisplay()
             else:
-                time.sleep(0.003)
+                # Is there a better frame in the cache than the one we are currently displaying? 
+                newer = []
+                older = [] 
+                for ix in self.frameCache:
+                    if ix>self.neededFrame:
+                        newer.append(ix)
+                    if ix<self.neededFrame:
+                        older.append(ix)
+                       
+                newer.sort()
+                older.sort()
+                nearest = None
+                if len(newer)>0:
+                    nearest = newer[0]
+                elif len(older)>0:
+                    nearest = older[-1] 
+                if nearest:
+                    if abs(nearest-self.neededFrame)<abs(self.neededFrame-self.playFrameNumber):
+                        # It is "better"
+                        # Yes we do. Update the frame details and queue display
+                        self.playFrameNumber = nearest
+                        self.nextFrameNumber = self.playFrameNumber + 1
+                        self.playTime = nearest * self.fps
+                        self.playFrame = self.frameCache[nearest]
+                        self.needsRefresh = True
+                        self.redisplay()
+                        PLOG(PLOG_FRAME,"Using near frame %d"%nearest)
+                    else:
+                        time.sleep(0.003)
+                else:
+                    time.sleep(0.003)
         else:
             time.sleep(0.003)
 
@@ -1366,18 +1392,29 @@ class Viewer(GLCompute.GLCompute):
 
     # Manage the frame progression
     def preloadFrame(self,index):
-        if index in self.preloadingFrames:
-            return # Currently being loaded
         if index in self.frameCache:
             return # Already available in the cache
-        if self.preloadingFrame == 2:
+        if index in self.preloadingFrame:
+            return # Currently being loaded
+        if index in self.preloadingFrames:
+            return # Currently in queue to be loaded
+        else:
+            self.preloadingFrames.append(index)
+        self.preloadingFrames.sort()
+        if len(self.preloadingFrames)>10:
+            self.preloadingFrames = self.preloadingFrames[-10:]
+        nextindex = self.preloadingFrames.pop() # Last in list
+        while nextindex in self.frameCache:
+            if len(self.preloadingFrames)==0:
+                return
+            nextindex = self.preloadingFrames.pop() # Last in list
+        if len(self.preloadingFrame) == 2:
             return # Don't preload more than 2 frames
-        self.preloadingFrame += 1
+        self.preloadingFrame.append(nextindex)
         #print "preloading",index
-        PLOG(PLOG_FRAME,"Calling preload for frame %d"%index)
-        self.raw.preloadFrame(index)
-        self.preloadingFrames.append(index)
-        PLOG(PLOG_FRAME,"Returned from preload for frame %d"%index)
+        PLOG(PLOG_FRAME,"Calling preload for frame %d"%nextindex)
+        self.raw.preloadFrame(nextindex)
+        PLOG(PLOG_FRAME,"Returned from preload for frame %d"%nextindex)
     def manageFrameCache(self):
         if len(self.frameCache)>10: # Cache 10 frames at most
             # Don't remove currently showing frame
@@ -1410,18 +1447,14 @@ class Viewer(GLCompute.GLCompute):
                         self.preloadFrame(n)
 
     def checkForLoadedFrames(self):
-        if self.preloadingFrame > 0:
+        if len(self.preloadingFrame) > 0:
             if self.raw.isPreloadedFrameAvailable():
                 frameIndex,preloadedFrame = self.raw.nextFrame()
-                expected = self.preloadingFrames.pop(0)
-                if expected != frameIndex:
-                    print "!!! Received frame",frameIndex,"but expected",expected
+                self.preloadingFrame.remove(frameIndex)
                 PLOG(PLOG_FRAME,"Received preloaded frame %d"%frameIndex)
-                #print "new frame loaded:",frameIndex
                 # Add it to the cache
                 self.frameCache[frameIndex] = preloadedFrame
                 self.manageFrameCache()
-                self.preloadingFrame -= 1
         self.manageFrameLoading()
     MARK_IN = 0
     MARK_OUT = 1
