@@ -112,6 +112,14 @@ D - Choose export type, MOV or DNG
 
 E - Start exporting from the start of the marked range to the export directory. Will use the source name with ".MOV" or "_DNG" appended.
 
+C - Export all files in the current directory using the current settings.
+
+Y - Pause or continue processing of the export queue.
+
+X - Cancel current export job (and start next one in queue)
+
+Z - Cancel all export jobs
+
 T - Toggle between sRGB gamma, Rec.709 gamma, linear, global tone mapping, and log mapping curves
 
 J/K - Change to previous/next MLV/RAW file in same directory as current file
@@ -125,9 +133,5 @@ U/P - Jump to the previous/next marks
 R - Reset the marks to start/end of the file
 
 L - Toggle looping or play-once mode
-
-X - Cancel current export job (and start next one in queue)
-
-Z - Cancel all export jobs
 
 H/G - Save/load current colour balance & brightness (for matching multiple takes)
