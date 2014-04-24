@@ -36,7 +36,7 @@ import tkMessageBox
 
 from Config import Config
 
-config = Config(version=(1,1,4))
+config = Config(version=(1,1,5))
 
 programpath = os.path.abspath(os.path.split(sys.argv[0])[0])
 if getattr(sys,'frozen',False):
