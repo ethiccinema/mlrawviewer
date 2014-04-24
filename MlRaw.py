@@ -958,7 +958,17 @@ class CDNG:
         self.whiteBalance = [float(d)/float(n) for n,d in fd.FULL_IFD.tags[DNG.Tag.AsShotNeutral[0]][3]] # Note: immediately take reciprocal
         print "rgb",self.whiteBalance
         #self.whiteBalance = 
-
+    
+        self._make = "Unknown Make"
+        self._model = "Unknown Model"
+        try:
+            self._make = fd.FULL_IFD.tags[DNG.Tag.Make[0]][3].lstrip().strip('\0')
+            self._model = fd.FULL_IFD.tags[DNG.Tag.Model[0]][3].lstrip().strip('\0')
+            if self._model.startswith(self._make):
+                self._model = self._model[len(self._make):].lstrip()
+        except:
+            pass
+             
         self.firstFrame = self._loadframe(0,convert=False)
 
         self.preloader = threading.Thread(target=self.preloaderMain)
@@ -985,6 +995,12 @@ class CDNG:
         return self._height
     def frames(self):
         return len(self.dngs)
+    def make(self):
+        return self._make
+    def model(self):
+        return self._model
+    def bodySerialNumber(self):
+        return self.identity[2]
     def audioFrames(self):
         return 0
     def preloaderMain(self):

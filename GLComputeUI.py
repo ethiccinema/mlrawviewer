@@ -196,6 +196,7 @@ class Scene(object):
             #if buttons[0]==0 and buttons[1]==0: return None
             for d in self.drawables:
                 if d.ignoreInput: continue
+                if d.opacity == 0.0: continue
                 self.eventHandler = d.input2d(self.inputMatrix,x,y,buttons)
                 if self.eventHandler != None: break
             if self.eventHandler:

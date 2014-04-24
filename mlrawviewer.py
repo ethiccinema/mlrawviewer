@@ -281,6 +281,7 @@ class DisplayScene(ui.Scene):
         self.mdbg.edges = (1.0,1.0,0.05,0.10)
         self.metadata = ui.Text("",svbo=self.frames.svbo)
         self.metadata.setScale(0.25)
+        self.metadata.ignoreInput = True
         self.exportq = ui.Flickable(400.0,200.0,svbo=frames.svbo)
         self.exportq.edges = (1.0,1.0,0.01,0.01)
         self.exportq.colour = (1.0,1.0,1.0,1.0)
@@ -679,7 +680,10 @@ class Viewer(GLCompute.GLCompute):
     def loadNewRawSet(self,step):
         fn = self.raw.filename
         path,name = os.path.split(fn) # Correct for files and CDNG dirs
+        if len(name)==0:
+            path,name = os.path.split(path)
         fl = self.candidatesInDir(fn)
+        print self.raw.filename,fl,path,name
         current = fl.index(name)
         newOne = (current + step)%len(fl)
         found = False
