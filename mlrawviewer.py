@@ -1085,6 +1085,8 @@ class Viewer(GLCompute.GLCompute):
         if self.exporter.busy:
             self.wasExporting = True
         if self.wasExporting:
+            if not self.exporter.busy:
+                self.toggleEncoding() # Auto pause when queue finished
             newstat = 0.0
             try:
                 newstat = self.exporter.jobstatus[self.exporter.currentjob]

@@ -519,7 +519,7 @@ class ExportQueue(threading.Thread):
         self.svbo.bind()
         self.shaderQuality.prepare(self.svbo)
         self.svbo.upload()
-        self.shaderQuality.demosaicPass(self.rgbUploadTex,frame.black,balance=rgbl[0:3],white=frame.white,tonemap=tm,colourMatrix=matrix)
+        self.shaderQuality.demosaicPass(self.rgbUploadTex,frame.black,balance=(rgbl[0]*rgbl[3],rgbl[1]*rgbl[3],rgbl[2]*rgbl[3]),white=frame.white,tonemap=tm,colourMatrix=matrix)
         rgb = glReadPixels(0,0,w,h,GL_RGB,GL_UNSIGNED_SHORT)
         return rgb
 
