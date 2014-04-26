@@ -35,6 +35,7 @@ try:
     from OpenGL.GL.shaders import compileShader, compileProgram
     from OpenGL.GL.framebufferobjects import *
     from OpenGL.GL.ARB.texture_rg import *
+    from OpenGL.GL.ARB.texture_float import *
     from OpenGL.GL.EXT.framebuffer_object import *
 except Exception,err:
     print """There is a problem with your python environment.
@@ -110,10 +111,13 @@ class Texture:
         glActiveTexture(GL_TEXTURE0)
         glBindTexture(GL_TEXTURE_2D,self.id)
         glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-        if hasalpha and not fp:
+        if hasalpha and not fp and not sixteen:
             glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA,self.width,self.height,0,GL_RGBA,GL_UNSIGNED_BYTE,rgbadata)
         elif hasalpha and fp:
             glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA32F,self.width,self.height,0,GL_RGBA,GL_FLOAT,None)
+        elif not hasalpha and mono and fp:
+            try: glTexImage2D(GL_TEXTURE_2D,0,GL_LUMINANCE32F_ARB,self.width,self.height,0,GL_RED,GL_FLOAT,None)
+            except GLError: glTexImage2D(GL_TEXTURE_2D,0,GL_RGB32F,self.width,self.height,0,GL_RED,GL_FLOAT,None)
         elif not hasalpha and not mono and fp:
             glTexImage2D(GL_TEXTURE_2D,0,GL_RGB32F,self.width,self.height,0,GL_RGB,GL_FLOAT,None)
         elif mono and not sixteen:
@@ -122,7 +126,12 @@ class Texture:
         elif mono and sixteen:
             try: glTexImage2D(GL_TEXTURE_2D,0,GL_R16,self.width,self.height,0,GL_RED,GL_UNSIGNED_SHORT,rgbadata)
             except GLError: glTexImage2D(GL_TEXTURE_2D,0,GL_RGB16,self.width,self.height,0,GL_RED,GL_UNSIGNED_SHORT,rgbadata)
-        elif not mono and sixteen:
+        elif not mono and sixteen and hasalpha:
+            try: 
+                glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA32F,self.width,self.height,0,GL_RGBA,GL_UNSIGNED_SHORT,rgbadata)
+            except GLError: 
+                glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA16,self.width,self.height,0,GL_RGBA,GL_UNSIGNED_SHORT,rgbadata)
+        elif not mono and sixteen and not hasalpha:
             try: 
                 glTexImage2D(GL_TEXTURE_2D,0,GL_RGB32F,self.width,self.height,0,GL_RGB,GL_UNSIGNED_SHORT,rgbadata)
             except GLError: 
@@ -218,12 +227,16 @@ class Texture:
             glTexSubImage2D(GL_TEXTURE_2D,0,xoff,yoff,w,h,GL_RGBA,GL_FLOAT,rgbadata)
         elif not self.hasalpha and not self.mono and self.fp:
             glTexSubImage2D(GL_TEXTURE_2D,0,xoff,yoff,w,h,GL_RGB,GL_FLOAT,rgbadata)
+        elif not self.hasalpha and self.mono and self.fp:
+            glTexSubImage2D(GL_TEXTURE_2D,0,xoff,yoff,w,h,GL_RED,GL_FLOAT,rgbadata)
         elif self.mono and not self.sixteen:
             glTexSubImage2D(GL_TEXTURE_2D,0,xoff,yoff,w,h,GL_RED,GL_UNSIGNED_BYTE,rgbadata)
         elif self.sixteen and self.mono:
             glTexSubImage2D(GL_TEXTURE_2D,0,xoff,yoff,w,h,GL_RED,GL_UNSIGNED_SHORT,rgbadata)
-        elif self.sixteen and not self.mono:
+        elif self.sixteen and not self.mono and not self.hasalpha:
             glTexSubImage2D(GL_TEXTURE_2D,0,xoff,yoff,w,h,GL_RGB,GL_UNSIGNED_SHORT,rgbadata)
+        elif self.sixteen and not self.mono and self.hasalpha:
+            glTexSubImage2D(GL_TEXTURE_2D,0,xoff,yoff,w,h,GL_RGBA,GL_UNSIGNED_SHORT,rgbadata)
         else:
             glTexSubImage2D(GL_TEXTURE_2D,0,xoff,yoff,w,h,GL_RGB,GL_UNSIGNED_BYTE,rgbadata)
         if self.mipmap:

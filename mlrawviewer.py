@@ -98,6 +98,8 @@ from ShaderDemosaicNearest import *
 from ShaderDemosaicBilinear import *
 from ShaderDemosaicCPU import *
 from ShaderDisplaySimple import *
+from ShaderPreprocess import *
+from ShaderPatternNoise import *
 from ShaderText import *
 import ExportQueue
 
@@ -108,6 +110,8 @@ ENCODE_TYPE_MAX = 2
 class Demosaicer(ui.Drawable):
     def __init__(self,settings,encoder,frames,**kwds):
         super(Demosaicer,self).__init__(**kwds)
+        self.shaderPatternNoise = ShaderPatternNoise()
+        self.shaderPreprocess = ShaderPreprocess()
         self.shaderNormal = ShaderDemosaicBilinear()
         self.shaderQuality = ShaderDemosaicCPU()
         self.settings = settings
@@ -119,10 +123,17 @@ class Demosaicer(ui.Drawable):
         self.lastTone = None
         self.frames = frames # Frame fetching interface
         self.rgbFrameUploaded = None
+        self.lastPP = None
 
-    def setTextures(self,rawUploadTex,rgbUploadTex):
+    def setTextures(self,rgbImage,horizontalPattern,verticalPattern,preprocessTex1,preprocessTex2,rawUploadTex,rgbUploadTex):
+        self.rgbImage = rgbImage
+        self.horizontalPattern = horizontalPattern
+        self.verticalPattern = verticalPattern
+        self.preprocessTex1 = preprocessTex1
+        self.preprocessTex2 = preprocessTex2
         self.rawUploadTex = rawUploadTex
         self.rgbUploadTex = rgbUploadTex
+        self.lastPP = self.preprocessTex2
 
     def render(self,scene,matrix,opacity):
         frameData = self.frames.currentFrame()
@@ -141,7 +152,7 @@ class Demosaicer(ui.Drawable):
         tone = self.settings.tonemap()
         different = (frameData != self.lastFrameData) or (brightness != self.lastBrightness) or (rgb != self.lastRgb) or (frameNumber != self.lastFrameNumber) or (tone != self.lastTone)
         if (frameData and different):
-            if ((frameData.rgbimage!=None) or self.settings.highQuality() or self.settings.encoding()) and (frameData.canDemosaic):
+            if 0:#((frameData.rgbimage!=None) or self.settings.highQuality() or self.settings.encoding()) and (frameData.canDemosaic):
                 # Already rgb available, or else low/high quality decode for static view or encoding
                 PLOG(PLOG_CPU,"CPU Demosaic started for frame %d"%frameNumber)
                 before = time.time()
@@ -167,7 +178,28 @@ class Demosaicer(ui.Drawable):
                     PLOG(PLOG_CPU,"Bayer 14-16 convert done for frame %d"%frameNumber)
                     self.rawUploadTex.update(frameData.rawimage)
                 PLOG(PLOG_GPU,"Demosaic shader draw for frame %d"%frameNumber)
-                self.shaderNormal.demosaicPass(self.rawUploadTex,frameData.black,balance=balance,white=frameData.white,tonemap=self.settings.tonemap(),colourMatrix=self.settings.setting_colourMatrix)
+
+                """
+                # Do some preprocess passes to find horizontal/vertical stripes
+                self.horizontalPattern.bindfbo()
+                self.shaderPatternNoise.draw(scene.size[0],scene.size[1],self.rawUploadTex,0) 
+                self.verticalPattern.bindfbo()
+                self.shaderPatternNoise.draw(scene.size[0],scene.size[1],self.rawUploadTex,1) 
+                # Swap preprocess buffer - feed previous one to new call
+                if self.lastPP == self.preprocessTex2:
+                    self.preprocessTex1.bindfbo()
+                    self.shaderPreprocess.draw(scene.size[0],scene.size[1],self.rawUploadTex,self.preprocessTex2,self.horizontalPattern,self.verticalPattern)
+                    self.lastPP = self.preprocessTex1
+                else:
+                    self.preprocessTex2.bindfbo()
+                    self.shaderPreprocess.draw(scene.size[0],scene.size[1],self.rawUploadTex,self.preprocessTex1,self.horizontalPattern,self.verticalPattern)
+                    self.lastPP = self.preprocessTex2
+                self.rgbImage.bindfbo()
+                """
+                if False:
+                    self.shaderNormal.demosaicPass(self.lastPP,frameData.black,balance=balance,white=frameData.white,tonemap=self.settings.tonemap(),colourMatrix=self.settings.setting_colourMatrix)
+                else:
+                    self.shaderNormal.demosaicPass(self.rawUploadTex,frameData.black,balance=balance,white=frameData.white,tonemap=self.settings.tonemap(),colourMatrix=self.settings.setting_colourMatrix)
                 PLOG(PLOG_GPU,"Demosaic shader draw done for frame %d"%frameNumber)
         self.lastFrameData = frameData
         self.lastFrameNumber = frameNumber
@@ -186,21 +218,32 @@ class DemosaicScene(ui.Scene):
     def initTextures(self):
         raw = self.frames.raw
         self.rawUploadTex = GLCompute.Texture((raw.width(),raw.height()),None,hasalpha=False,mono=True,sixteen=True)
+        self.horizontalPattern = GLCompute.Texture((raw.width(),1),None,hasalpha=False,mono=True,fp=True)
+        self.verticalPattern = GLCompute.Texture((1,raw.height()),None,hasalpha=False,mono=True,fp=True)
+        zero = "\0"*raw.width()*raw.height()*2*4 # 16bit RGBA
+        self.preprocessTex1 = GLCompute.Texture((raw.width(),raw.height()),zero,hasalpha=True,mono=False,sixteen=True)
+        self.preprocessTex2 = GLCompute.Texture((raw.width(),raw.height()),zero,hasalpha=True,mono=False,sixteen=True)
         #try: self.rgbUploadTex = GLCompute.Texture((self.raw.width(),self.raw.height()),None,hasalpha=False,mono=False,fp=True)
         self.rgbUploadTex = GLCompute.Texture((raw.width(),raw.height()),None,hasalpha=False,mono=False,sixteen=True)
         try: self.rgbImage = GLCompute.Texture((raw.width(),raw.height()),None,hasalpha=False,mono=False,fp=True)
         except GLError: self.rgbImage = GLCompute.Texture((raw.width(),raw.height()),None,hasalpha=False,sixteen=True)
-        self.demosaicer.setTextures(self.rawUploadTex,self.rgbUploadTex)
+        self.demosaicer.setTextures(self.rgbImage,self.horizontalPattern,self.verticalPattern,self.preprocessTex1,self.preprocessTex2,self.rawUploadTex,self.rgbUploadTex)
         #print "Using",self.demosaicer.shaderNormal.demosaic_type,"demosaic algorithm"
     def setTarget(self):
         self.rgbImage.bindfbo()
     def free(self):
+        self.horizontalPattern.free()
+        self.verticalPattern.free()
+        self.preprocessTex1.free()
+        self.preprocessTex2.free()
         self.rawUploadTex.free()
         self.rgbUploadTex.free()
         self.rgbImage.free()
     def prepareToRender(self):
         self.demosaicer.shaderNormal.prepare(self.frames.svbo)
         self.demosaicer.shaderQuality.prepare(self.frames.svbo)
+        self.demosaicer.shaderPreprocess.prepare(self.frames.svbo)
+        self.demosaicer.shaderPatternNoise.prepare(self.frames.svbo)
 
 class Display(ui.Drawable):
     def __init__(self,**kwds):
@@ -640,6 +683,7 @@ class Viewer(GLCompute.GLCompute):
         self.audio = Audio()
         self.wavname = wavfilename
         self.wav = None
+        self.spare = True
         self.indexing = True
         self.audioOffset = 0.0
         self.lastEventTime = time.time()
@@ -900,6 +944,14 @@ class Viewer(GLCompute.GLCompute):
 
 
         elif k==self.KEY_ZERO:
+            """
+            self.spare = not self.spare
+            if self.spare:
+                print "subtracting stripes"
+            else:
+                print "no subtracting"
+            self.refresh()
+            """
             self.changeWhiteBalance(1.0, 1.0, 1.0, "Passthrough") # =passthrough
         elif k==self.KEY_ONE:
             self.changeWhiteBalance(2.0, 1.0, 2.0, "WhiteFluro")  # ~WhiteFluro
