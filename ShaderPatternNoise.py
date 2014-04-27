@@ -44,7 +44,8 @@ uniform float orientation;
 uniform sampler2D rawtex;
 
 void main() {
-    float col = 0.0;
+    float coll = 0.0;
+    float colh = 0.0;
     if (orientation==1.0) {
         // Vertical
         float up4 = -4.0 * rawres.w;
@@ -68,13 +69,13 @@ void main() {
                 down1 = 0.9 * down1 + 0.1 * texture2D(rawtex,texcoord+vec2(x,down4));
                 float av = abs(up-mid)+abs(up1-mid)+abs(down-mid)+abs(down1-mid);
                 if ((av<(0.10/256.0))&&((mid-2000.0/65536.0)<(1.0/256.0))) {
-                    col += (mid - 0.25*(up1+up+down+down1));
+                    coll += (mid - 0.25*(up1+up+down+down1));
                     count += 1.0;
                 }
             }
         }
-        if (count<10.0) col = 0.0;
-        else col = col/count;
+        if (count<10.0) coll = 0.0;
+        else coll = coll/count;
     }
     else {
         // Horizontal
@@ -82,31 +83,55 @@ void main() {
         float left2 = -2.0 * rawres.z;
         float right2 = 2.0 * rawres.z;
         float right4 = 4.0 * rawres.z;
-        float count = 0.0;
+        if (texcoord.x<rawres.z*4.0) {
+            left4 = right4;
+            left2 = right2;
+        }
+        if (texcoord.x>(1.0-rawres.z*4.0)) {
+            right4 = left4;
+            right2 = left2;
+        }
+        float countl = 0.0;
+        float counth = 0.0;
         float y=rawres.w*0.5;
+        float ny=y+rawres.w;
         float lleft = texture2D(rawtex,texcoord+vec2(left4,y));
         float left = texture2D(rawtex,texcoord+vec2(left2,y));
         float right = texture2D(rawtex,texcoord+vec2(right2,y));
         float rright = texture2D(rawtex,texcoord+vec2(right4,y));
+        float black = 2048.0/65535.0;
         for (int i=0;i<3000;i++) {
             if (i<rawres.x) {
-                y=rawres.w*0.5 + float(i)*rawres.w;
-                lleft = lleft*0.1 + 0.9*texture2D(rawtex,texcoord+vec2(left4,y));
-                left = left*0.1 + 0.9*texture2D(rawtex,texcoord+vec2(left2,y));
+                y=ny;
+                ny=y+rawres.w;
+                lleft = lleft*0.0 + 1.0*texture2D(rawtex,texcoord+vec2(left4,y));
+                left = left*0.0 + 1.0*texture2D(rawtex,texcoord+vec2(left2,y));
                 float mid = texture2D(rawtex,texcoord+vec2(0.0,y));
-                right = right*0.1 + 0.9*texture2D(rawtex,texcoord+vec2(right2,y));
-                rright = rright*0.1 + 0.9*texture2D(rawtex,texcoord+vec2(right4,y));
-                float av = abs(left-mid)+abs(lleft-mid)+abs(right-mid)+abs(rright-mid);
-                if ((av<(0.10/256.0))&&((mid-2000.0/65536.0)<(1.0/256.0))) {
-                    col += (mid - 0.25*(lleft+left+right+rright));
-                    count += 1.0;
+                right = right*0.0 + 1.0*texture2D(rawtex,texcoord+vec2(right2,y));
+                rright = rright*0.0 + 1.0*texture2D(rawtex,texcoord+vec2(right4,y));
+                //float av = 0.25*(lleft+left+right+rright);
+                //float div = abs(lleft-rright)+abs(left-right)+abs(lleft-left)+abs(right-rright);
+                float lmd = mix(left,lleft,step(0.0,lleft-left));
+                float rmd = mix(right,rright,step(0.0,rright-right));
+                float med = mix(lmd,rmd,step(0.0,rmd-lmd));
+                float mul = mid/med;
+                if (abs(mul-1.0)<0.01) {
+                    if ((mid-black)<(64.0/65536.0)) { 
+                        coll += mul;
+                        countl += 1.0;
+                    } else {
+                        colh += mul;
+                        counth += 1.0;
+                    }
                 }
             }
         }
-        if (count<10.0) col = 0.0;
-        else col = col/count;
+        if (countl<5.0) coll = 1.0;
+        else coll = coll/countl;
+        if (counth<5.0) colh = 1.0;
+        else colh = colh/counth;
     }
-    gl_FragColor = vec4(col);
+    gl_FragColor = vec4(coll,colh,0.0,0.0);
 }
 """
 

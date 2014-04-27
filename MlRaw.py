@@ -930,7 +930,8 @@ class CDNG:
 
         self.black = fd.FULL_IFD.tags[DNG.Tag.BlackLevel[0]][3][0]
         self.white = fd.FULL_IFD.tags[DNG.Tag.WhiteLevel[0]][3][0]
-        self.colorMatrix = np.matrix(np.array([float(n)/float(d) for n,d in fd.FULL_IFD.tags[DNG.Tag.ColorMatrix1[0]][3]]).reshape(3,3))
+        self.colorMatrix = np.matrix(np.array([float(n)/float(d) for n,d in self.tag(fd,DNG.Tag.ColorMatrix1)[3]]).reshape(3,3))
+        
         baselineExposure = 0.0 # EV
         if DNG.Tag.BaselineExposure[0] in fd.FULL_IFD.tags:
             n,d = fd.FULL_IFD.tags[DNG.Tag.BaselineExposure[0]][3][0]
@@ -955,7 +956,7 @@ class CDNG:
             print "Unsupported BitsPerSample = ",bps,"(should be 14 or 16)"
             raise IOError # Only support 14 or 16 bitsPerSample
 
-        self.whiteBalance = [float(d)/float(n) for n,d in fd.FULL_IFD.tags[DNG.Tag.AsShotNeutral[0]][3]] # Note: immediately take reciprocal
+        self.whiteBalance = [float(d)/float(n) for n,d in self.tag(fd,DNG.Tag.AsShotNeutral)[3]] # Note: immediately take reciprocal
         print "rgb",self.whiteBalance
         #self.whiteBalance = 
     
@@ -976,6 +977,10 @@ class CDNG:
         self.preloaderResults = Queue.Queue(2)
         self.preloader.daemon = True
         self.preloader.start()
+    def tag(self,dng,tag):
+        if tag[0] in dng.FULL_IFD.tags: return dng.FULL_IFD.tags[tag[0]]
+        else: return dng.THUMB_IFD.tags[tag[0]]
+
     def description(self):
         firstName = self.dngs[0]
         lastName = self.dngs[-1]

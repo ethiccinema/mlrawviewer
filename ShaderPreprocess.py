@@ -53,9 +53,14 @@ uniform sampler2D vertex;
 void main() {
     float raw = texture2D(rawtex,texcoord).r;
     vec4 last = texture2D(lastex,texcoord).rgba;
-    float hor = texture2D(hortex,texcoord).r;
-    float ver = texture2D(vertex,texcoord).r;
-    float pix = raw - hor;//0.5 + 1000.0*hor; // Remove stripes
+    vec3 hor = texture2D(hortex,texcoord).rgb;
+    vec3 ver = texture2D(vertex,texcoord).rgb;
+    float black = 2048.0/65535.0;
+    //float pix = 10.0*hor-9.9; //0.5 + 1000.0*hor; // Remove stripes
+    //float pix = 0.5+(hor-1.0)*10.;
+    //float pix = hor;
+    float mul = mix(hor.r/0.998,hor.g/0.997,step(black+64.0/65536.0,raw));
+    float pix = raw/mul;
     vec3 passon = last.gba; // Do nothing
     gl_FragColor = vec4(pix,passon);
 }

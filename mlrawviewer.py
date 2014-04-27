@@ -179,10 +179,18 @@ class Demosaicer(ui.Drawable):
                     self.rawUploadTex.update(frameData.rawimage)
                 PLOG(PLOG_GPU,"Demosaic shader draw for frame %d"%frameNumber)
 
-                """
                 # Do some preprocess passes to find horizontal/vertical stripes
                 self.horizontalPattern.bindfbo()
                 self.shaderPatternNoise.draw(scene.size[0],scene.size[1],self.rawUploadTex,0) 
+                #horiz = glReadPixels(0,0,scene.size[0],1,GL_RGB,GL_FLOAT)
+                #high = horiz[:,0,0]
+                #low = horiz[:,0,1]
+                #print high.min(),high.max(),high.mean(),
+                #print low.min(),low.max(),low.mean(),
+                #for x in range(int(scene.size[0])*3-20,int(scene.size[0])*3):#cene.size[0]):
+                #    print horiz.item(x),
+                #print
+
                 self.verticalPattern.bindfbo()
                 self.shaderPatternNoise.draw(scene.size[0],scene.size[1],self.rawUploadTex,1) 
                 # Swap preprocess buffer - feed previous one to new call
@@ -195,8 +203,7 @@ class Demosaicer(ui.Drawable):
                     self.shaderPreprocess.draw(scene.size[0],scene.size[1],self.rawUploadTex,self.preprocessTex1,self.horizontalPattern,self.verticalPattern)
                     self.lastPP = self.preprocessTex2
                 self.rgbImage.bindfbo()
-                """
-                if False:
+                if self.settings.spare:
                     self.shaderNormal.demosaicPass(self.lastPP,frameData.black,balance=balance,white=frameData.white,tonemap=self.settings.tonemap(),colourMatrix=self.settings.setting_colourMatrix)
                 else:
                     self.shaderNormal.demosaicPass(self.rawUploadTex,frameData.black,balance=balance,white=frameData.white,tonemap=self.settings.tonemap(),colourMatrix=self.settings.setting_colourMatrix)
@@ -218,8 +225,8 @@ class DemosaicScene(ui.Scene):
     def initTextures(self):
         raw = self.frames.raw
         self.rawUploadTex = GLCompute.Texture((raw.width(),raw.height()),None,hasalpha=False,mono=True,sixteen=True)
-        self.horizontalPattern = GLCompute.Texture((raw.width(),1),None,hasalpha=False,mono=True,fp=True)
-        self.verticalPattern = GLCompute.Texture((1,raw.height()),None,hasalpha=False,mono=True,fp=True)
+        self.horizontalPattern = GLCompute.Texture((raw.width(),1),None,hasalpha=False,mono=False,fp=True)
+        self.verticalPattern = GLCompute.Texture((1,raw.height()),None,hasalpha=False,mono=False,fp=True)
         zero = "\0"*raw.width()*raw.height()*2*4 # 16bit RGBA
         self.preprocessTex1 = GLCompute.Texture((raw.width(),raw.height()),zero,hasalpha=True,mono=False,sixteen=True)
         self.preprocessTex2 = GLCompute.Texture((raw.width(),raw.height()),zero,hasalpha=True,mono=False,sixteen=True)
@@ -513,7 +520,9 @@ class DisplayScene(ui.Scene):
         b2 = 128.0-128.0*((b+5.0)/15.0)
         self.brightnessHandle.setPos(rtl+16.0-4.0,rtr+b2-4.0)
         self.updateIcons() 
-        progWidth = (float(frameNumber)/float(self.frames.raw.frames()-1))*rectWidth
+        fw = self.frames.raw.frames()-1
+        if fw==0: fw=1
+        progWidth = (float(frameNumber)/float(fw))*rectWidth
         self.progress.size = (rectWidth,rectHeight) # For input checking
         self.progress.rectangle(progWidth,rectHeight,rgba=(0.2,0.2,0.01,0.2))
         self.timestamp.setPos(66.0,height-rectHeight-1.0)
@@ -944,15 +953,13 @@ class Viewer(GLCompute.GLCompute):
 
 
         elif k==self.KEY_ZERO:
-            """
             self.spare = not self.spare
             if self.spare:
                 print "subtracting stripes"
             else:
                 print "no subtracting"
             self.refresh()
-            """
-            self.changeWhiteBalance(1.0, 1.0, 1.0, "Passthrough") # =passthrough
+            #self.changeWhiteBalance(1.0, 1.0, 1.0, "Passthrough") # =passthrough
         elif k==self.KEY_ONE:
             self.changeWhiteBalance(2.0, 1.0, 2.0, "WhiteFluro")  # ~WhiteFluro
         elif k==self.KEY_TWO:
