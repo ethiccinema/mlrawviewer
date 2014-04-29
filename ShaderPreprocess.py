@@ -49,6 +49,7 @@ uniform sampler2D lastex;
 uniform sampler2D rawtex;
 uniform sampler2D hortex;
 uniform sampler2D vertex;
+uniform vec4 stripescale;
 
 void main() {
     float raw = texture2D(rawtex,texcoord).r;
@@ -59,8 +60,9 @@ void main() {
     //float pix = 10.0*hor-9.9; //0.5 + 1000.0*hor; // Remove stripes
     //float pix = 0.5+(hor-1.0)*10.;
     //float pix = hor;
-    float mul = mix(hor.r/0.998,hor.g/0.997,step(black+64.0/65536.0,raw));
-    float pix = raw/mul;
+    float mulh = mix(hor.r/stripescale.x,hor.g/stripescale.y,step(black+64.0/65536.0,raw));
+    float mulv = mix(ver.r/stripescale.z,ver.g/stripescale.w,step(black+64.0/65536.0,raw));
+    float pix = raw/(mulv*mulh);
     vec3 passon = last.gba; // Do nothing
     gl_FragColor = vec4(pix,passon);
 }
@@ -68,7 +70,7 @@ void main() {
 
     def __init__(self,**kwds):
         myclass = self.__class__
-        super(ShaderPreprocess,self).__init__(myclass.vertex_src,myclass.fragment_src,["rawtex","lastex","rawres","hortex","vertex"],**kwds)
+        super(ShaderPreprocess,self).__init__(myclass.vertex_src,myclass.fragment_src,["rawtex","lastex","rawres","hortex","vertex","stripescale"],**kwds)
         self.svbo = None
     def prepare(self,svbo):
         if self.svbo==None:
@@ -77,7 +79,7 @@ void main() {
             vertices = np.array((-1,-1,0,1,-1,0,-1,1,0,1,1,0),dtype=np.float32)
             self.svbo.update(vertices,self.svbobase)
 
-    def draw(self,width,height,rawtex,lastex,hortex,vertex):
+    def draw(self,width,height,rawtex,lastex,hortex,vertex,hl,hh,vl,vh):
         self.use()
         self.blend(False)
         glVertexAttribPointer(self.vertex,3,GL_FLOAT,GL_FALSE,0,self.svbo.vboOffset(self.svbobase))
@@ -90,6 +92,7 @@ void main() {
         glUniform1i(self.uniforms["lastex"], 1)
         glUniform1i(self.uniforms["hortex"], 2)
         glUniform1i(self.uniforms["vertex"], 3)
+        glUniform4f(self.uniforms["stripescale"], hl,hh,vl,vh)
         w = width
         h = height
         if w>0 and h>0:

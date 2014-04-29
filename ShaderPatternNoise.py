@@ -64,7 +64,7 @@ void main() {
             down2 = up2;
         }
         float x=rawres.z*0.5;
-        for (int i=0;i<rawres.y;i++) {
+        for (int i=0;i<rawres.x;i++) {
             float up1 = texture2D(rawtex,texcoord+vec2(x,up4));
             float up = texture2D(rawtex,texcoord+vec2(x,up2));
             float mid = texture2D(rawtex,texcoord+vec2(x,0.0));
@@ -77,10 +77,11 @@ void main() {
             float mulz = abs(mul-1.0);
             float incr = step(mulz,0.01);   
             float loh = step((mid-blackwhite.x),(64.0/65536.0));
+            float nloh = 1.0 - loh;
             coll += loh * incr * mul;
             countl += loh * incr;
-            colh += loh * incr * mul;
-            counth += loh * incr;
+            colh += nloh * incr * mul;
+            counth += nloh * incr;
             x=x+rawres.z;
         }
         if (countl<5.0) coll = 1.0;
@@ -103,7 +104,7 @@ void main() {
             right2 = left2;
         }
         float y=rawres.w*0.5;
-        for (int i=0;i<rawres.x;i++) {
+        for (int i=0;i<rawres.y;i++) {
             float lleft = texture2D(rawtex,texcoord+vec2(left4,y));
             float left = texture2D(rawtex,texcoord+vec2(left2,y));
             float mid = texture2D(rawtex,texcoord+vec2(0.0,y));
@@ -116,10 +117,11 @@ void main() {
             float mulz = abs(mul-1.0);
             float incr = step(mulz,0.01);   
             float loh = step((mid-blackwhite.x),(64.0/65536.0));
+            float nloh = 1.0-loh;
             coll += loh * incr * mul;
             countl += loh * incr;
-            colh += loh * incr * mul;
-            counth += loh * incr;
+            colh += nloh * incr * mul;
+            counth += nloh * incr;
             y=y+rawres.w;
         }
         if (countl<5.0) coll = 1.0;
