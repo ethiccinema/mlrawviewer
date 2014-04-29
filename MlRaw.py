@@ -246,7 +246,10 @@ class Frame:
         # CPU based demosaic -> SLOW!
         if self.rgbimage != None:
             return # Done already
-        if self.rawdata != None:
+        elif self.rawimage != None:
+            # Already converted 14bit to 16bit, or preprocessed
+            self.rgbimage = demosaic16(self.rawimage,self.width,self.height,self.black,byteSwap=0)
+        elif self.rawdata != None:
             if self.bitsPerSample == 14:
                 self.rgbimage = demosaic14(self.rawdata,self.width,self.height,self.black,self.byteSwap)
             elif self.bitsPerSample == 16:

@@ -152,24 +152,70 @@ class Demosaicer(ui.Drawable):
         tone = self.settings.tonemap()
         different = (frameData != self.lastFrameData) or (brightness != self.lastBrightness) or (rgb != self.lastRgb) or (frameNumber != self.lastFrameNumber) or (tone != self.lastTone)
         if (frameData and different):
-            if 0:#((frameData.rgbimage!=None) or self.settings.highQuality() or self.settings.encoding()) and (frameData.canDemosaic):
+            if ((frameData.rgbimage!=None) or self.settings.highQuality() or self.settings.encoding()) and (frameData.canDemosaic):
                 # Already rgb available, or else low/high quality decode for static view or encoding
-                PLOG(PLOG_CPU,"CPU Demosaic started for frame %d"%frameNumber)
-                before = time.time()
-                frameData.demosaic()
-                PLOG(PLOG_CPU,"CPU Demosaic completed for frame %d"%frameNumber)
-                after = time.time()
-                self.encoder.demosaicDuration(after-before)
-                if (frameData != self.lastFrameData) or (self.rgbFrameUploaded != frameNumber):
-                    PLOG(PLOG_GPU,"RGB texture upload called for frame %d"%frameNumber)
-                    self.rgbUploadTex.update(frameData.rgbimage)
-                    PLOG(PLOG_GPU,"RGB texture upload returned for frame %d"%frameNumber)
-                    self.rgbFrameUploaded = frameNumber
-                self.shaderQuality.demosaicPass(self.rgbUploadTex,frameData.black,balance=balance,white=frameData.white,tonemap=tone,colourMatrix=self.settings.setting_colourMatrix)
-                if self.settings.encoding():
-                    self.rgb = glReadPixels(0,0,scene.size[0],scene.size[1],GL_RGB,GL_UNSIGNED_SHORT)
-                    self.encoder.encode(frameNumber,self.rgb)
-
+                if not self.settings.setting_preprocess:
+                    PLOG(PLOG_CPU,"CPU Demosaic started for frame %d"%frameNumber)
+                    before = time.time()
+                    frameData.demosaic()
+                    PLOG(PLOG_CPU,"CPU Demosaic completed for frame %d"%frameNumber)
+                    after = time.time()
+                    self.encoder.demosaicDuration(after-before)
+                    if (frameData != self.lastFrameData) or (self.rgbFrameUploaded != frameNumber):
+                        PLOG(PLOG_GPU,"RGB texture upload called for frame %d"%frameNumber)
+                        self.rgbUploadTex.update(frameData.rgbimage)
+                        PLOG(PLOG_GPU,"RGB texture upload returned for frame %d"%frameNumber)
+                        self.rgbFrameUploaded = frameNumber
+                    self.shaderQuality.demosaicPass(self.rgbUploadTex,frameData.black,balance=balance,white=frameData.white,tonemap=tone,colourMatrix=self.settings.setting_colourMatrix)
+                    if self.settings.encoding():
+                        self.rgb = glReadPixels(0,0,scene.size[0],scene.size[1],GL_RGB,GL_UNSIGNED_SHORT)
+                        self.encoder.encode(frameNumber,self.rgb)
+                else: # Preprocess AND CPU demosaic
+                    if frameData != self.lastFrameData:
+                        PLOG(PLOG_CPU,"Bayer 14-16 convert starts for frame %d"%frameNumber)
+                        frameData.convert()
+                        PLOG(PLOG_CPU,"Bayer 14-16 convert done for frame %d"%frameNumber)
+                        self.rawUploadTex.update(frameData.rawimage)
+                    PLOG(PLOG_GPU,"Demosaic shader draw for frame %d"%frameNumber)
+                    # Do some preprocess passes to find horizontal/vertical stripes
+                    self.horizontalPattern.bindfbo()
+                    self.shaderPatternNoise.draw(scene.size[0],scene.size[1],self.rawUploadTex,0,frameData.black/65536.0,frameData.white/65536.0) 
+                    horiz = glReadPixels(0,0,scene.size[0],1,GL_RGB,GL_FLOAT)
+                    low = horiz[:,0,0]
+                    high = horiz[:,0,1]
+                    horl = low.mean()
+                    horh = high.mean()
+                    self.verticalPattern.bindfbo()
+                    self.shaderPatternNoise.draw(scene.size[0],scene.size[1],self.rawUploadTex,1,frameData.black/65536.0,frameData.white/65536.0) 
+                    vert = glReadPixels(0,0,1,scene.size[1],GL_RGB,GL_FLOAT)
+                    low = vert[0,:,0]
+                    high = vert[0,:,1]
+                    verl = low.mean()
+                    verh = high.mean()
+                    if self.lastPP == self.preprocessTex2:
+                        self.preprocessTex1.bindfbo()
+                        self.shaderPreprocess.draw(scene.size[0],scene.size[1],self.rawUploadTex,self.preprocessTex2,self.horizontalPattern,self.verticalPattern,horl,horh,verl,verh,frameData.black/65536.0,frameData.white/65536.0)
+                        self.lastPP = self.preprocessTex1
+                    else:
+                        self.preprocessTex2.bindfbo()
+                        self.shaderPreprocess.draw(scene.size[0],scene.size[1],self.rawUploadTex,self.preprocessTex1,self.horizontalPattern,self.verticalPattern,horl,horh,verl,verh,frameData.black/65536.0,frameData.white/65536.0)
+                        self.lastPP = self.preprocessTex2
+                    # Now, read out the results as a 16bit raw image and feed to cpu demosaicer
+                    rawpreprocessed = glReadPixels(0,0,scene.size[0],scene.size[1],GL_RED,GL_UNSIGNED_SHORT)
+                    frameData.rawimage = rawpreprocessed
+                    self.rgbImage.bindfbo()
+                    PLOG(PLOG_CPU,"CPU Demosaic started for frame %d"%frameNumber)
+                    before = time.time()
+                    frameData.demosaic()
+                    PLOG(PLOG_CPU,"CPU Demosaic completed for frame %d"%frameNumber)
+                    after = time.time()
+                    self.encoder.demosaicDuration(after-before)
+                    if (frameData != self.lastFrameData) or (self.rgbFrameUploaded != frameNumber):
+                        PLOG(PLOG_GPU,"RGB texture upload called for frame %d"%frameNumber)
+                        self.rgbUploadTex.update(frameData.rgbimage)
+                        PLOG(PLOG_GPU,"RGB texture upload returned for frame %d"%frameNumber)
+                        self.rgbFrameUploaded = frameNumber
+                    self.shaderQuality.demosaicPass(self.rgbUploadTex,frameData.black,balance=balance,white=frameData.white,tonemap=tone,colourMatrix=self.settings.setting_colourMatrix)
             else:
                 # Fast decode for full speed viewing
                 if frameData != self.lastFrameData:

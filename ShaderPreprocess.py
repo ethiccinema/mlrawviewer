@@ -39,7 +39,7 @@ varying vec2 texcoord;
 uniform vec4 rawres;
 void main() {
     gl_Position = vertex;
-    texcoord = (vec2(.5*vertex.x+.5,.5+.5*vertex.y));
+    texcoord = (vec2(.5*vertex.x+.5,.5+.5*(vertex.y)));
 }
 """
     fragment_src = """

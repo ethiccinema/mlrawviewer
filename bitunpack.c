@@ -355,7 +355,7 @@ bitunpack_predemosaic16(PyObject* self, PyObject *args)
     if (dem->width != width || dem->height != height)
         return NULL;
 
-    int elements = length*8/14;
+    int elements = length*8/16;
     int i = 0;
     unsigned int out = 0;
     short unsigned int* read = (short unsigned int*)input;
