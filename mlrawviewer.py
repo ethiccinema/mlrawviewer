@@ -186,8 +186,8 @@ class Demosaicer(ui.Drawable):
                     horiz = glReadPixels(0,0,scene.size[0],1,GL_RGB,GL_FLOAT)
                     low = horiz[:,0,0]
                     high = horiz[:,0,1]
-                    print "h",high.min(),high.max(),high.mean(),
-                    print low.min(),low.max(),low.mean()
+                    #print "h",high.min(),high.max(),high.mean(),
+                    #print low.min(),low.max(),low.mean()
                     horl = low.mean()
                     horh = high.mean()
                     #for x in range(int(scene.size[0])*3-20,int(scene.size[0])*3):#cene.size[0]):
@@ -200,19 +200,19 @@ class Demosaicer(ui.Drawable):
                     low = vert[0,:,0]
                     high = vert[0,:,1]
                     #print high.shape
-                    print "v",high.min(),high.max(),high.mean(),
-                    print low.min(),low.max(),low.mean()
+                    #print "v",high.min(),high.max(),high.mean(),
+                    #print low.min(),low.max(),low.mean()
                     verl = low.mean()
                     verh = high.mean()
                 
                     # Swap preprocess buffer - feed previous one to new call
                     if self.lastPP == self.preprocessTex2:
                         self.preprocessTex1.bindfbo()
-                        self.shaderPreprocess.draw(scene.size[0],scene.size[1],self.rawUploadTex,self.preprocessTex2,self.horizontalPattern,self.verticalPattern,horl,horh,verl,verh)
+                        self.shaderPreprocess.draw(scene.size[0],scene.size[1],self.rawUploadTex,self.preprocessTex2,self.horizontalPattern,self.verticalPattern,horl,horh,verl,verh,frameData.black/65536.0,frameData.white/65536.0)
                         self.lastPP = self.preprocessTex1
                     else:
                         self.preprocessTex2.bindfbo()
-                        self.shaderPreprocess.draw(scene.size[0],scene.size[1],self.rawUploadTex,self.preprocessTex1,self.horizontalPattern,self.verticalPattern,horl,horh,verl,verh)
+                        self.shaderPreprocess.draw(scene.size[0],scene.size[1],self.rawUploadTex,self.preprocessTex1,self.horizontalPattern,self.verticalPattern,horl,horh,verl,verh,frameData.black/65536.0,frameData.white/65536.0)
                         self.lastPP = self.preprocessTex2
                     self.rgbImage.bindfbo()
                     self.shaderNormal.demosaicPass(self.lastPP,frameData.black,balance=balance,white=frameData.white,tonemap=self.settings.tonemap(),colourMatrix=self.settings.setting_colourMatrix)
