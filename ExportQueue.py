@@ -61,11 +61,14 @@ class ExportQueue(threading.Thread):
     COMMAND_END = 5
     JOB_DNG = 0
     JOB_MOV = 1
+    PREPROCESS_NONE = 0
+    PREPROCESS_ALL = 1
     def __init__(self,**kwds):
         super(ExportQueue,self).__init__(**kwds)
         self.iq = Queue.Queue()
         self.bgiq = Queue.Queue()
         self.wq = Queue.Queue()
+        self.dq = Queue.Queue()
         self.jobs = {}
         self.jobstatus = {}
         self.jobindex = 0
@@ -148,10 +151,10 @@ class ExportQueue(threading.Thread):
         else:
             return 1.0
     # Queue Job calls
-    def exportDng(self,rawfile,dngdir,wavfile,startFrame=0,endFrame=None,audioOffset=0.0,bits=16,rgbl=None):
-        return self.submitJob(self.JOB_DNG,rawfile,dngdir,wavfile,startFrame,endFrame,audioOffset,bits,rgbl)
-    def exportMov(self,rawfile,movfile,wavfile,startFrame=0,endFrame=None,audioOffset=0.0,rgbl=None,tm=None,matrix=None):
-        return self.submitJob(self.JOB_MOV,rawfile,movfile,wavfile,startFrame,endFrame,audioOffset,rgbl,tm,matrix)
+    def exportDng(self,rawfile,dngdir,wavfile,startFrame=0,endFrame=None,audioOffset=0.0,bits=16,rgbl=None,preprocess=0):
+        return self.submitJob(self.JOB_DNG,rawfile,dngdir,wavfile,startFrame,endFrame,audioOffset,bits,rgbl,preprocess)
+    def exportMov(self,rawfile,movfile,wavfile,startFrame=0,endFrame=None,audioOffset=0.0,rgbl=None,tm=None,matrix=None,preprocess=0):
+        return self.submitJob(self.JOB_MOV,rawfile,movfile,wavfile,startFrame,endFrame,audioOffset,rgbl,tm,matrix,preprocess)
     def submitJob(self,*args):
         ix = self.jobindex
         self.jobindex += 1
@@ -306,7 +309,7 @@ class ExportQueue(threading.Thread):
         wav.close()
             
     def doExportDng(self,jobindex,args):
-        filename,dngdir,wavfile,startFrame,endFrame,audioOffset,bits,rgbl = args
+        filename,dngdir,wavfile,startFrame,endFrame,audioOffset,bits,rgbl,preprocess= args
         os.mkdir(dngdir)
         target = dngdir
         r = MlRaw.loadRAWorMLV(filename)
@@ -351,9 +354,9 @@ class ExportQueue(threading.Thread):
 
     def doExportMov(self,jobindex,args):
         self.needBgDraw = True
-        filename,movfile,wavfile,startFrame,endFrame,audioOffset,rgbl,tm,matrix = args
+        filename,movfile,wavfile,startFrame,endFrame,audioOffset,rgbl,tm,matrix,preprocess = args
         try:
-            self.processExportMov(jobindex,filename,movfile,wavfile,startFrame,endFrame,audioOffset,rgbl,tm,matrix)
+            self.processExportMov(jobindex,filename,movfile,wavfile,startFrame,endFrame,audioOffset,rgbl,tm,matrix,preprocess)
         except:
             import traceback
             traceback.print_exc()
@@ -370,7 +373,7 @@ class ExportQueue(threading.Thread):
         self.encoderOutput = None
         self.stdoutReader = None
 
-    def processExportMov(self,jobindex,filename,movfile,wavfile,startFrame,endFrame,audioOffset,rgbl,tm,matrix):
+    def processExportMov(self,jobindex,filename,movfile,wavfile,startFrame,endFrame,audioOffset,rgbl,tm,matrix,preprocess):
         target = movfile
         print "MOV export to",movfile,"started"
         tempwavname = None 
@@ -421,7 +424,10 @@ class ExportQueue(threading.Thread):
         self.writer = threading.Thread(target=self.stdoutWriter)
         self.writer.daemon = True
         self.writer.start()
-
+        self.demosaicThread = threading.Thread(target=self.demosaicThreadFunction)
+        self.demosaicThread.daemon = True
+        self.demosaicThread.start()
+        self.writtenFrame = 0
         r.preloadFrame(startFrame)
         r.preloadFrame(startFrame+1) # Preload one ahead
         for i in range(endFrame-startFrame+1):
@@ -430,8 +436,12 @@ class ExportQueue(threading.Thread):
             if ((startFrame+i+1)<r.frames()):
                 r.preloadFrame(startFrame+i+1)
             # Queue job
-            f.demosaic()    
-            self.bgiq.put((f,r.width(),r.height(),rgbl,tm,matrix))
+            if preprocess==self.PREPROCESS_ALL:
+                # Must first preprocess with shader
+                pass
+            else:
+                print "queueing frame",i 
+                self.dq.put((f,i,r.width(),r.height(),rgbl,tm,matrix))
 
             # We need to make sure we don't buffer too many frames. Check what frame the encoder is at
             latest = ""
@@ -444,18 +454,30 @@ class ExportQueue(threading.Thread):
                         frame = int(latest[1])
                     except ValueError:
                         frame = None
-            
+           
+            while self.writtenFrame<(i-3):
+                if self.endflag or self.cancel:
+                    break
+                print "sleeping"
+                time.sleep(0.5) 
             if frame != None:
-                if frame < (i-10):
+                if frame < (self.writtenFrame-5):
+                    print "sleeping in queue thread"
                     time.sleep(0.5) # Give encoder some time to empty buffers
-            st = float(i)/float(todo)
+            st = float(self.writtenFrame+1)/float(todo)
             print "%.02f%%"%(st*100.0)
             self.jobstatus[jobindex] = st
             if self.endflag or self.cancel:
                 break
-        self.bgiq.put(None)
-        self.bgiq.join()
-        self.wq.join() # Wait for the writing task to finish
+        self.dq.put(None)
+        while (self.writtenFrame+1)<todo:
+            time.sleep(0.5) 
+            st = float(self.writtenFrame+1)/float(todo)
+            print "%.02f%%"%(st*100.0)
+            self.jobstatus[jobindex] = st
+            if self.endflag or self.cancel:
+                break
+        self.dq.join()
         self.jobstatus[jobindex] = 1.0
         print "MOV export to",movfile,"finished"
         r.close()
@@ -485,7 +507,11 @@ class ExportQueue(threading.Thread):
         nextbuf = self.wq.get()
         while nextbuf != None:
             try:
-                self.encoderProcess.stdin.write(nextbuf)
+                index,buf = nextbuf
+                print "writing frame",index
+                self.encoderProcess.stdin.write(buf)
+                print "written"
+                self.writtenFrame = index
             except:
                 import traceback
                 traceback.print_exc()
@@ -495,9 +521,28 @@ class ExportQueue(threading.Thread):
             nextbuf = self.wq.get()
         self.wq.task_done()
         #print "WRITER FINISHED!"
-
+   
+    def demosaicThreadFunction(self):
+        nextbuf = self.dq.get()
+        while nextbuf != None:
+            try:
+                #self.dq.put((f,r.width(),r.height(),rgbl,tm,matrix))
+                print "start demosaicing frame",nextbuf[1]
+                nextbuf[0].demosaic()
+                print "done demosaicing"
+                self.bgiq.put(nextbuf)
+            except:
+                import traceback
+                traceback.print_exc()
+                self.cancel = True
+            self.dq.task_done()
+            nextbuf = self.dq.get()
+        self.bgiq.put(None)
+        self.bgiq.join()  
+        self.dq.task_done()
+ 
     def cpuDemosaicPostProcess(self,args):
-        frame,w,h,rgbl,tm,matrix = args
+        frame,index,w,h,rgbl,tm,matrix = args
         if self.svbo == None:
             self.svbo = ui.SharedVbo(1024*16)
         if self.shaderQuality == None:
@@ -521,13 +566,13 @@ class ExportQueue(threading.Thread):
         self.svbo.upload()
         self.shaderQuality.demosaicPass(self.rgbUploadTex,frame.black,balance=(rgbl[0]*rgbl[3],rgbl[1]*rgbl[3],rgbl[2]*rgbl[3]),white=frame.white,tonemap=tm,colourMatrix=matrix)
         rgb = glReadPixels(0,0,w,h,GL_RGB,GL_UNSIGNED_SHORT)
-        return rgb
+        return (index,rgb)
 
     def onBgDraw(self,w,h):
         #print "onBgDraw",w,h
         try:
             nextJob = self.bgiq.get_nowait()
-            #print "bg job to do",nextJob
+            print "bg job to do",nextJob
             if nextJob == None:
                 self.wq.put(None)
                 self.wq.join()
@@ -535,6 +580,7 @@ class ExportQueue(threading.Thread):
                 result = self.cpuDemosaicPostProcess(nextJob)
                 self.wq.put(result)
             self.bgiq.task_done()
+            print "bg job done"
         except Queue.Empty:
             pass
             #print "no work to do yet"
