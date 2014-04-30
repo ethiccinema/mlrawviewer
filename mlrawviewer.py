@@ -1388,7 +1388,12 @@ class Viewer(GLCompute.GLCompute):
                 else:
                     wavfilename = wavname # Expect this to be extracted by indexing of MLV with SND
                 print filename,outfile,wavfilename
-                self.exporter.exportMov(filename,outfile,wavfilename,0,None,0.0,rgbl=rgbl,tm=self.setting_tonemap,matrix=self.setting_colourMatrix)
+                pp = ExportQueue.ExportQueue.PREPROCESS_NONE
+                print "PREPROCESSING",self.setting_preprocess
+                if self.setting_preprocess:
+                    print "PREPROCESSNIG"
+                    pp = ExportQueue.ExportQueue.PREPROCESS_ALL
+                self.exporter.exportMov(filename,outfile,wavfilename,0,None,0.0,rgbl=rgbl,tm=self.setting_tonemap,matrix=self.setting_colourMatrix,preprocess=pp)
                 # Hmmm, colour matrix should be in the raw file.. shouldn't be a parameter?
         self.refresh()
 
@@ -1405,7 +1410,12 @@ class Viewer(GLCompute.GLCompute):
         outfile = self.checkoutfile(self.raw.filename,".MOV")
         c = self.setting_rgb
         rgbl = (c[0],c[1],c[2],self.setting_brightness)
-        self.exporter.exportMov(self.raw.filename,outfile,self.wavname,self.marks[0][0],self.marks[1][0],self.audioOffset,rgbl=rgbl,tm=self.setting_tonemap,matrix=self.setting_colourMatrix)
+        pp = ExportQueue.ExportQueue.PREPROCESS_NONE
+        print "PREPROCESSING",self.setting_preprocess
+        if self.setting_preprocess:
+            print "PREPROCESSNIG"
+            pp = ExportQueue.ExportQueue.PREPROCESS_ALL
+        self.exporter.exportMov(self.raw.filename,outfile,self.wavname,self.marks[0][0],self.marks[1][0],self.audioOffset,rgbl=rgbl,tm=self.setting_tonemap,matrix=self.setting_colourMatrix,preprocess=pp)
         self.refresh()
         return
 

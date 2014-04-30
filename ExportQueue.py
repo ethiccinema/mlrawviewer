@@ -40,6 +40,8 @@ import MlRaw,DNG
 import GLCompute
 import GLComputeUI as ui
 from ShaderDemosaicCPU import *
+from ShaderPreprocess import *
+from ShaderPatternNoise import *
 
 import numpy as np
 
@@ -81,6 +83,8 @@ class ExportQueue(threading.Thread):
         self.needBgDraw = False
         self.shaderQuality = None
         self.rgbUploadTex = None
+        self.shaderPatternNoise = None
+        self.shaderPreprocess = None
         self.rgbImage = None
         self.svbo = None
         self.pauseState = True
@@ -438,10 +442,11 @@ class ExportQueue(threading.Thread):
             # Queue job
             if preprocess==self.PREPROCESS_ALL:
                 # Must first preprocess with shader
-                pass
+                print "queueing frame for preprocess",i 
+                self.bgiq.put((f,i,1,r.width(),r.height(),rgbl,tm,matrix))
             else:
                 print "queueing frame",i 
-                self.dq.put((f,i,r.width(),r.height(),rgbl,tm,matrix))
+                self.dq.put((f,i,0,r.width(),r.height(),rgbl,tm,matrix))
 
             # We need to make sure we don't buffer too many frames. Check what frame the encoder is at
             latest = ""
@@ -469,7 +474,10 @@ class ExportQueue(threading.Thread):
             self.jobstatus[jobindex] = st
             if self.endflag or self.cancel:
                 break
-        self.dq.put(None)
+        if preprocess==self.PREPROCESS_ALL:
+            self.bgiq.put("End")
+        else:    
+            self.dq.put(None)
         while (self.writtenFrame+1)<todo:
             time.sleep(0.5) 
             st = float(self.writtenFrame+1)/float(todo)
@@ -542,31 +550,87 @@ class ExportQueue(threading.Thread):
         self.dq.task_done()
  
     def cpuDemosaicPostProcess(self,args):
-        frame,index,w,h,rgbl,tm,matrix = args
+        frame,index,jobtype,w,h,rgbl,tm,matrix = args
         if self.svbo == None:
             self.svbo = ui.SharedVbo(1024*16)
         if self.shaderQuality == None:
             self.shaderQuality = ShaderDemosaicCPU()
+        if self.shaderPatternNoise == None:
+            self.shaderPatternNoise = ShaderPatternNoise()
+        if self.shaderPreprocess == None:
+            self.shaderPreprocess = ShaderPreprocess()
         if self.rgbUploadTex:
             if self.rgbUploadTex.width != w or self.rgbUploadTex.height != h:
                 self.rgbUploadTex.free()
                 self.rgbImage.free()
+                self.rawUploadTex.free()
+                self.horizontalPattern.free()
+                self.verticalPattern.free()
+                self.preprocessTex1.free()
+                self.preprocessTex2.free()
                 self.rgbUploadTex = None
                 self.rgbImage = None
-
+                self.rawUploadTex = None
+                self.horizontalPattern = None
+                self.verticalPattern = None
+                self.preprocessTex1 = None
+                self.preprocessTex2 = None
+                self.lastPP = None
         if self.rgbUploadTex == None:
             self.rgbUploadTex = GLCompute.Texture((w,h),None,hasalpha=False,mono=False,sixteen=True)
             try: self.rgbImage = GLCompute.Texture((w,h),None,hasalpha=False,mono=False,fp=True)
             except GLError: self.rgbImage = GLCompute.Texture((w,h),None,hasalpha=False,sixteen=True)
+            self.rawUploadTex = GLCompute.Texture((w,h),None,hasalpha=False,mono=True,sixteen=True)
+            self.horizontalPattern = GLCompute.Texture((w,1),None,hasalpha=False,mono=False,fp=True)
+            self.verticalPattern = GLCompute.Texture((1,h),None,hasalpha=False,mono=False,fp=True)
+            zero = "\0"*w*h*2*4 # 16bit RGBA
+            self.preprocessTex1 = GLCompute.Texture((w,h),zero,hasalpha=True,mono=False,sixteen=True)
+            self.preprocessTex2 = GLCompute.Texture((w,h),zero,hasalpha=True,mono=False,sixteen=True)
+            self.lastPP = self.preprocessTex2
 
-        self.rgbUploadTex.update(frame.rgbimage)
-        self.rgbImage.bindfbo()
-        self.svbo.bind()
-        self.shaderQuality.prepare(self.svbo)
-        self.svbo.upload()
-        self.shaderQuality.demosaicPass(self.rgbUploadTex,frame.black,balance=(rgbl[0]*rgbl[3],rgbl[1]*rgbl[3],rgbl[2]*rgbl[3]),white=frame.white,tonemap=tm,colourMatrix=matrix)
-        rgb = glReadPixels(0,0,w,h,GL_RGB,GL_UNSIGNED_SHORT)
-        return (index,rgb)
+        if jobtype==0:
+            # Shader part of demosaicing
+            self.rgbUploadTex.update(frame.rgbimage)
+            self.rgbImage.bindfbo()
+            self.svbo.bind()
+            self.shaderQuality.prepare(self.svbo)
+            self.svbo.upload()
+            self.shaderQuality.demosaicPass(self.rgbUploadTex,frame.black,balance=(rgbl[0]*rgbl[3],rgbl[1]*rgbl[3],rgbl[2]*rgbl[3]),white=frame.white,tonemap=tm,colourMatrix=matrix)
+            rgb = glReadPixels(0,0,w,h,GL_RGB,GL_UNSIGNED_SHORT)
+            return (index,rgb)
+        elif jobtype==1:            # Predemosaic processing
+            frame.convert()
+            self.svbo.bind()
+            self.shaderPatternNoise.prepare(self.svbo)
+            self.shaderPreprocess.prepare(self.svbo)
+            self.svbo.upload()
+            self.horizontalPattern.bindfbo()
+            self.shaderPatternNoise.draw(w,h,self.rawUploadTex,0,frame.black/65536.0,frame.white/65536.0) 
+            horiz = glReadPixels(0,0,w,1,GL_RGB,GL_FLOAT)
+            low = horiz[:,0,0]
+            high = horiz[:,0,1]
+            horl = low.mean()
+            horh = high.mean()
+            self.verticalPattern.bindfbo()
+            self.shaderPatternNoise.draw(w,h,self.rawUploadTex,1,frame.black/65536.0,frame.white/65536.0) 
+            vert = glReadPixels(0,0,1,h,GL_RGB,GL_FLOAT)
+            low = vert[0,:,0]
+            high = vert[0,:,1]
+            verl = low.mean()
+            verh = high.mean()
+            if self.lastPP == self.preprocessTex2:
+                self.preprocessTex1.bindfbo()
+                self.shaderPreprocess.draw(w,h,self.rawUploadTex,self.preprocessTex2,self.horizontalPattern,self.verticalPattern,horl,horh,verl,verh,frame.black/65536.0,frame.white/65536.0)
+                self.lastPP = self.preprocessTex1
+            else:
+                self.preprocessTex2.bindfbo()
+                self.shaderPreprocess.draw(w,h,self.rawUploadTex,self.preprocessTex1,self.horizontalPattern,self.verticalPattern,horl,horh,verl,verh,frame.black/65536.0,frame.white/65536.0)
+                self.lastPP = self.preprocessTex2
+            # Now, read out the results as a 16bit raw image and feed to cpu demosaicer
+            rawpreprocessed = glReadPixels(0,0,w,h,GL_RED,GL_UNSIGNED_SHORT)
+            frame.rawimage = rawpreprocessed
+            self.dq.put((frame,index,0,w,h,rgbl,tm,matrix)) # Queue CPU demosaicing
+            return None            
 
     def onBgDraw(self,w,h):
         #print "onBgDraw",w,h
@@ -576,9 +640,12 @@ class ExportQueue(threading.Thread):
             if nextJob == None:
                 self.wq.put(None)
                 self.wq.join()
+            elif nextJob == "End":
+                self.dq.put(None)
             else:
                 result = self.cpuDemosaicPostProcess(nextJob)
-                self.wq.put(result)
+                if result != None:
+                    self.wq.put(result)
             self.bgiq.task_done()
             print "bg job done"
         except Queue.Empty:
