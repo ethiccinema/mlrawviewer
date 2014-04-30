@@ -349,7 +349,7 @@ class ExportQueue(threading.Thread):
                 ifd._strips = [np.frombuffer(f.rawimage,dtype=np.uint16).tostring()]
             d.writeFile(target+"_%06d.dng"%i)
             st = float(i)/float(todo)
-            print "%.02f%%"%(st*100.0)
+            #print "%.02f%%"%(st*100.0)
             self.jobstatus[jobindex] = st
             if self.endflag or self.cancel:
                 break
@@ -442,10 +442,8 @@ class ExportQueue(threading.Thread):
             # Queue job
             if preprocess==self.PREPROCESS_ALL:
                 # Must first preprocess with shader
-                print "queueing frame for preprocess",i 
                 self.bgiq.put((f,i,1,r.width(),r.height(),rgbl,tm,matrix))
             else:
-                print "queueing frame",i 
                 self.dq.put((f,i,0,r.width(),r.height(),rgbl,tm,matrix))
 
             # We need to make sure we don't buffer too many frames. Check what frame the encoder is at
@@ -460,17 +458,15 @@ class ExportQueue(threading.Thread):
                     except ValueError:
                         frame = None
            
-            while self.writtenFrame<(i-3):
+            while self.writtenFrame<(i-10):
                 if self.endflag or self.cancel:
                     break
-                print "sleeping"
-                time.sleep(0.5) 
+                time.sleep(0.1) 
             if frame != None:
-                if frame < (self.writtenFrame-5):
-                    print "sleeping in queue thread"
-                    time.sleep(0.5) # Give encoder some time to empty buffers
+                if frame < (self.writtenFrame-10):
+                    time.sleep(0.1) # Give encoder some time to empty buffers
             st = float(self.writtenFrame+1)/float(todo)
-            print "%.02f%%"%(st*100.0)
+            #print "%.02f%%"%(st*100.0)
             self.jobstatus[jobindex] = st
             if self.endflag or self.cancel:
                 break
@@ -481,7 +477,7 @@ class ExportQueue(threading.Thread):
         while (self.writtenFrame+1)<todo:
             time.sleep(0.5) 
             st = float(self.writtenFrame+1)/float(todo)
-            print "%.02f%%"%(st*100.0)
+            #print "%.02f%%"%(st*100.0)
             self.jobstatus[jobindex] = st
             if self.endflag or self.cancel:
                 break
@@ -516,9 +512,7 @@ class ExportQueue(threading.Thread):
         while nextbuf != None:
             try:
                 index,buf = nextbuf
-                print "writing frame",index
                 self.encoderProcess.stdin.write(buf)
-                print "written"
                 self.writtenFrame = index
             except:
                 import traceback
@@ -535,9 +529,7 @@ class ExportQueue(threading.Thread):
         while nextbuf != None:
             try:
                 #self.dq.put((f,r.width(),r.height(),rgbl,tm,matrix))
-                print "start demosaicing frame",nextbuf[1]
                 nextbuf[0].demosaic()
-                print "done demosaicing"
                 self.bgiq.put(nextbuf)
             except:
                 import traceback
@@ -605,6 +597,7 @@ class ExportQueue(threading.Thread):
             self.shaderPreprocess.prepare(self.svbo)
             self.svbo.upload()
             self.horizontalPattern.bindfbo()
+            self.rawUploadTex.update(frame.rawimage)
             self.shaderPatternNoise.draw(w,h,self.rawUploadTex,0,frame.black/65536.0,frame.white/65536.0) 
             horiz = glReadPixels(0,0,w,1,GL_RGB,GL_FLOAT)
             low = horiz[:,0,0]
@@ -636,7 +629,6 @@ class ExportQueue(threading.Thread):
         #print "onBgDraw",w,h
         try:
             nextJob = self.bgiq.get_nowait()
-            print "bg job to do",nextJob
             if nextJob == None:
                 self.wq.put(None)
                 self.wq.join()
@@ -647,7 +639,6 @@ class ExportQueue(threading.Thread):
                 if result != None:
                     self.wq.put(result)
             self.bgiq.task_done()
-            print "bg job done"
         except Queue.Empty:
             pass
             #print "no work to do yet"
