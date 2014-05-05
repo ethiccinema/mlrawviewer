@@ -230,14 +230,14 @@ class Demosaicer(ui.Drawable):
                     self.horizontalPattern.bindfbo()
                     self.shaderPatternNoise.draw(scene.size[0],scene.size[1],self.rawUploadTex,0,frameData.black/65536.0,frameData.white/65536.0) 
                     horiz = glReadPixels(0,0,scene.size[0],1,GL_RGB,GL_FLOAT)
-                    low = horiz[0,:,0]
-                    high = horiz[0,:,1]
+                    low = horiz[:,0,0]
+                    high = horiz[:,0,1]
                     #lowrg2 = horiz[::2,0,0]
                     #lowg1b = horiz[1::2,0,0]
                     #highrg2 = horiz[::2,0,1]
                     #highg1b = horiz[1::2,0,1]
-                    #print "h",high.min(),high.max(),high.mean(),
-                    #print low.min(),low.max(),low.mean()
+                    print "h",high.min(),high.max(),high.mean(),
+                    print low.min(),low.max(),low.mean()
                     #print lowg1b.min(),lowg1b.max(),lowg1b.mean()
                     horh = high.mean()
                     horl = low.mean()
@@ -250,11 +250,11 @@ class Demosaicer(ui.Drawable):
                     vert = glReadPixels(0,0,1,scene.size[1],GL_RGB,GL_FLOAT)
                     low = vert[0,:,0]
                     high = vert[0,:,1]
+                    verl = low.mean()
+                    verh = high.mean()
                     #print high.shape
                     #print "v",high.min(),high.max(),high.mean(),
                     #print low.min(),low.max(),low.mean()
-                    verl = low.mean()
-                    verh = high.mean()
                 
                     # Swap preprocess buffer - feed previous one to new call
                     if self.lastPP == self.preprocessTex2:
