@@ -230,12 +230,17 @@ class Demosaicer(ui.Drawable):
                     self.horizontalPattern.bindfbo()
                     self.shaderPatternNoise.draw(scene.size[0],scene.size[1],self.rawUploadTex,0,frameData.black/65536.0,frameData.white/65536.0) 
                     horiz = glReadPixels(0,0,scene.size[0],1,GL_RGB,GL_FLOAT)
-                    low = horiz[:,0,0]
-                    high = horiz[:,0,1]
+                    low = horiz[0,:,0]
+                    high = horiz[0,:,1]
+                    #lowrg2 = horiz[::2,0,0]
+                    #lowg1b = horiz[1::2,0,0]
+                    #highrg2 = horiz[::2,0,1]
+                    #highg1b = horiz[1::2,0,1]
                     #print "h",high.min(),high.max(),high.mean(),
                     #print low.min(),low.max(),low.mean()
-                    horl = low.mean()
+                    #print lowg1b.min(),lowg1b.max(),lowg1b.mean()
                     horh = high.mean()
+                    horl = low.mean()
                     #for x in range(int(scene.size[0])*3-20,int(scene.size[0])*3):#cene.size[0]):
                     #    print horiz.item(x),
                     #print

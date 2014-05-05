@@ -65,14 +65,18 @@ void main() {
         }
         float x=rawres.z*0.5;
         for (int i=0;i<rawres.x;i++) {
-            float up1 = texture2D(rawtex,texcoord+vec2(x,up4));
-            float up = texture2D(rawtex,texcoord+vec2(x,up2));
-            float mid = texture2D(rawtex,texcoord+vec2(x,0.0));
-            float down = texture2D(rawtex,texcoord+vec2(x,down2));
-            float down1 = texture2D(rawtex,texcoord+vec2(x,down4));
-            float lmd = mix(up,up1,step(0.0,up1-up));
-            float rmd = mix(down,down1,step(0.0,down1-down));
-            float med = mix(lmd,rmd,step(0.0,rmd-lmd));
+            float up1 = texture2D(rawtex,texcoord+vec2(x,up4)).r;
+            float up = texture2D(rawtex,texcoord+vec2(x,up2)).r;
+            float mid = texture2D(rawtex,texcoord+vec2(x,0.0)).r;
+            float down = texture2D(rawtex,texcoord+vec2(x,down2)).r;
+            float down1 = texture2D(rawtex,texcoord+vec2(x,down4)).r;
+            float lh = min(up,up1);
+            float ll = max(up,up1);
+            float rh = min(down,down1);
+            float rl = max(down,down1);
+            float hlo = max(lh,rh);
+            float lhi = min(ll,rl);
+            float med = mix(lhi,hlo,0.5); // Take mid point of mid samples
             float mul = mid/med;
             float mulz = abs(mul-1.0);
             float incr = step(mulz,0.01);   
@@ -105,14 +109,18 @@ void main() {
         }
         float y=rawres.w*0.5;
         for (int i=0;i<rawres.y;i++) {
-            float lleft = texture2D(rawtex,texcoord+vec2(left4,y));
-            float left = texture2D(rawtex,texcoord+vec2(left2,y));
-            float mid = texture2D(rawtex,texcoord+vec2(0.0,y));
-            float right = texture2D(rawtex,texcoord+vec2(right2,y));
-            float rright = texture2D(rawtex,texcoord+vec2(right4,y));
-            float lmd = mix(left,lleft,step(0.0,lleft-left));
-            float rmd = mix(right,rright,step(0.0,rright-right));
-            float med = mix(lmd,rmd,step(0.0,rmd-lmd));
+            float lleft = texture2D(rawtex,texcoord+vec2(left4,y)).r;
+            float left = texture2D(rawtex,texcoord+vec2(left2,y)).r;
+            float mid = texture2D(rawtex,texcoord+vec2(0.0,y)).r;
+            float right = texture2D(rawtex,texcoord+vec2(right2,y)).r;
+            float rright = texture2D(rawtex,texcoord+vec2(right4,y)).r;
+            float lh = min(lleft,left);
+            float ll = max(lleft,left);
+            float rh = min(rright,right);
+            float rl = max(rright,right);
+            float hlo = max(lh,rh);
+            float lhi = min(ll,rl);
+            float med = mix(lhi,hlo,0.5); // Take mid point of mid samples
             float mul = mid/med;
             float mulz = abs(mul-1.0);
             float incr = step(mulz,0.01);   
@@ -124,9 +132,9 @@ void main() {
             counth += nloh * incr;
             y=y+rawres.w;
         }
-        if (countl<5.0) coll = 1.0;
+        if (countl<10.0) coll = 1.0;
         else coll = coll/countl;
-        if (counth<5.0) colh = 1.0;
+        if (counth<10.0) colh = 1.0;
         else colh = colh/counth;
     }
     gl_FragColor = vec4(coll,colh,0.0,0.0);

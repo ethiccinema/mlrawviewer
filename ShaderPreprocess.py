@@ -57,9 +57,9 @@ void main() {
     vec4 last = texture2D(lastex,texcoord).rgba;
     vec3 hor = texture2D(hortex,texcoord).rgb;
     vec3 ver = texture2D(vertex,texcoord).rgb;
-    float mulh = mix(hor.r/stripescale.x,hor.g/stripescale.y,step(blackwhite.r+64.0/65536.0,raw));
-    float mulv = mix(ver.r/stripescale.z,ver.g/stripescale.w,step(blackwhite.r+64.0/65536.0,raw));
-    float pix = (raw/(mulh*mulv));
+    float mulh = mix(hor.r/stripescale.x,1.0/*hor.g/stripescale.y*/,step(blackwhite.r+64.0/65536.0,raw));
+    float mulv = mix(ver.r/stripescale.z,1.0/*ver.g/stripescale.w*/,step(blackwhite.r+64.0/65536.0,raw));
+    float pix = ((raw)/(mulh*mulv));
     vec3 passon = last.gba; // Do nothing
     gl_FragColor = vec4(pix,passon);
 }
