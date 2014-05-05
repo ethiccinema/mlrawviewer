@@ -64,7 +64,8 @@ void main() {
             down2 = up2;
         }
         float x=rawres.z*0.5;
-        for (int i=0;i<rawres.x;i++) {
+        int maxi = int(rawres.x);
+        for (int i=0;i<maxi;i++) {
             float up1 = texture2D(rawtex,texcoord+vec2(x,up4)).r;
             float up = texture2D(rawtex,texcoord+vec2(x,up2)).r;
             float mid = texture2D(rawtex,texcoord+vec2(x,0.0)).r;
@@ -108,7 +109,8 @@ void main() {
             right2 = left2;
         }
         float y=rawres.w*0.5;
-        for (int i=0;i<rawres.y;i++) {
+        int maxi = int(rawres.y);
+        for (int i=0;i<maxi;i++) {
             float lleft = texture2D(rawtex,texcoord+vec2(left4,y)).r;
             float left = texture2D(rawtex,texcoord+vec2(left2,y)).r;
             float mid = texture2D(rawtex,texcoord+vec2(0.0,y)).r;
