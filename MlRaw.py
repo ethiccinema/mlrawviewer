@@ -924,16 +924,25 @@ class CDNG:
         firstDngName = os.path.join(self.cdngpath,self.dngs[0])
         self.firstDng = fd = DNG.DNG()
         fd.readFile(firstDngName) # Only parse metadata
-
-        FrameRate = fd.ifds[0].tags[DNG.Tag.FrameRate[0]][3][0]
-        self.fps = float(FrameRate[0])/float(FrameRate[1])
-        self.fpsnum = FrameRate[0]
-        self.fpsden = FrameRate[1]
-        print "FPS:",self.fps,FrameRate
+    
+        self.fpsnum = 25000
+        self.fpsden = 1000
+        self.fps = 25.0
+        FrameRate = self.tag(fd,DNG.Tag.FrameRate)
+        if FrameRate != None:
+            self.fps = float(FrameRate[0])/float(FrameRate[1])
+            self.fpsnum = FrameRate[0]
+            self.fpsden = FrameRate[1]
+            print "FPS:",self.fps,FrameRate
+        else:
+            print "No internal frame rate. Defaulting to",self.fps
 
         self.black = fd.FULL_IFD.tags[DNG.Tag.BlackLevel[0]][3][0]
         self.white = fd.FULL_IFD.tags[DNG.Tag.WhiteLevel[0]][3][0]
-        self.colorMatrix = np.matrix(np.array([float(n)/float(d) for n,d in self.tag(fd,DNG.Tag.ColorMatrix1)[3]]).reshape(3,3))
+        matrix = self.tag(fd,DNG.Tag.ColorMatrix1)
+        self.colormatrix = np.eye(3)
+        if matrix != None:
+            self.colorMatrix = np.matrix(np.array([float(n)/float(d) for n,d in matrix[3]]).reshape(3,3))
         
         baselineExposure = 0.0 # EV
         if DNG.Tag.BaselineExposure[0] in fd.FULL_IFD.tags:
@@ -959,8 +968,11 @@ class CDNG:
             print "Unsupported BitsPerSample = ",bps,"(should be 14 or 16)"
             raise IOError # Only support 14 or 16 bitsPerSample
 
-        self.whiteBalance = [float(d)/float(n) for n,d in self.tag(fd,DNG.Tag.AsShotNeutral)[3]] # Note: immediately take reciprocal
-        print "rgb",self.whiteBalance
+        neutral = self.tag(fd,DNG.Tag.AsShotNeutral)
+        self.whiteBalance = [1.0,1.0,1.0]
+        if neutral:
+            self.whiteBalance = [float(d)/float(n) for n,d in neutral[3]] # Note: immediately take reciprocal
+            print "rgb",self.whiteBalance
         #self.whiteBalance = 
     
         self._make = "Unknown Make"
@@ -982,7 +994,8 @@ class CDNG:
         self.preloader.start()
     def tag(self,dng,tag):
         if tag[0] in dng.FULL_IFD.tags: return dng.FULL_IFD.tags[tag[0]]
-        else: return dng.THUMB_IFD.tags[tag[0]]
+        elif tag[0] in dng.THUMB_IFD.tags: return dng.THUMB_IFD.tags[tag[0]]
+        else: return None
 
     def description(self):
         firstName = self.dngs[0]

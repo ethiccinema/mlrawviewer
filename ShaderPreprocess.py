@@ -53,15 +53,36 @@ uniform vec4 stripescale;
 uniform vec2 blackwhite;
 
 void main() {
+    float rawup = texture2D(rawtex,texcoord+vec2(0.0,-rawres.w*2.0)).r-blackwhite.r;
+    float rawdown = texture2D(rawtex,texcoord+vec2(0.0,rawres.w*2.0)).r-blackwhite.r;
+    float rawleft = texture2D(rawtex,texcoord+vec2(-rawres.z*2.0,0.0)).r-blackwhite.r;
+    float rawright = texture2D(rawtex,texcoord+vec2(rawres.z*2.0,0.0)).r-blackwhite.r;
+    float lh = min(rawup,rawdown);
+    float ll = max(rawup,rawdown);
+    float rh = min(rawleft,rawright);
+    float rl = max(rawleft,rawright);
+    float hlo = max(lh,rh);
+    float lhi = min(ll,rl);
+    float mednei = mix(lhi,hlo,0.5); // Take mid point of mid samples
+    float maxnei = max(ll,rl);
+    float minnei = min(lh,rh);
     float raw = texture2D(rawtex,texcoord).r;
+    float rawped = raw-blackwhite.r;
+    float hide = step(blackwhite.r*0.75,raw); // Way less than black level. Assume dead -> Hide it
+    float outlier = step(0.5,step(maxnei*1.1,rawped)+step(rawped,minnei*0.9)); 
     vec4 last = texture2D(lastex,texcoord).rgba;
+    float outlierHistory = last.g;
+    float nowOutlier = step(0.5,outlierHistory*0.75+outlier*0.25);
+    float outlierUpdate = outlierHistory * 0.99 + outlier * 0.01;
+    hide = hide * nowOutlier;
+    raw = mix(raw,mednei+blackwhite.r,hide);
     vec3 hor = texture2D(hortex,texcoord).rgb;
     vec3 ver = texture2D(vertex,texcoord).rgb;
     float mulh = mix(hor.r/stripescale.x,hor.g/stripescale.y,step(blackwhite.r+64.0/65536.0,raw));
     float mulv = mix(ver.r/stripescale.z,ver.g/stripescale.w,step(blackwhite.r+64.0/65536.0,raw));
     float mulp = mix(1.0,1.0/(mulh*mulv),step(blackwhite.r+0.0/65536.0,raw)*step(raw,blackwhite.g));
     float pix = raw*mulp - blackwhite.r*(stripescale.x*stripescale.z - 1.0);
-    vec3 passon = last.gba; // Do nothing
+    vec3 passon = vec3(outlierUpdate,last.ba); 
     gl_FragColor = vec4(pix,passon);
 }
 """
