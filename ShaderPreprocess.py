@@ -68,13 +68,24 @@ void main() {
     float minnei = min(lh,rh);
     float raw = texture2D(rawtex,texcoord).r;
     float rawped = raw-blackwhite.r;
-    float hide = step(blackwhite.r*0.75,raw); // Way less than black level. Assume dead -> Hide it
-    float outlier = step(0.5,step(maxnei*1.1,rawped)+step(rawped,minnei*0.9)); 
+    float hide = step(raw,blackwhite.r*0.75); // Way less than black level. Assume dead -> Hide it
+    //hide = hide + step((blackwhite.g-blackwhite.r-maxnei)*0.75,raw); // Closer to white than any neighbour
+    float outup = min((rawped - maxnei)/blackwhite.g,1.0); // Positive if higher than any neighbours
+    float outdown = min((minnei - rawped)/(rawped),1.0); // Positive if lower than any neighbours
+    float outlier = max(outup,outdown);//step(0.5,step(maxnei*1.1,rawped)+step(rawped,minnei*0.9)); 
     vec4 last = texture2D(lastex,texcoord).rgba;
     float outlierHistory = last.g;
-    float nowOutlier = step(0.5,outlierHistory*0.75+outlier*0.25);
-    float outlierUpdate = outlierHistory * 0.99 + outlier * 0.01;
-    hide = hide * nowOutlier;
+    float changing = last.b;
+    changing = changing * 0.98 + 0.01*outup*step(minnei,0.01) + 0.01*outdown;
+    float nowOutlier = step(0.05,outlierHistory*0.95+outlier*0.05);
+    float minchange = max(rawped - maxnei,0.0);
+    float outlierUpdate = outlierHistory * 0.99 + minchange * 0.01 * step(0.002,minchange);
+    outlierUpdate = max(outlierUpdate,2.0*step(0.5,outlierHistory)-1.5); // Once above 0.5, never goes below
+    outlierUpdate = min(outlierUpdate,-2.0*step(outlierHistory,-0.1)+1.9); // Once below -0.5, never goes above
+    //hide = hide * nowOutlier;
+    hide = hide + step(0.001,changing);
+    hide = hide + step(0.001,outlierUpdate);
+    hide = step(0.5,hide);
     raw = mix(raw,mednei+blackwhite.r,hide);
     vec3 hor = texture2D(hortex,texcoord).rgb;
     vec3 ver = texture2D(vertex,texcoord).rgb;
@@ -83,7 +94,7 @@ void main() {
     float mulp = mix(1.0,1.0/(mulh*mulv),step(blackwhite.r+0.0/65536.0,raw)*step(raw,blackwhite.g));
     float pix = raw*mulp - blackwhite.r*(stripescale.x*stripescale.z - 1.0);
     vec3 passon = vec3(outlierUpdate,last.ba); 
-    gl_FragColor = vec4(pix,passon);
+    gl_FragColor = vec4(pix,outlierUpdate,changing,raw);
 }
 """
 
