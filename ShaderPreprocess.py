@@ -53,6 +53,7 @@ uniform vec4 stripescale;
 uniform vec2 blackwhite;
 
 void main() {
+    // Calculate median and range of same-colour neighbours
     float rawup = texture2D(rawtex,texcoord+vec2(0.0,-rawres.w*2.0)).r-blackwhite.r;
     float rawdown = texture2D(rawtex,texcoord+vec2(0.0,rawres.w*2.0)).r-blackwhite.r;
     float rawleft = texture2D(rawtex,texcoord+vec2(-rawres.z*2.0,0.0)).r-blackwhite.r;
@@ -66,35 +67,31 @@ void main() {
     float mednei = mix(lhi,hlo,0.5); // Take mid point of mid samples
     float maxnei = max(ll,rl);
     float minnei = min(lh,rh);
+
+    // Accumulate correlation of pixel with neighbours
     float raw = texture2D(rawtex,texcoord).r;
     float rawped = raw-blackwhite.r;
-    float hide = step(raw,blackwhite.r*0.75); // Way less than black level. Assume dead -> Hide it
-    //hide = hide + step((blackwhite.g-blackwhite.r-maxnei)*0.75,raw); // Closer to white than any neighbour
-    float outup = min((rawped - maxnei)/blackwhite.g,1.0); // Positive if higher than any neighbours
-    float outdown = min((minnei - rawped)/(rawped),1.0); // Positive if lower than any neighbours
-    float outlier = max(outup,outdown);//step(0.5,step(maxnei*1.1,rawped)+step(rawped,minnei*0.9)); 
-    vec4 last = texture2D(lastex,texcoord).rgba;
-    float outlierHistory = last.g;
-    float changing = last.b;
-    changing = changing * 0.98 + 0.01*outup*step(minnei,0.01) + 0.01*outdown;
-    float nowOutlier = step(0.05,outlierHistory*0.95+outlier*0.05);
-    float minchange = max(rawped - maxnei,0.0);
-    float outlierUpdate = outlierHistory * 0.99 + minchange * 0.01 * step(0.002,minchange);
-    outlierUpdate = max(outlierUpdate,2.0*step(0.5,outlierHistory)-1.5); // Once above 0.5, never goes below
-    outlierUpdate = min(outlierUpdate,-2.0*step(outlierHistory,-0.1)+1.9); // Once below -0.5, never goes above
-    //hide = hide * nowOutlier;
-    hide = hide + step(0.001,changing);
-    hide = hide + step(0.001,outlierUpdate);
-    hide = step(0.5,hide);
+    
+    vec4 last = texture2D(lastex,texcoord);
+    float correlation = last.g;
+   
+    float thiscor = step(0.0,rawped - maxnei); // Higher
+    thiscor += step(0.0,minnei - rawped); // Lower
+    correlation += step(abs(correlation),0.5)*(-0.02*step(0.5,thiscor)+0.01); // -0.01 for outside, +0.01 for inside if abs(correlation)<0.5 
+ 
+    float hide = step(correlation,-0.15); // If correlation less than -0.15, hide the pixel
     raw = mix(raw,mednei+blackwhite.r,hide);
+
+    // Apply stripe correction
     vec3 hor = texture2D(hortex,texcoord).rgb;
     vec3 ver = texture2D(vertex,texcoord).rgb;
     float mulh = mix(hor.r/stripescale.x,hor.g/stripescale.y,step(blackwhite.r+64.0/65536.0,raw));
     float mulv = mix(ver.r/stripescale.z,ver.g/stripescale.w,step(blackwhite.r+64.0/65536.0,raw));
     float mulp = mix(1.0,1.0/(mulh*mulv),step(blackwhite.r+0.0/65536.0,raw)*step(raw,blackwhite.g));
     float pix = raw*mulp - blackwhite.r*(stripescale.x*stripescale.z - 1.0);
-    vec3 passon = vec3(outlierUpdate,last.ba); 
-    gl_FragColor = vec4(pix,outlierUpdate,changing,raw);
+
+    vec3 passon = vec3(correlation,last.ba);
+    gl_FragColor = vec4(pix,passon);
 }
 """
 
