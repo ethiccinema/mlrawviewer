@@ -49,9 +49,11 @@ uniform sampler2D lastex;
 uniform sampler2D rawtex;
 uniform sampler2D hortex;
 uniform sampler2D vertex;
-uniform vec4 stripescale;
+uniform vec4 stripescaleh;
+uniform vec4 stripescalev;
 uniform vec2 blackwhite;
 uniform vec4 colourBalance;
+uniform vec4 control; // Switch on/off different parts r=noise,g=stripes
 
 void main() {
     // Calculate median and range of same-colour neighbours
@@ -65,40 +67,67 @@ void main() {
     float thisbalance = colourBalance.r;
     float upbalance = colourBalance.g;
     float leftbalance = colourBalance.g;
+    float diagbalance = colourBalance.b;
+    float diagother = 1.0;
     if (rgb==1.0) {
         thisbalance = colourBalance.g;
         upbalance = colourBalance.b; 
         leftbalance = colourBalance.r; 
+        diagbalance = colourBalance.g;
+        diagother = 0.0;
     } else if (rgb==2.0) {
         thisbalance = colourBalance.g;
         upbalance = colourBalance.r; 
         leftbalance = colourBalance.b; 
+        diagbalance = colourBalance.g;
+        diagother = 0.0;
     } else if (rgb==3.0) {
         thisbalance = colourBalance.b;
         upbalance = colourBalance.g; 
         leftbalance = colourBalance.g; 
+        diagbalance = colourBalance.r;
+        diagother = 1.0;
     } 
-    float rawup = texture2D(rawtex,texcoord+vec2(0.0,-rawres.w*2.0)).r-blackwhite.r;
-    float rawdown = texture2D(rawtex,texcoord+vec2(0.0,rawres.w*2.0)).r-blackwhite.r;
-    float rawleft = texture2D(rawtex,texcoord+vec2(-rawres.z*2.0,0.0)).r-blackwhite.r;
-    float rawright = texture2D(rawtex,texcoord+vec2(rawres.z*2.0,0.0)).r-blackwhite.r;
-    float lh = min(rawup,rawdown);
-    float ll = max(rawup,rawdown);
-    float rh = min(rawleft,rawright);
-    float rl = max(rawleft,rawright);
+    // Read nearest pixels, e.g. for highlight recovery
+    float rawup1 = (texture2D(rawtex,texcoord+vec2(0.0,-rawres.w)).r-blackwhite.r);
+    float rawdown1 = (texture2D(rawtex,texcoord+vec2(0.0,rawres.w)).r-blackwhite.r);
+    float rawleft1 = (texture2D(rawtex,texcoord+vec2(-rawres.z,0.0)).r-blackwhite.r);
+    float rawright1 = (texture2D(rawtex,texcoord+vec2(rawres.z,0.0)).r-blackwhite.r);
+
+    // Read diagonal pixels, e.g. for highlight recovery
+    float rawul1 = (texture2D(rawtex,texcoord+vec2(-rawres.z,-rawres.w)).r-blackwhite.r);
+    float rawdl1 = (texture2D(rawtex,texcoord+vec2(-rawres.z,rawres.w)).r-blackwhite.r);
+    float rawur1 = (texture2D(rawtex,texcoord+vec2(rawres.z,-rawres.w)).r-blackwhite.r);
+    float rawdr1 = (texture2D(rawtex,texcoord+vec2(rawres.z,rawres.w)).r-blackwhite.r);
+
+    // Read same colour pixels, e.g. for sensor profiling
+    float rawup2 = texture2D(rawtex,texcoord+vec2(0.0,-rawres.w*2.0)).r-blackwhite.r;
+    float rawdown2 = texture2D(rawtex,texcoord+vec2(0.0,rawres.w*2.0)).r-blackwhite.r;
+    float rawleft2 = texture2D(rawtex,texcoord+vec2(-rawres.z*2.0,0.0)).r-blackwhite.r;
+    float rawright2 = texture2D(rawtex,texcoord+vec2(rawres.z*2.0,0.0)).r-blackwhite.r;
+
+    // Read this pixel
+    float raw = texture2D(rawtex,texcoord).r;
+
+    // Work with guaranteed same-colour pixels, 2 pixels away in each direction
+    float lh = min(rawup2,rawdown2);
+    float ll = max(rawup2,rawdown2);
+    float rh = min(rawleft2,rawright2);
+    float rl = max(rawleft2,rawright2);
     float hlo = max(lh,rh);
     float lhi = min(ll,rl);
     float mednei = mix(lhi,hlo,0.5); // Take mid point of mid samples
 
-    // Accumulate correlation of pixel with neighbours
-    float raw = texture2D(rawtex,texcoord).r;
     // Apply stripe correction
     vec3 hor = texture2D(hortex,texcoord).rgb;
     vec3 ver = texture2D(vertex,texcoord).rgb;
-    float mulh = mix(hor.r/stripescale.x,hor.g/stripescale.y,step(blackwhite.r+64.0/65536.0,raw));
-    float mulv = mix(ver.r/stripescale.z,ver.g/stripescale.w,step(blackwhite.r+64.0/65536.0,raw));
+    vec2 ssh = mix(stripescaleh.xy,stripescaleh.zw,pixelgrid.x);
+    vec2 ssv = mix(stripescalev.xy,stripescalev.zw,pixelgrid.y);
+    float mulh = mix(hor.r/ssh.x,hor.g/ssh.y,step(blackwhite.r+64.0/65536.0,raw));
+    float mulv = mix(ver.r/ssv.x,ver.g/ssv.y,step(blackwhite.r+64.0/65536.0,raw));
     float mulp = mix(1.0,1.0/(mulh*mulv),step(blackwhite.r+0.0/65536.0,raw)*step(raw,blackwhite.g));
-    raw = raw*mulp - blackwhite.r*(stripescale.x*stripescale.z - 1.0);
+    raw = mix(raw,raw*mulp,control.g);
+    float bar = step(texcoord.y,mulh*10.-9.5);
     float rawped = raw-blackwhite.r;
     float maxnei = max(max(ll,rl),rawped);
     float minnei = min(min(lh,rh),rawped);
@@ -110,20 +139,16 @@ void main() {
     thiscor += step(0.0,minnei - rawped); // Lower
     correlation += step(abs(correlation),0.5)*(-0.02*step(0.5,thiscor)+0.01); // -0.01 for outside, +0.01 for inside if abs(correlation)<0.5 
 
-    float detail = step(abs(rawped-rawup)+abs(rawped-rawdown)+abs(rawped-rawleft)+abs(rawped-rawright),0.1);
+    float detail = step(abs(rawped-rawup1)+abs(rawped-rawdown1)+abs(rawped-rawleft1)+abs(rawped-rawright1),0.002);
     float hide = step(correlation,-0.15); // If correlation less than -0.15, hide the pixel
     float notDetail = step(maxnei-minnei,max(0.0001,mednei*0.9));//,max(0.00001,mednei*0.001));
     float close = detail*step(abs(mednei-rawped),max(0.001,rawped*.0001))*0.5+hide;
     float closeold = detail*step(abs(last.b-blackwhite.r-rawped),max(0.0005,rawped*.0001))*step(rawped,0.01);
-    raw = mix(raw,mednei+blackwhite.r,min(close,1.0));
-    raw = mix(raw,last.b,0.5*closeold);
+    raw = mix(raw,mednei+blackwhite.r,min(close,1.0)*control.r);
+    //raw = mix(raw,last.b,0.5*closeold*control.r);
     raw = max(raw,blackwhite.r);
 
     // Highlight recovery and predemosaicing colour balance
-    float rawup1 = (texture2D(rawtex,texcoord+vec2(0.0,-rawres.w)).r-blackwhite.r);
-    float rawdown1 = (texture2D(rawtex,texcoord+vec2(0.0,rawres.w)).r-blackwhite.r);
-    float rawleft1 = (texture2D(rawtex,texcoord+vec2(-rawres.z,0.0)).r-blackwhite.r);
-    float rawright1 = (texture2D(rawtex,texcoord+vec2(rawres.z,0.0)).r-blackwhite.r);
     rawped = (raw-blackwhite.r);
 
     float white = blackwhite.g-blackwhite.r;
@@ -144,7 +169,7 @@ void main() {
 
     def __init__(self,**kwds):
         myclass = self.__class__
-        super(ShaderPreprocess,self).__init__(myclass.vertex_src,myclass.fragment_src,["rawtex","lastex","rawres","hortex","vertex","stripescale","blackwhite","colourBalance"],**kwds)
+        super(ShaderPreprocess,self).__init__(myclass.vertex_src,myclass.fragment_src,["rawtex","lastex","rawres","hortex","vertex","stripescaleh","stripescalev","blackwhite","colourBalance","control"],**kwds)
         self.svbo = None
     def prepare(self,svbo):
         if self.svbo==None:
@@ -153,7 +178,7 @@ void main() {
             vertices = np.array((-1,-1,0,1,-1,0,-1,1,0,1,1,0),dtype=np.float32)
             self.svbo.update(vertices,self.svbobase)
 
-    def draw(self,width,height,rawtex,lastex,hortex,vertex,hl,hh,vl,vh,black,white,balance):
+    def draw(self,width,height,rawtex,lastex,hortex,vertex,stripescaleh,stripescalev,black,white,balance):
         self.use()
         self.blend(False)
         glVertexAttribPointer(self.vertex,3,GL_FLOAT,GL_FALSE,0,self.svbo.vboOffset(self.svbobase))
@@ -166,9 +191,11 @@ void main() {
         glUniform1i(self.uniforms["lastex"], 1)
         glUniform1i(self.uniforms["hortex"], 2)
         glUniform1i(self.uniforms["vertex"], 3)
-        glUniform4f(self.uniforms["stripescale"], hl,hh,vl,vh)
+        glUniform4f(self.uniforms["stripescaleh"], stripescaleh[0],stripescaleh[1],stripescaleh[2],stripescaleh[3])
+        glUniform4f(self.uniforms["stripescalev"], stripescalev[0],stripescalev[1],stripescalev[2],stripescalev[3])
         glUniform4f(self.uniforms["colourBalance"], balance[0],balance[1],balance[2],balance[3])
         glUniform2f(self.uniforms["blackwhite"], black,white)
+        glUniform4f(self.uniforms["control"], 0.0,1.0,0.0,0.0) # Noise, Stripes, unused, unused
         w = width
         h = height
         if w>0 and h>0:

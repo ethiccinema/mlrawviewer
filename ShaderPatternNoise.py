@@ -169,5 +169,30 @@ void main() {
             glUniform4f(self.uniforms["rawres"], w, h, 1.0/float(w),1.0/float(h))
         glDrawArrays(GL_TRIANGLE_STRIP, 0, 4)
 
+    def calcStripescaleH(self,w,h):
+        horiz = glReadPixels(0,0,w,1,GL_RGB,GL_FLOAT)
+        lowrg = horiz[::2,0,0]
+        highrg = horiz[::2,0,1]
+        lowgb = horiz[1::2,0,0]
+        highgb = horiz[1::2,0,1]
+        horlrg = lowrg.mean()
+        horhrg = highrg.mean()
+        horlgb = lowgb.mean()
+        horhgb = highgb.mean()
+        print horlrg,horhrg,horlgb,horhgb
+        return (horlrg,horhrg,horlgb,horhgb)
+    
+    def calcStripescaleV(self,w,h):
+        vert = glReadPixels(0,0,1,h,GL_RGB,GL_FLOAT)
+        lowrg = vert[0,::2,0]
+        highrg = vert[0,::2,1]
+        lowgb = vert[0,1::2,0]
+        highgb = vert[0,1::2,1]
+        verlrg = lowrg.mean()
+        verhrg = highrg.mean()
+        verlgb = lowgb.mean()
+        verhgb = highgb.mean()
+        return (verlrg,verhrg,verlgb,verhgb)
+
     
 

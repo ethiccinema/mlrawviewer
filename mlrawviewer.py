@@ -179,26 +179,18 @@ class Demosaicer(ui.Drawable):
                     PLOG(PLOG_GPU,"Demosaic shader draw for frame %d"%frameNumber)
                     # Do some preprocess passes to find horizontal/vertical stripes
                     self.horizontalPattern.bindfbo()
-                    self.shaderPatternNoise.draw(scene.size[0],scene.size[1],self.rawUploadTex,0,frameData.black/65536.0,frameData.white/65536.0) 
-                    horiz = glReadPixels(0,0,scene.size[0],1,GL_RGB,GL_FLOAT)
-                    low = horiz[:,0,0]
-                    high = horiz[:,0,1]
-                    horl = low.mean()
-                    horh = high.mean()
+                    self.shaderPatternNoise.draw(scene.size[0],scene.size[1],self.rawUploadTex,0,frameData.black/65536.0,frameData.white/65536.0)
+                    ssh = self.shaderPatternNoise.calcStripescaleH(scene.size[0],scene.size[1])
                     self.verticalPattern.bindfbo()
                     self.shaderPatternNoise.draw(scene.size[0],scene.size[1],self.rawUploadTex,1,frameData.black/65536.0,frameData.white/65536.0) 
-                    vert = glReadPixels(0,0,1,scene.size[1],GL_RGB,GL_FLOAT)
-                    low = vert[0,:,0]
-                    high = vert[0,:,1]
-                    verl = low.mean()
-                    verh = high.mean()
+                    ssv = self.shaderPatternNoise.calcStripescaleV(scene.size[0],scene.size[1])
                     if self.lastPP == self.preprocessTex2:
                         self.preprocessTex1.bindfbo()
-                        self.shaderPreprocess.draw(scene.size[0],scene.size[1],self.rawUploadTex,self.preprocessTex2,self.horizontalPattern,self.verticalPattern,horl,horh,verl,verh,frameData.black/65536.0,frameData.white/65536.0,balance)
+                        self.shaderPreprocess.draw(scene.size[0],scene.size[1],self.rawUploadTex,self.preprocessTex2,self.horizontalPattern,self.verticalPattern,ssh,ssv,frameData.black/65536.0,frameData.white/65536.0,balance)
                         self.lastPP = self.preprocessTex1
                     else:
                         self.preprocessTex2.bindfbo()
-                        self.shaderPreprocess.draw(scene.size[0],scene.size[1],self.rawUploadTex,self.preprocessTex1,self.horizontalPattern,self.verticalPattern,horl,horh,verl,verh,frameData.black/65536.0,frameData.white/65536.0,balance)
+                        self.shaderPreprocess.draw(scene.size[0],scene.size[1],self.rawUploadTex,self.preprocessTex1,self.horizontalPattern,self.verticalPattern,ssh,ssv,frameData.black/65536.0,frameData.white/65536.0,balance)
                         self.lastPP = self.preprocessTex2
                     # Now, read out the results as a 16bit raw image and feed to cpu demosaicer
                     rawpreprocessed = glReadPixels(0,0,scene.size[0],scene.size[1],GL_RED,GL_UNSIGNED_SHORT)
@@ -229,41 +221,18 @@ class Demosaicer(ui.Drawable):
                     # Do some preprocess passes to find horizontal/vertical stripes
                     self.horizontalPattern.bindfbo()
                     self.shaderPatternNoise.draw(scene.size[0],scene.size[1],self.rawUploadTex,0,frameData.black/65536.0,frameData.white/65536.0) 
-                    horiz = glReadPixels(0,0,scene.size[0],1,GL_RGB,GL_FLOAT)
-                    low = horiz[:,0,0]
-                    high = horiz[:,0,1]
-                    #lowrg2 = horiz[::2,0,0]
-                    #lowg1b = horiz[1::2,0,0]
-                    #highrg2 = horiz[::2,0,1]
-                    #highg1b = horiz[1::2,0,1]
-                    #print "h",high.min(),high.max(),high.mean(),
-                    #print low.min(),low.max(),low.mean()
-                    #print lowg1b.min(),lowg1b.max(),lowg1b.mean()
-                    horh = high.mean()
-                    horl = low.mean()
-                    #for x in range(int(scene.size[0])*3-20,int(scene.size[0])*3):#cene.size[0]):
-                    #    print horiz.item(x),
-                    #print
-
+                    ssh = self.shaderPatternNoise.calcStripescaleH(scene.size[0],scene.size[1])
                     self.verticalPattern.bindfbo()
                     self.shaderPatternNoise.draw(scene.size[0],scene.size[1],self.rawUploadTex,1,frameData.black/65536.0,frameData.white/65536.0) 
-                    vert = glReadPixels(0,0,1,scene.size[1],GL_RGB,GL_FLOAT)
-                    low = vert[0,:,0]
-                    high = vert[0,:,1]
-                    verl = low.mean()
-                    verh = high.mean()
-                    #print high.shape
-                    #print "v",high.min(),high.max(),high.mean(),
-                    #print low.min(),low.max(),low.mean()
-                
+                    ssv = self.shaderPatternNoise.calcStripescaleV(scene.size[0],scene.size[1])
                     # Swap preprocess buffer - feed previous one to new call
                     if self.lastPP == self.preprocessTex2:
                         self.preprocessTex1.bindfbo()
-                        self.shaderPreprocess.draw(scene.size[0],scene.size[1],self.rawUploadTex,self.preprocessTex2,self.horizontalPattern,self.verticalPattern,horl,horh,verl,verh,frameData.black/65536.0,frameData.white/65536.0,balance)
+                        self.shaderPreprocess.draw(scene.size[0],scene.size[1],self.rawUploadTex,self.preprocessTex2,self.horizontalPattern,self.verticalPattern,ssh,ssv,frameData.black/65536.0,frameData.white/65536.0,balance)
                         self.lastPP = self.preprocessTex1
                     else:
                         self.preprocessTex2.bindfbo()
-                        self.shaderPreprocess.draw(scene.size[0],scene.size[1],self.rawUploadTex,self.preprocessTex1,self.horizontalPattern,self.verticalPattern,horl,horh,verl,verh,frameData.black/65536.0,frameData.white/65536.0,balance)
+                        self.shaderPreprocess.draw(scene.size[0],scene.size[1],self.rawUploadTex,self.preprocessTex1,self.horizontalPattern,self.verticalPattern,ssh,ssv,frameData.black/65536.0,frameData.white/65536.0,balance)
                         self.lastPP = self.preprocessTex2
                     #debug = glReadPixels(0,0,16,16,GL_RGBA,GL_FLOAT)
                     #print debug
