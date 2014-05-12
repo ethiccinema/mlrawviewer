@@ -215,7 +215,7 @@ class Demosaicer(ui.Drawable):
                         self.rgbUploadTex.update(frameData.rgbimage)
                         PLOG(PLOG_GPU,"RGB texture upload returned for frame %d"%frameNumber)
                         self.rgbFrameUploaded = frameNumber
-                    self.shaderQuality.demosaicPass(self.rgbUploadTex,frameData.black,balance=(1.0,1.0,1.0,balance[3]),white=frameData.white,tonemap=tone,colourMatrix=self.settings.setting_colourMatrix)
+                    self.shaderQuality.demosaicPass(self.rgbUploadTex,frameData.black,balance=(1.0,1.0,1.0,balance[3]),white=frameData.white,tonemap=tone,colourMatrix=self.settings.setting_colourMatrix,recover=0.0)
             else:
                 # Fast decode for full speed viewing
                 if frameData != self.lastFrameData:
@@ -236,8 +236,8 @@ class Demosaicer(ui.Drawable):
                     #lowg1b = horiz[1::2,0,0]
                     #highrg2 = horiz[::2,0,1]
                     #highg1b = horiz[1::2,0,1]
-                    print "h",high.min(),high.max(),high.mean(),
-                    print low.min(),low.max(),low.mean()
+                    #print "h",high.min(),high.max(),high.mean(),
+                    #print low.min(),low.max(),low.mean()
                     #print lowg1b.min(),lowg1b.max(),lowg1b.mean()
                     horh = high.mean()
                     horl = low.mean()
@@ -265,8 +265,10 @@ class Demosaicer(ui.Drawable):
                         self.preprocessTex2.bindfbo()
                         self.shaderPreprocess.draw(scene.size[0],scene.size[1],self.rawUploadTex,self.preprocessTex1,self.horizontalPattern,self.verticalPattern,horl,horh,verl,verh,frameData.black/65536.0,frameData.white/65536.0,balance)
                         self.lastPP = self.preprocessTex2
+                    #debug = glReadPixels(0,0,16,16,GL_RGBA,GL_FLOAT)
+                    #print debug
                     self.rgbImage.bindfbo()
-                    self.shaderNormal.demosaicPass(self.lastPP,frameData.black,balance=(1.0,1.0,1.0,balance[3]),white=frameData.white,tonemap=self.settings.tonemap(),colourMatrix=self.settings.setting_colourMatrix)
+                    self.shaderNormal.demosaicPass(self.lastPP,frameData.black,balance=(1.0,1.0,1.0,balance[3]),white=frameData.white,tonemap=self.settings.tonemap(),colourMatrix=self.settings.setting_colourMatrix,recover=0.0)
                 else:
                     self.shaderNormal.demosaicPass(self.rawUploadTex,frameData.black,balance=balance,white=frameData.white,tonemap=self.settings.tonemap(),colourMatrix=self.settings.setting_colourMatrix)
                 PLOG(PLOG_GPU,"Demosaic shader draw done for frame %d"%frameNumber)

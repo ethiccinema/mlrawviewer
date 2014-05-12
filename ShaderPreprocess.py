@@ -119,7 +119,6 @@ void main() {
     raw = mix(raw,last.b,0.5*closeold);
     raw = max(raw,blackwhite.r);
 
-
     // Highlight recovery and predemosaicing colour balance
     float rawup1 = (texture2D(rawtex,texcoord+vec2(0.0,-rawres.w)).r-blackwhite.r);
     float rawdown1 = (texture2D(rawtex,texcoord+vec2(0.0,rawres.w)).r-blackwhite.r);
@@ -132,14 +131,13 @@ void main() {
     // If this channel is overexposed, try to recover from u/d/l/r neighbours
     float udav = (rawup1+rawdown1)*0.5;
     float lrav = (rawleft1+rawright1)*0.5;
-    float udavow = step(udav,white);
+    /*float udavow = step(udav,white);
     float lravow = step(lrav,white);
     float over = (1.0-udavow)*(1.0-lravow);
-    float recovered = (udav*udavow*upbalance+lrav*lravow*leftbalance+white*over)/(udavow+lravow+over);
-    rawped = mix(recovered,rawped*thisbalance,underwhite);
-
+    float recovered = (udav*udavow*upbalance+lrav*lravow*leftbalance+udav*over*upbalance+lrav*over*leftbalance)/(udavow+lravow+over+over);*/
+    float recovered = (udav*upbalance+lrav*leftbalance)*0.5;
+    rawped = mix(recovered*thisbalance,rawped*thisbalance,underwhite);
     vec3 passon = vec3(correlation,raw,last.a);
-    //gl_FragColor = vec4(min(1.0,notDetail),passon);
     gl_FragColor = vec4(blackwhite.r+rawped,passon);
 }
 """

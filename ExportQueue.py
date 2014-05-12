@@ -442,9 +442,9 @@ class ExportQueue(threading.Thread):
             # Queue job
             if preprocess==self.PREPROCESS_ALL:
                 # Must first preprocess with shader
-                self.bgiq.put((f,i,1,r.width(),r.height(),rgbl,tm,matrix))
+                self.bgiq.put((f,i,1,r.width(),r.height(),rgbl,tm,matrix,preprocess))
             else:
-                self.dq.put((f,i,0,r.width(),r.height(),rgbl,tm,matrix))
+                self.dq.put((f,i,0,r.width(),r.height(),rgbl,tm,matrix,preprocess))
 
             # We need to make sure we don't buffer too many frames. Check what frame the encoder is at
             latest = ""
@@ -542,7 +542,7 @@ class ExportQueue(threading.Thread):
         self.dq.task_done()
  
     def cpuDemosaicPostProcess(self,args):
-        frame,index,jobtype,w,h,rgbl,tm,matrix = args
+        frame,index,jobtype,w,h,rgbl,tm,matrix,preprocess = args
         if self.svbo == None:
             self.svbo = ui.SharedVbo(1024*16)
         if self.shaderQuality == None:
@@ -587,7 +587,11 @@ class ExportQueue(threading.Thread):
             self.svbo.bind()
             self.shaderQuality.prepare(self.svbo)
             self.svbo.upload()
-            self.shaderQuality.demosaicPass(self.rgbUploadTex,frame.black,balance=rgbl,white=frame.white,tonemap=tm,colourMatrix=matrix)
+            if preprocess==self.PREPROCESS_ALL:
+                recover = 0.0
+            else:
+                recover = 1.0
+            self.shaderQuality.demosaicPass(self.rgbUploadTex,frame.black,balance=rgbl,white=frame.white,tonemap=tm,colourMatrix=matrix,recover=recover)
             rgb = glReadPixels(0,0,w,h,GL_RGB,GL_UNSIGNED_SHORT)
             return (index,rgb)
         elif jobtype==1:            # Predemosaic processing

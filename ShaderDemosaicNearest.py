@@ -43,10 +43,11 @@ void main() {
 varying vec2 texcoord;
 uniform float time;
 uniform float tonemap;
-uniform vec2 black;
+uniform vec4 black;
 uniform vec4 colourBalance;
 uniform vec4 rawres;
 uniform sampler2D rawtex;
+uniform mat3 colourMatrix;
 
 float red(vec2 coord) {
     // Return nearest red
@@ -82,9 +83,9 @@ void main() {
     // Simple highlight recovery
     vec3 ocol = colour;
     colour *= colourBalance.rgb * colourBalance.a;
-    if (ocol.g > (black.y-black.x)){
-        colour.g = 0.5*(colour.r+colour.b);
-    }
+    colour = colourMatrix * colour;
+    // Very simple highlight recovery if preprocessing not in use
+    colour.g = mix(colour.g,0.5*(colour.r+colour.b),step(black.y-black.x,ocol.g)*black.b);
     float levelAdjust = 1.0/(black.y - black.x);
     colour *= levelAdjust;
     vec3 toneMapped = colour;
