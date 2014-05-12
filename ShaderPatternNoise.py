@@ -168,6 +168,6 @@ void main() {
         if w>0 and h>0:
             glUniform4f(self.uniforms["rawres"], w, h, 1.0/float(w),1.0/float(h))
         glDrawArrays(GL_TRIANGLE_STRIP, 0, 4)
-         
+
     
 

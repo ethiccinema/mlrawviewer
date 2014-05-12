@@ -30,7 +30,6 @@ class ShaderDisplaySimple(GLCompute.Shader):
 attribute vec4 vertex;
 varying vec2 texcoord;
 uniform float time;
-uniform vec3 colourBalance;
 uniform vec4 rawres;
 void main() {
     gl_Position = vertex;
@@ -40,19 +39,18 @@ void main() {
     fragment_src = """
 varying vec2 texcoord;
 uniform float time;
-uniform vec3 colourBalance;
 uniform vec4 rawres;
 uniform sampler2D tex;
 
 void main() {
-    vec3 col = colourBalance*texture2D(tex,texcoord).rgb;
+    vec3 col = texture2D(tex,gl_FragCoord*rawres.zw).rgb;
     gl_FragColor = vec4(col,1.);
 }
 """
 
     def __init__(self,**kwds):
         myclass = self.__class__
-        super(ShaderDisplaySimple,self).__init__(myclass.vertex_src,myclass.fragment_src,["time","tex","rawres","colourBalance"],**kwds)
+        super(ShaderDisplaySimple,self).__init__(myclass.vertex_src,myclass.fragment_src,["time","tex","rawres"],**kwds)
         self.svbo = None
     def prepare(self,svbo):
         if self.svbo==None:
@@ -61,13 +59,12 @@ void main() {
             vertices = np.array((-1,-1,0,1,-1,0,-1,1,0,1,1,0),dtype=np.float32)
             self.svbo.update(vertices,self.svbobase)
 
-    def draw(self,width,height,texture,balance):
+    def draw(self,width,height,texture):
         self.use()
         glVertexAttribPointer(self.vertex,3,GL_FLOAT,GL_FALSE,0,self.svbo.vboOffset(self.svbobase))
         glEnableVertexAttribArray(self.vertex)
         texture.bindtex(True) # Use linear filter
         glUniform1i(self.uniforms["tex"], 0)
-        glUniform3f(self.uniforms["colourBalance"], balance[0], balance[1],balance[2])
         w = width
         h = height
         if w>0 and h>0:

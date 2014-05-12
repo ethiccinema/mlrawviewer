@@ -148,7 +148,7 @@ class Demosaicer(ui.Drawable):
 
         brightness = self.settings.brightness()
         rgb = self.settings.rgb()
-        balance = (rgb[0]*brightness, rgb[1]*brightness, rgb[2]*brightness)
+        balance = (rgb[0], rgb[1], rgb[2], brightness)
         tone = self.settings.tonemap()
         different = (frameData != self.lastFrameData) or (brightness != self.lastBrightness) or (rgb != self.lastRgb) or (frameNumber != self.lastFrameNumber) or (tone != self.lastTone)
         if (frameData and different):
@@ -194,11 +194,11 @@ class Demosaicer(ui.Drawable):
                     verh = high.mean()
                     if self.lastPP == self.preprocessTex2:
                         self.preprocessTex1.bindfbo()
-                        self.shaderPreprocess.draw(scene.size[0],scene.size[1],self.rawUploadTex,self.preprocessTex2,self.horizontalPattern,self.verticalPattern,horl,horh,verl,verh,frameData.black/65536.0,frameData.white/65536.0)
+                        self.shaderPreprocess.draw(scene.size[0],scene.size[1],self.rawUploadTex,self.preprocessTex2,self.horizontalPattern,self.verticalPattern,horl,horh,verl,verh,frameData.black/65536.0,frameData.white/65536.0,balance)
                         self.lastPP = self.preprocessTex1
                     else:
                         self.preprocessTex2.bindfbo()
-                        self.shaderPreprocess.draw(scene.size[0],scene.size[1],self.rawUploadTex,self.preprocessTex1,self.horizontalPattern,self.verticalPattern,horl,horh,verl,verh,frameData.black/65536.0,frameData.white/65536.0)
+                        self.shaderPreprocess.draw(scene.size[0],scene.size[1],self.rawUploadTex,self.preprocessTex1,self.horizontalPattern,self.verticalPattern,horl,horh,verl,verh,frameData.black/65536.0,frameData.white/65536.0,balance)
                         self.lastPP = self.preprocessTex2
                     # Now, read out the results as a 16bit raw image and feed to cpu demosaicer
                     rawpreprocessed = glReadPixels(0,0,scene.size[0],scene.size[1],GL_RED,GL_UNSIGNED_SHORT)
@@ -215,7 +215,7 @@ class Demosaicer(ui.Drawable):
                         self.rgbUploadTex.update(frameData.rgbimage)
                         PLOG(PLOG_GPU,"RGB texture upload returned for frame %d"%frameNumber)
                         self.rgbFrameUploaded = frameNumber
-                    self.shaderQuality.demosaicPass(self.rgbUploadTex,frameData.black,balance=balance,white=frameData.white,tonemap=tone,colourMatrix=self.settings.setting_colourMatrix)
+                    self.shaderQuality.demosaicPass(self.rgbUploadTex,frameData.black,balance=(1.0,1.0,1.0,balance[3]),white=frameData.white,tonemap=tone,colourMatrix=self.settings.setting_colourMatrix)
             else:
                 # Fast decode for full speed viewing
                 if frameData != self.lastFrameData:
@@ -259,14 +259,14 @@ class Demosaicer(ui.Drawable):
                     # Swap preprocess buffer - feed previous one to new call
                     if self.lastPP == self.preprocessTex2:
                         self.preprocessTex1.bindfbo()
-                        self.shaderPreprocess.draw(scene.size[0],scene.size[1],self.rawUploadTex,self.preprocessTex2,self.horizontalPattern,self.verticalPattern,horl,horh,verl,verh,frameData.black/65536.0,frameData.white/65536.0)
+                        self.shaderPreprocess.draw(scene.size[0],scene.size[1],self.rawUploadTex,self.preprocessTex2,self.horizontalPattern,self.verticalPattern,horl,horh,verl,verh,frameData.black/65536.0,frameData.white/65536.0,balance)
                         self.lastPP = self.preprocessTex1
                     else:
                         self.preprocessTex2.bindfbo()
-                        self.shaderPreprocess.draw(scene.size[0],scene.size[1],self.rawUploadTex,self.preprocessTex1,self.horizontalPattern,self.verticalPattern,horl,horh,verl,verh,frameData.black/65536.0,frameData.white/65536.0)
+                        self.shaderPreprocess.draw(scene.size[0],scene.size[1],self.rawUploadTex,self.preprocessTex1,self.horizontalPattern,self.verticalPattern,horl,horh,verl,verh,frameData.black/65536.0,frameData.white/65536.0,balance)
                         self.lastPP = self.preprocessTex2
                     self.rgbImage.bindfbo()
-                    self.shaderNormal.demosaicPass(self.lastPP,frameData.black,balance=balance,white=frameData.white,tonemap=self.settings.tonemap(),colourMatrix=self.settings.setting_colourMatrix)
+                    self.shaderNormal.demosaicPass(self.lastPP,frameData.black,balance=(1.0,1.0,1.0,balance[3]),white=frameData.white,tonemap=self.settings.tonemap(),colourMatrix=self.settings.setting_colourMatrix)
                 else:
                     self.shaderNormal.demosaicPass(self.rawUploadTex,frameData.black,balance=balance,white=frameData.white,tonemap=self.settings.tonemap(),colourMatrix=self.settings.setting_colourMatrix)
                 PLOG(PLOG_GPU,"Demosaic shader draw done for frame %d"%frameNumber)
@@ -323,14 +323,12 @@ class Display(ui.Drawable):
     def render(self,scene,matrix,opacity):
         # Now display the RGB image
         #self.rgbImage.addmipmap()
-        # Balance now happens in demosaicing shader
-        balance = (1.0,1.0,1.0)
         # Scale
         PLOG(PLOG_GPU,"Display shader draw")
-        self.displayShader.draw(scene.size[0],scene.size[1],self.rgbImage,balance)
+        self.displayShader.draw(scene.size[0],scene.size[1],self.rgbImage)
         PLOG(PLOG_GPU,"Display shader draw done")
         # 1 to 1
-        # self.displayShader.draw(self.rgbImage.width,self.rgbImage.height,self.rgbImage,balance)
+        #self.displayShader.draw(self.rgbImage.width,self.rgbImage.height,self.rgbImage)
 
 class DisplayScene(ui.Scene):
     def __init__(self,frames,**kwds):

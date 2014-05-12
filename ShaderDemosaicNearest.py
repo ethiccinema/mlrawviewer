@@ -1,6 +1,6 @@
 """
 ShaderDemosaicNearest.py
-(c) Andrew Baldwin 2013
+(c) Andrew Baldwin 2013-2014
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
 this software and associated documentation files (the "Software"), to deal in
@@ -32,7 +32,7 @@ class ShaderDemosaicNearest(ShaderDemosaic.ShaderDemosaic):
 attribute vec4 vertex;
 varying vec2 texcoord;
 uniform float time;
-uniform vec3 colourBalance;
+uniform vec4 colourBalance;
 uniform vec4 rawres;
 void main() {
     gl_Position = vertex;
@@ -44,7 +44,7 @@ varying vec2 texcoord;
 uniform float time;
 uniform float tonemap;
 uniform vec2 black;
-uniform vec3 colourBalance;
+uniform vec4 colourBalance;
 uniform vec4 rawres;
 uniform sampler2D rawtex;
 
@@ -81,7 +81,7 @@ void main() {
     vec3 colour = getColour(texcoord);
     // Simple highlight recovery
     vec3 ocol = colour;
-    colour *= colourBalance;
+    colour *= colourBalance.rgb * colourBalance.a;
     if (ocol.g > (black.y-black.x)){
         colour.g = 0.5*(colour.r+colour.b);
     }

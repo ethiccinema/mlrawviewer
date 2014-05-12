@@ -33,7 +33,7 @@ class ShaderDemosaicBilinear(ShaderDemosaic.ShaderDemosaic):
     vertex_src = """
 attribute vec4 vertex;
 varying vec2 texcoord;
-uniform vec3 colourBalance;
+uniform vec4 colourBalance;
 uniform float time;
 uniform vec4 rawres;
 void main() {
@@ -43,7 +43,7 @@ void main() {
 """
     fragment_src = """
 varying vec2 texcoord;
-uniform vec3 colourBalance;
+uniform vec4 colourBalance;
 uniform float time;
 uniform float tonemap;
 uniform vec2 black;
@@ -120,11 +120,22 @@ void main() {
     vec3 colour = getColour(texcoord);
     // Simple highlight recovery
     vec3 ocol = colour;
-    colour *= colourBalance;
+    colour *= colourBalance.rgb * colourBalance.a;
     colour = colourMatrix * colour;
+    /*
+    float white = black.y-black.x;
+    vec3 underwhite = step(ocol,vec3(white));
+    vec3 lumacomp = colour*underwhite;
+    float lumacount = underwhite.r + underwhite.g + underwhite.b;
+    float lumasum = mix(white,lumacomp.r + lumacomp.g + lumacomp.b,min(lumacount,1.0));
+    float luma = lumasum/max(lumacount,1.0);
+    colour = mix(vec3(luma),colour,underwhite);
     if (ocol.g > (black.y-black.x)){
         colour.g = 0.5*(colour.r+colour.b);
     }
+    */
+    //colour += overwhite;
+    //colour = min(colour,1.0);
     float levelAdjust = 1.0/(black.y - black.x);
     colour *= levelAdjust;
     vec3 toneMapped = colour;

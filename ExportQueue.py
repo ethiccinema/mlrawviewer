@@ -587,7 +587,7 @@ class ExportQueue(threading.Thread):
             self.svbo.bind()
             self.shaderQuality.prepare(self.svbo)
             self.svbo.upload()
-            self.shaderQuality.demosaicPass(self.rgbUploadTex,frame.black,balance=(rgbl[0]*rgbl[3],rgbl[1]*rgbl[3],rgbl[2]*rgbl[3]),white=frame.white,tonemap=tm,colourMatrix=matrix)
+            self.shaderQuality.demosaicPass(self.rgbUploadTex,frame.black,balance=rgbl,white=frame.white,tonemap=tm,colourMatrix=matrix)
             rgb = glReadPixels(0,0,w,h,GL_RGB,GL_UNSIGNED_SHORT)
             return (index,rgb)
         elif jobtype==1:            # Predemosaic processing
@@ -613,11 +613,11 @@ class ExportQueue(threading.Thread):
             verh = high.mean()
             if self.lastPP == self.preprocessTex2:
                 self.preprocessTex1.bindfbo()
-                self.shaderPreprocess.draw(w,h,self.rawUploadTex,self.preprocessTex2,self.horizontalPattern,self.verticalPattern,horl,horh,verl,verh,frame.black/65536.0,frame.white/65536.0)
+                self.shaderPreprocess.draw(w,h,self.rawUploadTex,self.preprocessTex2,self.horizontalPattern,self.verticalPattern,horl,horh,verl,verh,frame.black/65536.0,frame.white/65536.0,rgbl)
                 self.lastPP = self.preprocessTex1
             else:
                 self.preprocessTex2.bindfbo()
-                self.shaderPreprocess.draw(w,h,self.rawUploadTex,self.preprocessTex1,self.horizontalPattern,self.verticalPattern,horl,horh,verl,verh,frame.black/65536.0,frame.white/65536.0)
+                self.shaderPreprocess.draw(w,h,self.rawUploadTex,self.preprocessTex1,self.horizontalPattern,self.verticalPattern,horl,horh,verl,verh,frame.black/65536.0,frame.white/65536.0,rgbl)
                 self.lastPP = self.preprocessTex2
             # Now, read out the results as a 16bit raw image and feed to cpu demosaicer
             rawpreprocessed = glReadPixels(0,0,w,h,GL_RED,GL_UNSIGNED_SHORT)
