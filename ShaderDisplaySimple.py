@@ -43,7 +43,7 @@ uniform vec4 rawres;
 uniform sampler2D tex;
 
 void main() {
-    vec3 col = texture2D(tex,gl_FragCoord*rawres.zw).rgb;
+    vec3 col = texture2D(tex,gl_FragCoord.xy*rawres.zw).rgb;
     gl_FragColor = vec4(col,1.);
 }
 """
