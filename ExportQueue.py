@@ -74,7 +74,7 @@ class ExportQueue(threading.Thread):
         self.jobs = {}
         self.jobstatus = {}
         self.jobindex = 0
-        self.currentjob = -1 
+        self.currentjob = -1
         self.cancel = False
         self.endflag = False
         self.ended = False
@@ -112,7 +112,7 @@ class ExportQueue(threading.Thread):
                 ix = job[0]
                 self.jobs[ix] = job
                 self.jobstatus[ix] = 0.0
-                #print "added job",ix 
+                #print "added job",ix
             elif ct==self.COMMAND_REMOVE_JOB:
                 ix = command[1]
                 #print "removing job",ix
@@ -171,7 +171,7 @@ class ExportQueue(threading.Thread):
                 if self.endflag:
                     break
                 self.processCommands(block=(len(self.jobs)==0))
-                if len(self.jobs)>0: 
+                if len(self.jobs)>0:
                     # There is something to do
                     pendingJobs = self.jobs.keys()
                     pendingJobs.sort()
@@ -282,7 +282,7 @@ class ExportQueue(threading.Thread):
             at(e,DNG.Tag.FocalLengthIn35mmFilm,frame.lens[2][1])
             atm(e,DNG.Tag.EXIFPhotoBodySerialNumber,r.bodySerialNumber()+"\0")
             atm(e,DNG.Tag.EXIFPhotoLensModel,frame.lens[0]+"\0")
-            
+
         atm(e,DNG.Tag.ExifVersion,"0230") # 0230
         if frame.rtc != None:
             se,mi,ho,da,mo,ye = frame.rtc[1:7]
@@ -311,7 +311,7 @@ class ExportQueue(threading.Thread):
         tempwav.writeframes(frames)
         tempwav.close()
         wav.close()
-            
+
     def doExportDng(self,jobindex,args):
         filename,dngdir,wavfile,startFrame,endFrame,audioOffset,bits,rgbl,preprocess= args
         os.mkdir(dngdir)
@@ -323,7 +323,7 @@ class ExportQueue(threading.Thread):
         if r.audioFrames()>0:
             # Must index the whole file in order that we have the wav file
             while r.indexingStatus()<1.0:
-                time.sleep(0.1) 
+                time.sleep(0.1)
         if os.path.exists(wavfile):
             d = file(wavfile,'rb').read()
             rhead = os.path.splitext(os.path.split(filename)[1])[0]
@@ -365,11 +365,11 @@ class ExportQueue(threading.Thread):
             import traceback
             traceback.print_exc()
             pass
-        # Clean up 
+        # Clean up
         self.needBgDraw = False
         if self.encoderProcess:
             self.encoderProcess.stdin.close()
-	    self.encoderProcess.wait()
+            self.encoderProcess.wait()
             self.encoderProcess = None
         tempwavfile = movfile[:-4] + ".WAV"
         if os.path.exists(tempwavfile):
@@ -380,7 +380,7 @@ class ExportQueue(threading.Thread):
     def processExportMov(self,jobindex,filename,movfile,wavfile,startFrame,endFrame,audioOffset,rgbl,tm,matrix,preprocess):
         target = movfile
         print "MOV export to",movfile,"started"
-        tempwavname = None 
+        tempwavname = None
         r = MlRaw.loadRAWorMLV(filename)
         if endFrame == None:
             endFrame = r.frames()
@@ -388,8 +388,8 @@ class ExportQueue(threading.Thread):
         if r.audioFrames()>0:
             # Must index the whole file in order that we have the wav file
             while r.indexingStatus()<1.0:
-                time.sleep(0.1) 
-        if os.path.exists(wavfile): 
+                time.sleep(0.1)
+        if os.path.exists(wavfile):
             tempwavname = movfile[:-4] + ".WAV"
             self.tempEncoderWav(wavfile,r.fps,tempwavname,startFrame,endFrame,audioOffset)
 
@@ -457,11 +457,11 @@ class ExportQueue(threading.Thread):
                         frame = int(latest[1])
                     except ValueError:
                         frame = None
-           
+
             while self.writtenFrame<(i-10):
                 if self.endflag or self.cancel:
                     break
-                time.sleep(0.1) 
+                time.sleep(0.1)
             if frame != None:
                 if frame < (self.writtenFrame-10):
                     time.sleep(0.1) # Give encoder some time to empty buffers
@@ -472,10 +472,10 @@ class ExportQueue(threading.Thread):
                 break
         if preprocess==self.PREPROCESS_ALL:
             self.bgiq.put("End")
-        else:    
+        else:
             self.dq.put(None)
         while (self.writtenFrame+1)<todo:
-            time.sleep(0.5) 
+            time.sleep(0.5)
             st = float(self.writtenFrame+1)/float(todo)
             #print "%.02f%%"%(st*100.0)
             self.jobstatus[jobindex] = st
@@ -523,7 +523,7 @@ class ExportQueue(threading.Thread):
             nextbuf = self.wq.get()
         self.wq.task_done()
         #print "WRITER FINISHED!"
-   
+
     def demosaicThreadFunction(self):
         nextbuf = self.dq.get()
         while nextbuf != None:
@@ -538,9 +538,9 @@ class ExportQueue(threading.Thread):
             self.dq.task_done()
             nextbuf = self.dq.get()
         self.bgiq.put(None)
-        self.bgiq.join()  
+        self.bgiq.join()
         self.dq.task_done()
- 
+
     def cpuDemosaicPostProcess(self,args):
         frame,index,jobtype,w,h,rgbl,tm,matrix,preprocess = args
         if self.svbo == None:
@@ -602,32 +602,24 @@ class ExportQueue(threading.Thread):
             self.svbo.upload()
             self.horizontalPattern.bindfbo()
             self.rawUploadTex.update(frame.rawimage)
-            self.shaderPatternNoise.draw(w,h,self.rawUploadTex,0,frame.black/65536.0,frame.white/65536.0) 
-            horiz = glReadPixels(0,0,w,1,GL_RGB,GL_FLOAT)
-            low = horiz[:,0,0]
-            high = horiz[:,0,1]
-            horl = low.mean()
-            horh = high.mean()
+            self.shaderPatternNoise.draw(w,h,self.rawUploadTex,0,frame.black/65536.0,frame.white/65536.0)
+            ssh = self.shaderPatternNoise.calcStripescaleH(w,h)
             self.verticalPattern.bindfbo()
-            self.shaderPatternNoise.draw(w,h,self.rawUploadTex,1,frame.black/65536.0,frame.white/65536.0) 
-            vert = glReadPixels(0,0,1,h,GL_RGB,GL_FLOAT)
-            low = vert[0,:,0]
-            high = vert[0,:,1]
-            verl = low.mean()
-            verh = high.mean()
+            self.shaderPatternNoise.draw(w,h,self.rawUploadTex,1,frame.black/65536.0,frame.white/65536.0)
+            ssv = self.shaderPatternNoise.calcStripescaleV(w,h)
             if self.lastPP == self.preprocessTex2:
                 self.preprocessTex1.bindfbo()
-                self.shaderPreprocess.draw(w,h,self.rawUploadTex,self.preprocessTex2,self.horizontalPattern,self.verticalPattern,horl,horh,verl,verh,frame.black/65536.0,frame.white/65536.0,rgbl)
+                self.shaderPreprocess.draw(w,h,self.rawUploadTex,self.preprocessTex2,self.horizontalPattern,self.verticalPattern,ssh,ssv,frame.black/65536.0,frame.white/65536.0,rgbl)
                 self.lastPP = self.preprocessTex1
             else:
                 self.preprocessTex2.bindfbo()
-                self.shaderPreprocess.draw(w,h,self.rawUploadTex,self.preprocessTex1,self.horizontalPattern,self.verticalPattern,horl,horh,verl,verh,frame.black/65536.0,frame.white/65536.0,rgbl)
+                self.shaderPreprocess.draw(w,h,self.rawUploadTex,self.preprocessTex1,self.horizontalPattern,self.verticalPattern,ssh,ssv,frame.black/65536.0,frame.white/65536.0,rgbl)
                 self.lastPP = self.preprocessTex2
             # Now, read out the results as a 16bit raw image and feed to cpu demosaicer
             rawpreprocessed = glReadPixels(0,0,w,h,GL_RED,GL_UNSIGNED_SHORT)
             frame.rawimage = rawpreprocessed
-            self.dq.put((frame,index,0,w,h,rgbl,tm,matrix)) # Queue CPU demosaicing
-            return None            
+            self.dq.put((frame,index,0,w,h,rgbl,tm,matrix,preprocess)) # Queue CPU demosaicing
+            return None
 
     def onBgDraw(self,w,h):
         #print "onBgDraw",w,h
