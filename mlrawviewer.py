@@ -1344,7 +1344,10 @@ class Viewer(GLCompute.GLCompute):
                 else:
                     wavfilename = wavname # Expect this to be extracted by indexing of MLV with SND
                 print cand,outfile,wavfilename
-                self.exporter.exportDng(filename,outfile,wavfilename,0,None,0.0,rgbl=rgbl)
+                pp = ExportQueue.ExportQueue.PREPROCESS_NONE
+                if self.setting_preprocess:
+                    pp = ExportQueue.ExportQueue.PREPROCESS_ALL
+                self.exporter.exportDng(filename,outfile,wavfilename,0,None,0.0,rgbl=rgbl,preprocess=pp)
 
         elif self.setting_encodeType[0] == ENCODE_TYPE_MOV:   
             for cand in fl:
@@ -1646,7 +1649,10 @@ class Viewer(GLCompute.GLCompute):
         outfile = self.checkoutfile(self.raw.filename,"_DNG")
         c = self.setting_rgb
         rgbl = (c[0],c[1],c[2],self.setting_brightness)
-        self.exporter.exportDng(self.raw.filename,outfile,self.wavname,self.marks[0][0],self.marks[1][0],self.audioOffset,rgbl=rgbl)
+        pp = ExportQueue.ExportQueue.PREPROCESS_NONE
+        if self.setting_preprocess:
+            pp = ExportQueue.ExportQueue.PREPROCESS_ALL
+        self.exporter.exportDng(self.raw.filename,outfile,self.wavname,self.marks[0][0],self.marks[1][0],self.audioOffset,rgbl=rgbl,preprocess=pp)
         self.refresh()
 
     def askOutput(self):

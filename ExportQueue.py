@@ -194,6 +194,7 @@ class ExportQueue(threading.Thread):
         except:
             pass
         self.ended = True
+
     def nextJob(self,job):
         # Runs on processing thread
         jobType = job[1]
@@ -314,6 +315,20 @@ class ExportQueue(threading.Thread):
 
     def doExportDng(self,jobindex,args):
         filename,dngdir,wavfile,startFrame,endFrame,audioOffset,bits,rgbl,preprocess= args
+        if preprocess:
+            self.needBgDraw = True
+        try:
+            self.processExportDng(jobindex,args)
+        except:
+            import traceback
+            traceback.print_exc()
+            pass
+        # Clean up
+        if preprocess:
+            self.needBgDraw = False
+
+    def processExportDng(self,jobindex,args):
+        filename,dngdir,wavfile,startFrame,endFrame,audioOffset,bits,rgbl,preprocess= args
         os.mkdir(dngdir)
         target = dngdir
         r = MlRaw.loadRAWorMLV(filename)
@@ -332,6 +347,10 @@ class ExportQueue(threading.Thread):
         targfile = os.path.splitext(os.path.split(r.filename)[1])[0]
         target = os.path.join(target,targfile)
         print "DNG export to",target,"started"
+        self.writer = threading.Thread(target=self.dngWriter)
+        self.writer.daemon = True
+        self.writer.start()
+        self.writtenFrame = 0
         r.preloadFrame(startFrame)
         r.preloadFrame(startFrame+1) # Preload one ahead
         for i in range(endFrame-startFrame+1):
@@ -347,14 +366,47 @@ class ExportQueue(threading.Thread):
             elif bits==16:
                 f.convert() # Will block if still processing
                 ifd._strips = [np.frombuffer(f.rawimage,dtype=np.uint16).tostring()]
-            d.writeFile(target+"_%06d.dng"%i)
-            st = float(i)/float(todo)
+            while self.writtenFrame<(i-10):
+                # Give writing thread time to write...
+                if self.endflag or self.cancel:
+                    break
+                time.sleep(0.1)
+            self.wq.put((i,target,d)) # Queue writing
+            st = float(self.writtenFrame+1)/float(todo)
             #print "%.02f%%"%(st*100.0)
             self.jobstatus[jobindex] = st
             if self.endflag or self.cancel:
                 break
+        self.wq.put(None) # Finish
+        while (self.writtenFrame+1)<todo:
+            time.sleep(0.5)
+            st = float(self.writtenFrame+1)/float(todo)
+            #print "%.02f%%"%(st*100.0)
+            self.jobstatus[jobindex] = st
+            if self.endflag or self.cancel:
+                break
+        self.wq.join()
+        self.jobstatus[jobindex] = 1.0
         print "DNG export to",target,"finished"
         r.close()
+
+    def dngWriter(self):
+        nextbuf = self.wq.get()
+        while nextbuf != None:
+            try:
+                index,target,dng = nextbuf
+                dng.writeFile(target+"_%06d.dng"%index)
+                self.writtenFrame = index
+            except:
+                import traceback
+                traceback.print_exc()
+                self.cancel = True
+            self.wq.task_done()
+            time.sleep(0.016) # Yield
+            nextbuf = self.wq.get()
+        self.wq.task_done()
+        #print "WRITER FINISHED!"
+
 
     def doExportMov(self,jobindex,args):
         self.needBgDraw = True
