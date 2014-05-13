@@ -589,6 +589,7 @@ class ExportQueue(threading.Thread):
             self.svbo.upload()
             if preprocess==self.PREPROCESS_ALL:
                 recover = 0.0
+                rgbl = (1.0,1.0,1.0,rgbl[3])
             else:
                 recover = 1.0
             self.shaderQuality.demosaicPass(self.rgbUploadTex,frame.black,balance=rgbl,white=frame.white,tonemap=tm,colourMatrix=matrix,recover=recover)
