@@ -53,7 +53,7 @@ uniform vec4 stripescaleh;
 uniform vec4 stripescalev;
 uniform vec2 blackwhite;
 uniform vec4 colourBalance;
-uniform vec4 control; // Switch on/off different parts r=noise,g=stripes
+uniform vec4 control; // Switch on/off different parts r=noise,g=stripes,b=highlight recovery,a=bad pixels
 
 void main() {
     // Calculate median and range of same-colour neighbours
@@ -108,6 +108,7 @@ void main() {
 
     // Read this pixel
     float raw = texture2D(rawtex,texcoord).r;
+    float origraw = raw;
 
     // Work with guaranteed same-colour pixels, 2 pixels away in each direction
     float lh = min(rawup2,rawdown2);
@@ -137,15 +138,19 @@ void main() {
    
     float thiscor = step(0.0,rawped - maxnei); // Higher
     thiscor += step(0.0,minnei - rawped); // Lower
-    correlation += step(abs(correlation),0.5)*(-0.02*step(0.5,thiscor)+0.01); // -0.01 for outside, +0.01 for inside if abs(correlation)<0.5 
-
-    float detail = step(abs(rawped-rawup1)+abs(rawped-rawdown1)+abs(rawped-rawleft1)+abs(rawped-rawright1),0.002);
-    float hide = step(correlation,-0.15); // If correlation less than -0.15, hide the pixel
+    //float different = step(max(mednei*0.01,0.0001),abs(mednei-last.b+blackwhite.r)); // For pink dots training
+    float different = step(max(mednei*0.3,0.001),abs(mednei-last.b+blackwhite.r)); // For normal hot/dead pixels
+    thiscor = thiscor*different;
+    correlation += step(abs(correlation),0.5)*(-0.01*step(0.5,thiscor)+0.005); // -0.01 for outside, +0.01 for inside if abs(correlation)<0.5 
+    float hide = control.a*step(correlation,-0.15); // If correlation less than -0.15, hide the pixel
+    float detail = step(2.2,(abs(rawped-rawup2)+abs(rawped-rawdown2)+abs(rawped-rawleft2)+abs(rawped-rawright2))/rawped+abs(rawup1-rawdown1)/rawup1+abs(rawleft1-rawright1)/rawleft1+abs(rawul1+rawdr1)/rawul1+abs(rawur1-rawdl1)/rawur1);
+    //hide = thiscor*(1.0-detail);
+    float noisefix = control.r*(1.0-detail);
     float notDetail = step(maxnei-minnei,max(0.0001,mednei*0.9));//,max(0.00001,mednei*0.001));
-    float close = detail*step(abs(mednei-rawped),max(0.001,rawped*.0001))*0.5+hide;
-    float closeold = detail*step(abs(last.b-blackwhite.r-rawped),max(0.0005,rawped*.0001))*step(rawped,0.01);
-    raw = mix(raw,mednei+blackwhite.r,min(close,1.0)*control.r);
-    //raw = mix(raw,last.b,0.5*closeold*control.r);
+    float close = noisefix*step(abs(mednei-rawped),max(0.001,rawped*.0001))*0.5+hide;
+    float closeold = noisefix*step(abs(last.b-blackwhite.r-rawped),max(0.0005,rawped*.0001))*step(rawped,0.01)*0.5;
+    raw = mix(raw,mednei+blackwhite.r,min(close,1.0));
+    raw = mix(raw,last.b,min(closeold,1.0));
     raw = max(raw,blackwhite.r);
 
     // Highlight recovery and predemosaicing colour balance
@@ -161,8 +166,8 @@ void main() {
     float over = (1.0-udavow)*(1.0-lravow);
     float recovered = (udav*udavow*upbalance+lrav*lravow*leftbalance+udav*over*upbalance+lrav*over*leftbalance)/(udavow+lravow+over+over);*/
     float recovered = (udav*upbalance+lrav*leftbalance)*0.5;
-    rawped = mix(recovered*thisbalance,rawped*thisbalance,underwhite);
-    vec3 passon = vec3(correlation,raw,last.a);
+    rawped = mix(recovered*thisbalance,rawped*thisbalance,max(underwhite,control.b));
+    vec3 passon = vec3(correlation,origraw,last.a);
     gl_FragColor = vec4(blackwhite.r+rawped,passon);
 }
 """
@@ -178,7 +183,7 @@ void main() {
             vertices = np.array((-1,-1,0,1,-1,0,-1,1,0,1,1,0),dtype=np.float32)
             self.svbo.update(vertices,self.svbobase)
 
-    def draw(self,width,height,rawtex,lastex,hortex,vertex,stripescaleh,stripescalev,black,white,balance):
+    def draw(self,width,height,rawtex,lastex,hortex,vertex,stripescaleh,stripescalev,black,white,balance,control=(1.0,1.0,1.0,1.0)):
         self.use()
         self.blend(False)
         glVertexAttribPointer(self.vertex,3,GL_FLOAT,GL_FALSE,0,self.svbo.vboOffset(self.svbobase))
@@ -195,7 +200,7 @@ void main() {
         glUniform4f(self.uniforms["stripescalev"], stripescalev[0],stripescalev[1],stripescalev[2],stripescalev[3])
         glUniform4f(self.uniforms["colourBalance"], balance[0],balance[1],balance[2],balance[3])
         glUniform2f(self.uniforms["blackwhite"], black,white)
-        glUniform4f(self.uniforms["control"], 0.0,1.0,0.0,0.0) # Noise, Stripes, unused, unused
+        glUniform4f(self.uniforms["control"], control[0],control[1],control[2],control[3]) # Noise, Stripes, Highlight, Bad pixels
         w = width
         h = height
         if w>0 and h>0:

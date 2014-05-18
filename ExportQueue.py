@@ -361,23 +361,31 @@ class ExportQueue(threading.Thread):
             ifd = d.FULL_IFD
             if ((startFrame+i+1)<r.frames()):
                 r.preloadFrame(startFrame+i+1)
-            if bits==14:
-                ifd._strips = [np.frombuffer(f.rawdata,dtype=np.uint16).byteswap().tostring()]
-            elif bits==16:
-                f.convert() # Will block if still processing
-                ifd._strips = [np.frombuffer(f.rawimage,dtype=np.uint16).tostring()]
             while self.writtenFrame<(i-10):
                 # Give writing thread time to write...
                 if self.endflag or self.cancel:
                     break
                 time.sleep(0.1)
-            self.wq.put((i,target,d)) # Queue writing
+            if preprocess==self.PREPROCESS_ALL:
+                # Must first preprocess with shader
+                self.bgiq.put((f,d,2,r.width(),r.height(),i,target,rgbl))
+            else: 
+                if bits==14:
+                    ifd._strips = [np.frombuffer(f.rawdata,dtype=np.uint16).byteswap().tostring()]
+                elif bits==16:
+                    f.convert() # Will block if still processing
+                    ifd._strips = [np.frombuffer(f.rawimage,dtype=np.uint16).tostring()]
+                self.wq.put((i,target,d)) # Queue writing
             st = float(self.writtenFrame+1)/float(todo)
             #print "%.02f%%"%(st*100.0)
             self.jobstatus[jobindex] = st
             if self.endflag or self.cancel:
                 break
-        self.wq.put(None) # Finish
+        if preprocess==self.PREPROCESS_ALL:
+                # Must first preprocess with shader
+            self.bgiq.put(None)
+        else: 
+            self.wq.put(None) # Finish
         while (self.writtenFrame+1)<todo:
             time.sleep(0.5)
             st = float(self.writtenFrame+1)/float(todo)
@@ -594,7 +602,9 @@ class ExportQueue(threading.Thread):
         self.dq.task_done()
 
     def cpuDemosaicPostProcess(self,args):
-        frame,index,jobtype,w,h,rgbl,tm,matrix,preprocess = args
+        jobtype = args[2]
+        w = args[3]
+        h = args[4]
         if self.svbo == None:
             self.svbo = ui.SharedVbo(1024*16)
         if self.shaderQuality == None:
@@ -633,6 +643,7 @@ class ExportQueue(threading.Thread):
             self.lastPP = self.preprocessTex2
 
         if jobtype==0:
+            frame,index,jobtype,w,h,rgbl,tm,matrix,preprocess = args
             # Shader part of demosaicing
             self.rgbUploadTex.update(frame.rgbimage)
             self.rgbImage.bindfbo()
@@ -648,6 +659,7 @@ class ExportQueue(threading.Thread):
             rgb = glReadPixels(0,0,w,h,GL_RGB,GL_UNSIGNED_SHORT)
             return (index,rgb)
         elif jobtype==1:            # Predemosaic processing
+            frame,index,jobtype,w,h,rgbl,tm,matrix,preprocess = args
             frame.convert()
             self.svbo.bind()
             self.shaderPatternNoise.prepare(self.svbo)
@@ -672,6 +684,33 @@ class ExportQueue(threading.Thread):
             rawpreprocessed = glReadPixels(0,0,w,h,GL_RED,GL_UNSIGNED_SHORT)
             frame.rawimage = rawpreprocessed
             self.dq.put((frame,index,0,w,h,rgbl,tm,matrix,preprocess)) # Queue CPU demosaicing
+            return None
+        elif jobtype==2:            # DNG preprocessing
+            frame,dng,jobtype,w,h,index,target,rgbl = args
+            ifd = dng.FULL_IFD
+            self.svbo.bind()
+            self.shaderPatternNoise.prepare(self.svbo)
+            self.shaderPreprocess.prepare(self.svbo)
+            self.svbo.upload()
+            self.horizontalPattern.bindfbo()
+            self.rawUploadTex.update(frame.rawimage)
+            self.shaderPatternNoise.draw(w,h,self.rawUploadTex,0,frame.black/65536.0,frame.white/65536.0)
+            ssh = self.shaderPatternNoise.calcStripescaleH(w,h)
+            self.verticalPattern.bindfbo()
+            self.shaderPatternNoise.draw(w,h,self.rawUploadTex,1,frame.black/65536.0,frame.white/65536.0)
+            ssv = self.shaderPatternNoise.calcStripescaleV(w,h)
+            if self.lastPP == self.preprocessTex2:
+                self.preprocessTex1.bindfbo()
+                self.shaderPreprocess.draw(w,h,self.rawUploadTex,self.preprocessTex2,self.horizontalPattern,self.verticalPattern,ssh,ssv,frame.black/65536.0,frame.white/65536.0,(1.0,1.0,1.0,1.0))
+                self.lastPP = self.preprocessTex1
+            else:
+                self.preprocessTex2.bindfbo()
+                self.shaderPreprocess.draw(w,h,self.rawUploadTex,self.preprocessTex1,self.horizontalPattern,self.verticalPattern,ssh,ssv,frame.black/65536.0,frame.white/65536.0,(1.0,1.0,1.0,1.0))
+                self.lastPP = self.preprocessTex2
+            rawpreprocessed = glReadPixels(0,0,w,h,GL_RED,GL_UNSIGNED_SHORT)
+            print rawpreprocessed.min(),rawpreprocessed.max(),rawpreprocessed.mean()
+            ifd._strips = [np.frombuffer(rawpreprocessed,dtype=np.uint16).tostring()]
+            self.wq.put((index,target,dng)) # Queue writing
             return None
 
     def onBgDraw(self,w,h):

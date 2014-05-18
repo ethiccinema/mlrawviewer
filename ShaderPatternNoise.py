@@ -179,7 +179,7 @@ void main() {
         horhrg = highrg.mean()
         horlgb = lowgb.mean()
         horhgb = highgb.mean()
-        print horlrg,horhrg,horlgb,horhgb
+        #print horlrg,horhrg,horlgb,horhgb
         return (horlrg,horhrg,horlgb,horhgb)
     
     def calcStripescaleV(self,w,h):
