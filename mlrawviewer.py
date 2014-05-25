@@ -26,13 +26,9 @@ SOFTWARE.
 import sys,struct,os,math,time,datetime,subprocess,signal,threading,Queue,wave,zlib
 from threading import Thread
 
-# python tkinter imports
-try:
-    import Tkinter as tk #python2
-except ImportError:
-    import tkinter as tk #python3
-import tkFileDialog
-import tkMessageBox
+import multiprocessing
+import multiprocessing.queues
+from multiprocessing import Process
 
 from Config import Config
 
@@ -1435,13 +1431,15 @@ class Viewer(GLCompute.GLCompute):
             now = time.time()
             offset = now - self.realStartTime
             self.startAudio(offset)
+
     def okToExit(self):
         if self.exporter.busy:
-            root = tk.Tk()
-            root.iconify()
-            ret = tkMessageBox.askyesno("Exit","Cancel export and exit?")
-            root.destroy()
-            return ret
+            queue = multiprocessing.queues.SimpleQueue()
+            p = Process(target=okToExitDialog, args=(queue,))
+            p.start()
+            result = queue.get()
+            p.join()
+            return result
         else:
             return True
     def exit(self):
@@ -1664,12 +1662,13 @@ class Viewer(GLCompute.GLCompute):
         askThread.start()
 
     def askOutputFunction(self):
-        root = tk.Tk()
-        root.iconify()
-        adir = tkFileDialog.askdirectory(title='Choose DNG or ProRes output directory...', initialdir=self.outfilename)
-        self.outfilename = adir
-        config.setState("targetDir",adir)
-        root.destroy()
+        queue = multiprocessing.queues.SimpleQueue()
+        p = Process(target=askOutputDialog, args=(queue,self.outfilename))
+        p.start()
+        result = queue.get()
+        p.join()
+        self.outfilename = result
+        config.setState("targetDir",result)
 
     def useWhitePoint(self,x,y):
         # Read from the current playFrame at x/y
@@ -1748,10 +1747,23 @@ class Viewer(GLCompute.GLCompute):
             self.setting_rgb,self.setting_brightness = rgbl
             self.refresh()
 
+def okToExitDialog(queue): 
+    import dialogs
+    ret = dialogs.okToExit()
+    queue.put(ret)
+
+def askOutputDialog(queue,initial): 
+    import dialogs
+    ret = dialogs.chooseOutputDir(initial)
+    queue.put(ret)
+
+def openFilename(queue,initial,fileTypes): 
+    import dialogs
+    ret = dialogs.openFilename(initial,fileTypes)
+    queue.put(ret)
+
 def main():
     filename = None
-    root = tk.Tk() # Must always do otherwise can't open tk windows later on Mac
-    root.iconify()
     if len(sys.argv)<2:
         #print "Error. Please specify an MLV or RAW file to view"
         #return -1
@@ -1762,12 +1774,15 @@ def main():
         directory = config.getState("directory")
         if directory == None: 
             directory = '~'
-        afile = tkFileDialog.askopenfilename(title='Open ML video...', initialdir=directory, filetypes=mlFileTypes)
+        queue = multiprocessing.queues.SimpleQueue()
+        p = Process(target=openFilename, args=(queue,directory,mlFileTypes))
+        p.start()
+        afile = queue.get()
+        p.join()
         if afile != None:
             filename = afile
             if afile != '':
                 config.setState("directory",os.path.dirname(filename))
-    root.destroy()
     if filename == None:
         filename = sys.argv[1]
     if not os.path.exists(filename):
