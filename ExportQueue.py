@@ -708,7 +708,7 @@ class ExportQueue(threading.Thread):
                 self.shaderPreprocess.draw(w,h,self.rawUploadTex,self.preprocessTex1,self.horizontalPattern,self.verticalPattern,ssh,ssv,frame.black/65536.0,frame.white/65536.0,(1.0,1.0,1.0,1.0))
                 self.lastPP = self.preprocessTex2
             rawpreprocessed = glReadPixels(0,0,w,h,GL_RED,GL_UNSIGNED_SHORT)
-            print rawpreprocessed.min(),rawpreprocessed.max(),rawpreprocessed.mean()
+            #print rawpreprocessed.min(),rawpreprocessed.max(),rawpreprocessed.mean()
             ifd._strips = [np.frombuffer(rawpreprocessed,dtype=np.uint16).tostring()]
             self.wq.put((index,target,dng)) # Queue writing
             return None

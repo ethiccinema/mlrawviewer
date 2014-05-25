@@ -92,7 +92,7 @@ COMMA(,)/PERIOD(.) - Nudge back/forward by 1 frame (works best when paused)
 
 UP/DOWN CURSOR - Increase/decrease brightness
 
-0, 1, 2, 3 - Change White Balance
+1, 2, 3 - Change White Balance
 
 7, 4 - Change red multiplier up and down by 0.01
 
@@ -135,3 +135,5 @@ R - Reset the marks to start/end of the file
 L - Toggle looping or play-once mode
 
 H/G - Save/load current colour balance & brightness (for matching multiple takes)
+
+0 - Toggle experimental stripe/hot-pixel removing preprocess pass

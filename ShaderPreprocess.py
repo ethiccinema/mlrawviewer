@@ -183,7 +183,7 @@ void main() {
             vertices = np.array((-1,-1,0,1,-1,0,-1,1,0,1,1,0),dtype=np.float32)
             self.svbo.update(vertices,self.svbobase)
 
-    def draw(self,width,height,rawtex,lastex,hortex,vertex,stripescaleh,stripescalev,black,white,balance,control=(1.0,1.0,1.0,1.0)):
+    def draw(self,width,height,rawtex,lastex,hortex,vertex,stripescaleh,stripescalev,black,white,balance,control=(0.0,1.0,0.0,1.0)):
         self.use()
         self.blend(False)
         glVertexAttribPointer(self.vertex,3,GL_FLOAT,GL_FALSE,0,self.svbo.vboOffset(self.svbobase))

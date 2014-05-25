@@ -151,7 +151,7 @@ def testdemosaicer():
     bitunpack.predemosaic14(d3,buf[:len14],1024,768,2000,0)
     bitunpack.predemosaic16(d3,buf[:len16],1024,768,2000,0)
     dembuf = DemosaicThread.demosaic14(buf[:len14],1024,768,2000,0)
-    print buf,dembuf.shape,dembuf.reshape((1024,768,3))[:,300]
+    #print buf,dembuf.shape,dembuf.reshape((1024,768,3))[:,300]
 
 #testdemosaicer()
 #print "test demosaicer done"

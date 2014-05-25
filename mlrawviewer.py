@@ -32,7 +32,7 @@ from multiprocessing import Process
 
 from Config import Config
 
-config = Config(version=(1,1,5))
+config = Config(version=(1,1,6))
 
 programpath = os.path.abspath(os.path.split(sys.argv[0])[0])
 if getattr(sys,'frozen',False):
@@ -337,6 +337,9 @@ class DisplayScene(ui.Scene):
         self.outformat = self.newIcon(0,0,128,128,19,self.outfmtClick)
         self.outformat.colour = (0.5,0.5,0.5,0.5)
         self.outformat.setScale(0.5)
+        self.addencode = self.newIcon(0,0,128,128,21,self.addEncodeClick)
+        self.addencode.colour = (0.5,0.5,0.5,0.5)
+        self.addencode.setScale(0.5)
         self.encode = self.newIcon(0,0,128,128,2,self.encodeClick)
         self.encode.colour = (0.2,0.0,0.0,0.5)
         self.encode.setScale(0.5)
@@ -368,7 +371,7 @@ class DisplayScene(ui.Scene):
         self.exportqlist.setScale(0.25)
         self.exportq.children.append(self.exportqlist)
         self.timestamp = ui.Geometry(svbo=frames.svbo)
-        self.iconItems = [self.fullscreen,self.mapping,self.drop,self.quality,self.loop,self.outformat,self.encode,self.play]
+        self.iconItems = [self.fullscreen,self.mapping,self.drop,self.quality,self.loop,self.outformat,self.addencode,self.encode,self.play]
         self.overlay = [self.iconBackground,self.progressBackground,self.progress,self.timestamp,self.update,self.balance,self.balanceHandle,self.brightness,self.brightnessHandle,self.mark,self.mdbg,self.metadata,self.exportq]
         self.overlay.extend(self.iconItems)
         self.overlay.append(self.whitePicker) # So it is on the bottom
@@ -440,6 +443,9 @@ class DisplayScene(ui.Scene):
     def encodeClick(self,x,y):
         self.frames.toggleEncoding()
 
+    def addEncodeClick(self,x,y):
+        self.frames.addEncoding()
+
     def newIcon(self,x,y,w,h,idx,cb):
         icon = ui.Button(w,h,cb,svbo=self.frames.svbo)
         self.setIcon(icon,w,h,idx)
@@ -459,7 +465,7 @@ class DisplayScene(ui.Scene):
         # Make sure we show correct icon for current state
         # Model is to show icon representing CURRENT state
         f = self.frames
-        states = [not f._isFull,f.tonemap(),not f.dropframes(),f.setting_highQuality,not f.setting_loop,f.setting_encodeType[0],False,f.paused]
+        states = [not f._isFull,f.tonemap(),not f.dropframes(),f.setting_highQuality,not f.setting_loop,f.setting_encodeType[0],False,False,f.paused]
         for i in range(len(self.iconItems)):
             itm = self.iconItems[i]
             state = states[i]
@@ -734,7 +740,7 @@ class Viewer(GLCompute.GLCompute):
         self.setting_dropframes = True # Real time playback by default
         self.setting_loop = config.getState("loopPlayback")
         self.setting_colourMatrix = np.matrix(np.eye(3))
-        self.setting_preprocess = True
+        self.setting_preprocess = False
         self.updateColourMatrix()
         if self.setting_loop == None: self.setting_loop = True
         self.setting_encodeType = config.getState("encodeType")
@@ -1282,6 +1288,18 @@ class Viewer(GLCompute.GLCompute):
         self.needsRefresh = True
 
     def checkoutfile(self,fn,ext):
+        exists = False
+        try:
+            exists = os.path.exists(self.outfilename)
+        except:
+            pass
+        while not exists:
+            self.askOutputFunction() # Synchronous
+            try:
+                exists = os.path.exists(self.outfilename)
+            except:
+                pass
+            print self.outfilename
         rfn = os.path.splitext(os.path.split(fn)[1])[0]
         i = 1
         full = os.path.join(self.outfilename,rfn+"_%06d"%i+ext)
@@ -1310,6 +1328,7 @@ class Viewer(GLCompute.GLCompute):
         config.setState("encodeType",self.setting_encodeType)
         self.refresh()
     def addEncoding(self):
+        
         if self.setting_encodeType[0] == ENCODE_TYPE_DNG:
             self.dngExport()
         elif self.setting_encodeType[0] == ENCODE_TYPE_MOV:   
@@ -1667,8 +1686,11 @@ class Viewer(GLCompute.GLCompute):
         p.start()
         result = queue.get()
         p.join()
-        self.outfilename = result
-        config.setState("targetDir",result)
+        if not result:
+            return
+        if os.path.exists(result):
+            self.outfilename = result
+            config.setState("targetDir",result)
 
     def useWhitePoint(self,x,y):
         # Read from the current playFrame at x/y
