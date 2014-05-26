@@ -1453,11 +1453,7 @@ class Viewer(GLCompute.GLCompute):
 
     def okToExit(self):
         if self.exporter.busy:
-            queue = multiprocessing.queues.SimpleQueue()
-            p = Process(target=okToExitDialog, args=(queue,))
-            p.start()
-            result = queue.get()
-            p.join()
+            result = okToExitDialog()
             return result
         else:
             return True
@@ -1681,11 +1677,7 @@ class Viewer(GLCompute.GLCompute):
         askThread.start()
 
     def askOutputFunction(self):
-        queue = multiprocessing.queues.SimpleQueue()
-        p = Process(target=askOutputDialog, args=(queue,self.outfilename))
-        p.start()
-        result = queue.get()
-        p.join()
+        result = askOutputDialog(self.outfilename)
         if not result:
             return
         if os.path.exists(result):
@@ -1769,38 +1761,38 @@ class Viewer(GLCompute.GLCompute):
             self.setting_rgb,self.setting_brightness = rgbl
             self.refresh()
 
-def okToExitDialog(queue): 
-    import dialogs
-    ret = dialogs.okToExit()
-    queue.put(ret)
+def launchDialog(dialogtype,initial="None"):
+    kwargs = {"stdout":subprocess.PIPE}
+    args = ["python","dialogs.py",dialogtype,initial]
+    p = subprocess.Popen(args,**kwargs)
+    result = p.stdout.read()
+    p.wait()
+    return result
 
-def askOutputDialog(queue,initial): 
-    import dialogs
-    ret = dialogs.chooseOutputDir(initial)
-    queue.put(ret)
+def okToExitDialog():
+    result = launchDialog("okToExit")
+    if result=="True":
+        return True
+    else:
+        return False
 
-def openFilename(queue,initial,fileTypes): 
-    import dialogs
-    ret = dialogs.openFilename(initial,fileTypes)
-    queue.put(ret)
+def askOutputDialog(initial): 
+    result = launchDialog("chooseOutputDir",initial)
+    return result
+
+def openFilename(initial): 
+    result = launchDialog("openFilename",initial)
+    return result.strip()
 
 def main():
     filename = None
     if len(sys.argv)<2:
         #print "Error. Please specify an MLV or RAW file to view"
         #return -1
-        mlFT1 = ('*.RAW', '*.raw')
-        mlFT2 = ('*.MLV', '*.mlv')
-        mlFT3 = ('*.DNG', '*.dng')
-        mlFileTypes = [('ML', mlFT1 + mlFT2 + mlFT3), ('RAW', mlFT1), ('MLV', mlFT2), ('DNG', mlFT3), ('All', '*.*')]
         directory = config.getState("directory")
         if directory == None: 
             directory = '~'
-        queue = multiprocessing.queues.SimpleQueue()
-        p = Process(target=openFilename, args=(queue,directory,mlFileTypes))
-        p.start()
-        afile = queue.get()
-        p.join()
+        afile = openFilename(directory)
         if afile != None:
             filename = afile
             if afile != '':
