@@ -13,6 +13,7 @@ a.datas += [('data/os.glf','data/os.glf','DATA')]
 a.datas += [('data/icons.z','data/icons.z','DATA')]
 a.binaries += [('ffmpeg.exe', 'ffmpeg.exe', 'DATA')]
 a.binaries += [('glfw3.dll', 'glfw3.dll', 'DATA')]
+a.binaries += [('dialogs.exe', 'dialogs.exe', 'DATA')]
 exe = EXE(pyz,
           a.scripts,
           a.binaries,

@@ -1767,12 +1767,24 @@ def launchDialog(dialogtype,initial="None"):
     kwargs = {"stdout":subprocess.PIPE}
     if config.isMac():
 	exepath = os.path.join(sys._MEIPASS,"dialogs")
-        print "Mac",exepath
+        args = [exepath,dialogtype,initial]
+    elif config.isWin():
+        kwargs = {"stdin":subprocess.PIPE,"stdout":subprocess.PIPE,"stderr":subprocess.STDOUT}
+        if subprocess.mswindows:
+            su = subprocess.STARTUPINFO()
+            su.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+            su.wShowWindow = subprocess.SW_HIDE
+            kwargs["startupinfo"] = su
+	exepath = os.path.join(sys._MEIPASS,"dialogs.exe")
         args = [exepath,dialogtype,initial]
     else:
         args = ["python","dialogs.py",dialogtype,initial]
+    print "args:",args
+    print "kwargs:",kwargs
     p = subprocess.Popen(args,**kwargs)
+    print p
     result = p.stdout.read().strip()
+    print "result",result
     p.wait()
     return result
 
