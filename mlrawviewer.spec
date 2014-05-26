@@ -8,6 +8,7 @@ a.datas += [('data/os.glf','data/os.glf','DATA')]
 a.datas += [('data/icons.z','data/icons.z','DATA')]
 a.binaries += [('ffmpeg', 'ffmpeg', 'DATA')]
 a.binaries += [('libglfw3.dylib', 'libglfw3.dylib', 'DATA')]
+a.binaries += [('dialogs', 'dialogs', 'DATA')]
 exe = EXE(pyz,
           a.scripts,
           a.binaries,

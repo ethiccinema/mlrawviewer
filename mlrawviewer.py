@@ -26,6 +26,8 @@ SOFTWARE.
 import sys,struct,os,math,time,datetime,subprocess,signal,threading,Queue,wave,zlib
 from threading import Thread
 
+import dialogs
+
 import multiprocessing
 import multiprocessing.queues
 from multiprocessing import Process
@@ -1763,9 +1765,14 @@ class Viewer(GLCompute.GLCompute):
 
 def launchDialog(dialogtype,initial="None"):
     kwargs = {"stdout":subprocess.PIPE}
-    args = ["python","dialogs.py",dialogtype,initial]
+    if config.isMac():
+	exepath = os.path.join(sys._MEIPASS,"dialogs")
+        print "Mac",exepath
+        args = [exepath,dialogtype,initial]
+    else:
+        args = ["python","dialogs.py",dialogtype,initial]
     p = subprocess.Popen(args,**kwargs)
-    result = p.stdout.read()
+    result = p.stdout.read().strip()
     p.wait()
     return result
 

@@ -1,5 +1,8 @@
 rm -rf dist/*
 #pyinstaller --log-level=DEBUG mlrawviewer.spec
+pyinstaller --onedir dialogs.py
+cp dist/dialogs/dialogs .
+rm -rf dist/*
 pyinstaller mlrawviewer.spec
 cp Info.plist dist/mlrawviewer.app/Contents/
 cp mlrawviewer.icns dist/mlrawviewer.app/Contents/Resources/icon-windowed.icns
