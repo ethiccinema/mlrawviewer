@@ -294,14 +294,13 @@ bitunpack_predemosaic14(PyObject* self, PyObject *args)
     if (dem->width != width || dem->height != height)
         return NULL;
 
-    int elements = length*8/14;
+    int elements = width * height;
     int i = 0;
     int sparebits = 0;
     unsigned int acc = 0;
     unsigned int out = 0;
     short unsigned int* read = (short unsigned int*)input;
     float* write = dem->raw;
-    //printf("Decoding frame\n");
 
     Py_BEGIN_ALLOW_THREADS;
     while (i<elements) {
@@ -355,7 +354,7 @@ bitunpack_predemosaic16(PyObject* self, PyObject *args)
     if (dem->width != width || dem->height != height)
         return NULL;
 
-    int elements = length*8/16;
+    int elements = width*height;
     int i = 0;
     unsigned int out = 0;
     short unsigned int* read = (short unsigned int*)input;
