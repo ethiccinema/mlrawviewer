@@ -75,9 +75,9 @@ void main() {
     } else if (tonemap==2.0) {
         toneMapped = log2(1.0+1024.0*clamp(colour/16.0,0.0,1.0))/10.0;
     } else if (tonemap==3.0) {
-        toneMapped = sRGBgamma(colour);
+        toneMapped = sRGBgamma(clamp(colour,0.0,1.0));
     } else if (tonemap==4.0) {
-        toneMapped = r709gamma(colour);
+        toneMapped = r709gamma(clamp(colour,0.0,1.0));
     }
     colour = mix(colour,toneMapped,step(0.5,tonemap));
     gl_FragColor = vec4(colour,1.0);
