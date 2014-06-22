@@ -119,7 +119,7 @@ class Texture:
             try: glTexImage2D(GL_TEXTURE_2D,0,GL_LUMINANCE32F_ARB,self.width,self.height,0,GL_RED,GL_FLOAT,None)
             except GLError: glTexImage2D(GL_TEXTURE_2D,0,GL_RGB32F,self.width,self.height,0,GL_RED,GL_FLOAT,None)
         elif not hasalpha and not mono and fp:
-            glTexImage2D(GL_TEXTURE_2D,0,GL_RGB32F,self.width,self.height,0,GL_RGB,GL_FLOAT,None)
+            glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA32F,self.width,self.height,0,GL_RGB,GL_FLOAT,None)
         elif mono and not sixteen:
             try: glTexImage2D(GL_TEXTURE_2D,0,GL_RED,self.width,self.height,0,GL_RED,GL_UNSIGNED_BYTE,rgbadata)
             except GLError: glTexImage2D(GL_TEXTURE_2D,0,GL_RGB,self.width,self.height,0,GL_RED,GL_UNSIGNED_BYTE,rgbadata)
@@ -133,9 +133,9 @@ class Texture:
                 glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA16,self.width,self.height,0,GL_RGBA,GL_UNSIGNED_SHORT,rgbadata)
         elif not mono and sixteen and not hasalpha:
             try: 
-                glTexImage2D(GL_TEXTURE_2D,0,GL_RGB32F,self.width,self.height,0,GL_RGB,GL_UNSIGNED_SHORT,rgbadata)
+                glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA32F,self.width,self.height,0,GL_RGB,GL_UNSIGNED_SHORT,rgbadata)
             except GLError: 
-                glTexImage2D(GL_TEXTURE_2D,0,GL_RGB16,self.width,self.height,0,GL_RGB,GL_UNSIGNED_SHORT,rgbadata)
+                glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA16,self.width,self.height,0,GL_RGB,GL_UNSIGNED_SHORT,rgbadata)
         else:
             glTexImage2D(GL_TEXTURE_2D,0,GL_RGB,self.width,self.height,0,GL_RGB,GL_UNSIGNED_BYTE,rgbadata)
         if mipmap:
@@ -164,6 +164,9 @@ class Texture:
             glFramebufferTexture2DEXT(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,self.id, 0)
         except:
             pass
+	ok = glCheckFramebufferStatus(GL_FRAMEBUFFER)
+	if ok != GL_FRAMEBUFFER_COMPLETE:
+		print "Framebuffer not complete!:",ok,self.mono,self.hasalpha,self.fp,self.sixteen
 
     def addmipmap(self):
         self.mipmap = True
