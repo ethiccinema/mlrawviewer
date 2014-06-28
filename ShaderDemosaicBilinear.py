@@ -131,7 +131,7 @@ void main() {
         colour *= 6.0; // To make it perceptually similar level to sRGB gamma
         toneMapped = colour/(1.0 + colour);
     } else if (tonemap==2.0) {
-        toneMapped = log2(1.0+1024.0*clamp(colour/16.0,0.0,1.0))/10.0;
+        toneMapped = log2(1.0+1024.0*clamp(colour,0.0,1.0))/10.0;
     } else if (tonemap==3.0) {
         toneMapped = sRGBgamma(clamp(colour,0.0,1.0));
     } else if (tonemap==4.0) {
