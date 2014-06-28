@@ -930,6 +930,7 @@ class CDNG:
         self.fps = 25.0
         FrameRate = self.tag(fd,DNG.Tag.FrameRate)
         if FrameRate != None:
+            FrameRate = FrameRate[3][0]
             self.fps = float(FrameRate[0])/float(FrameRate[1])
             self.fpsnum = FrameRate[0]
             self.fpsden = FrameRate[1]
