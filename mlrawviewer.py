@@ -1295,13 +1295,14 @@ class Viewer(GLCompute.GLCompute):
             exists = os.path.exists(self.outfilename)
         except:
             pass
-        while not exists:
+        if not exists:
             self.askOutputFunction() # Synchronous
             try:
                 exists = os.path.exists(self.outfilename)
             except:
                 pass
-            print self.outfilename
+	    if not exists:
+ 		return None
         rfn = os.path.splitext(os.path.split(fn)[1])[0]
         i = 1
         full = os.path.join(self.outfilename,rfn+"_%06d"%i+ext)
@@ -1349,6 +1350,7 @@ class Viewer(GLCompute.GLCompute):
             for cand in fl:
                 filename = os.path.join(path,cand)
                 outfile = self.checkoutfile(filename,"_DNG")
+		if outfile==None: return # No directory set
                 wavname = os.path.splitext(filename)[0]+".WAV"
                 if os.path.isdir(filename):
                     wavdir = filename
@@ -1370,6 +1372,7 @@ class Viewer(GLCompute.GLCompute):
             for cand in fl:
                 filename = os.path.join(path,cand)
                 outfile = self.checkoutfile(filename,".MOV")
+		if outfile==None: return # No directory set
                 wavname = os.path.splitext(filename)[0]+".WAV"
                 if os.path.isdir(filename):
                     wavdir = filename
@@ -1400,6 +1403,7 @@ class Viewer(GLCompute.GLCompute):
 
     def movExport(self):
         outfile = self.checkoutfile(self.raw.filename,".MOV")
+	if outfile==None: return # No directory set
         c = self.setting_rgb
         rgbl = (c[0],c[1],c[2],self.setting_brightness)
         pp = ExportQueue.ExportQueue.PREPROCESS_NONE
@@ -1407,7 +1411,6 @@ class Viewer(GLCompute.GLCompute):
             pp = ExportQueue.ExportQueue.PREPROCESS_ALL
         self.exporter.exportMov(self.raw.filename,outfile,self.wavname,self.marks[0][0],self.marks[1][0],self.audioOffset,rgbl=rgbl,tm=self.setting_tonemap,matrix=self.setting_colourMatrix,preprocess=pp)
         self.refresh()
-        return
 
     def handleIndexing(self):
         # Do anything we need to do when indexing has completed
@@ -1662,6 +1665,7 @@ class Viewer(GLCompute.GLCompute):
 
     def dngExport(self):
         outfile = self.checkoutfile(self.raw.filename,"_DNG")
+	if outfile==None: return # No directory set
         c = self.setting_rgb
         rgbl = (c[0],c[1],c[2],self.setting_brightness)
         pp = ExportQueue.ExportQueue.PREPROCESS_NONE
