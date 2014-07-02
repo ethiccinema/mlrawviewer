@@ -321,6 +321,9 @@ class DisplayScene(ui.Scene):
         self.quality = self.newIcon(0,0,128,128,5,self.qualityClick)
         self.quality.colour = (0.5,0.5,0.5,0.5) # Quite transparent white
         self.quality.setScale(0.25)
+        self.stripes = self.newIcon(0,0,128,128,22,self.stripesClick)
+        self.stripes.colour = (0.5,0.5,0.5,0.5) # Quite transparent white
+        self.stripes.setScale(0.25)
         self.drop = self.newIcon(0,30,128,128,7,self.dropClick)
         self.drop.colour = (0.5,0.5,0.5,0.5) # Quite transparent white
         self.drop.setScale(0.25)
@@ -373,7 +376,7 @@ class DisplayScene(ui.Scene):
         self.exportqlist.setScale(0.25)
         self.exportq.children.append(self.exportqlist)
         self.timestamp = ui.Geometry(svbo=frames.svbo)
-        self.iconItems = [self.fullscreen,self.mapping,self.drop,self.quality,self.loop,self.outformat,self.addencode,self.encode,self.play]
+        self.iconItems = [self.fullscreen,self.mapping,self.drop,self.quality,self.stripes,self.loop,self.outformat,self.addencode,self.encode,self.play]
         self.overlay = [self.iconBackground,self.progressBackground,self.progress,self.timestamp,self.update,self.balance,self.balanceHandle,self.brightness,self.brightnessHandle,self.mark,self.mdbg,self.metadata,self.exportq]
         self.overlay.extend(self.iconItems)
         self.overlay.append(self.whitePicker) # So it is on the bottom
@@ -436,6 +439,9 @@ class DisplayScene(ui.Scene):
     def qualityClick(self,x,y):
         self.frames.toggleQuality()
     
+    def stripesClick(self,x,y):
+        self.frames.toggleStripes()
+
     def dropClick(self,x,y):
         self.frames.toggleDropFrames()
     
@@ -467,7 +473,7 @@ class DisplayScene(ui.Scene):
         # Make sure we show correct icon for current state
         # Model is to show icon representing CURRENT state
         f = self.frames
-        states = [not f._isFull,f.tonemap(),not f.dropframes(),f.setting_highQuality,not f.setting_loop,f.setting_encodeType[0],False,False,f.paused]
+        states = [not f._isFull,f.tonemap(),not f.dropframes(),f.setting_highQuality,f.setting_preprocess,not f.setting_loop,f.setting_encodeType[0],False,False,f.paused]
         for i in range(len(self.iconItems)):
             itm = self.iconItems[i]
             state = states[i]
@@ -988,8 +994,7 @@ class Viewer(GLCompute.GLCompute):
 
 
         elif k==self.KEY_ZERO:
-            self.setting_preprocess = not self.setting_preprocess
-            self.refresh()
+            self.toggleStripes()
 
         elif k==self.KEY_ONE:
             self.changeWhiteBalance(2.0, 1.0, 2.0, "WhiteFluro")  # ~WhiteFluro
@@ -1141,6 +1146,9 @@ class Viewer(GLCompute.GLCompute):
             self.startAudio(offset)
     def toggleQuality(self):
         self.setting_highQuality = not self.setting_highQuality
+        self.refresh()
+    def toggleStripes(self):
+        self.setting_preprocess = not self.setting_preprocess
         self.refresh()
     def toggleAnamorphic(self):
         self.anamorphic = not self.anamorphic
