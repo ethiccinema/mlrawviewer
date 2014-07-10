@@ -1777,17 +1777,18 @@ class Viewer(GLCompute.GLCompute):
 
 def launchDialog(dialogtype,initial="None"):
     kwargs = {"stdout":subprocess.PIPE}
-    if config.isMac():
-	exepath = os.path.join(sys._MEIPASS,"dialogs")
+    frozen = getattr(sys,'frozen',False)
+    if config.isMac() and frozen:
+        exepath = os.path.join(sys._MEIPASS,"dialogs")
         args = [exepath,dialogtype,initial]
-    elif config.isWin():
+    elif config.isWin() and frozen:
         kwargs = {"stdin":subprocess.PIPE,"stdout":subprocess.PIPE,"stderr":subprocess.STDOUT}
         if subprocess.mswindows:
             su = subprocess.STARTUPINFO()
             su.dwFlags |= subprocess.STARTF_USESHOWWINDOW
             su.wShowWindow = subprocess.SW_HIDE
             kwargs["startupinfo"] = su
-	exepath = os.path.join(sys._MEIPASS,"dialogs.exe")
+        exepath = os.path.join(sys._MEIPASS,"dialogs.exe")
         args = [exepath,dialogtype,initial]
     else:
         args = ["python","dialogs.py",dialogtype,initial]
