@@ -209,6 +209,7 @@ class Frame:
         self.lens = lens
         self.expo = expo
         self.wbal = wbal
+	self.rawwbal = (1.0,1.0,1.0)
         self.convertQ = Queue.Queue(1)
         if bayer==False and rgb==True:
             self.rgbimage = rawdata

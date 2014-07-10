@@ -149,6 +149,7 @@ class Demosaicer(ui.Drawable):
         balance = (rgb[0], rgb[1], rgb[2], brightness)
         tone = self.settings.tonemap()
         different = (frameData != self.lastFrameData) or (brightness != self.lastBrightness) or (rgb != self.lastRgb) or (frameNumber != self.lastFrameNumber) or (tone != self.lastTone)
+        # or (rgb[0] != frameData.rawwbal[0]) or (rgb[2] != frameData.rawwbal[2])
         if (frameData and different):
             if ((frameData.rgbimage!=None) or self.settings.highQuality() or self.settings.encoding()) and (frameData.canDemosaic):
                 # Already rgb available, or else low/high quality decode for static view or encoding
@@ -176,36 +177,39 @@ class Demosaicer(ui.Drawable):
                         self.rawUploadTex.update(frameData.rawimage)
                     PLOG(PLOG_GPU,"Demosaic shader draw for frame %d"%frameNumber)
                     # Do some preprocess passes to find horizontal/vertical stripes
-                    self.horizontalPattern.bindfbo()
-                    self.shaderPatternNoise.draw(scene.size[0],scene.size[1],self.rawUploadTex,0,frameData.black/65536.0,frameData.white/65536.0)
-                    ssh = self.shaderPatternNoise.calcStripescaleH(scene.size[0],scene.size[1])
-                    self.verticalPattern.bindfbo()
-                    self.shaderPatternNoise.draw(scene.size[0],scene.size[1],self.rawUploadTex,1,frameData.black/65536.0,frameData.white/65536.0) 
-                    ssv = self.shaderPatternNoise.calcStripescaleV(scene.size[0],scene.size[1])
-                    if self.lastPP == self.preprocessTex2:
-                        self.preprocessTex1.bindfbo()
-                        self.shaderPreprocess.draw(scene.size[0],scene.size[1],self.rawUploadTex,self.preprocessTex2,self.horizontalPattern,self.verticalPattern,ssh,ssv,frameData.black/65536.0,frameData.white/65536.0,balance)
-                        self.lastPP = self.preprocessTex1
-                    else:
-                        self.preprocessTex2.bindfbo()
-                        self.shaderPreprocess.draw(scene.size[0],scene.size[1],self.rawUploadTex,self.preprocessTex1,self.horizontalPattern,self.verticalPattern,ssh,ssv,frameData.black/65536.0,frameData.white/65536.0,balance)
-                        self.lastPP = self.preprocessTex2
-                    # Now, read out the results as a 16bit raw image and feed to cpu demosaicer
-                    rawpreprocessed = glReadPixels(0,0,scene.size[0],scene.size[1],GL_RED,GL_UNSIGNED_SHORT)
-                    frameData.rawimage = rawpreprocessed
-                    self.rgbImage.bindfbo()
-                    PLOG(PLOG_CPU,"CPU Demosaic started for frame %d"%frameNumber)
-                    before = time.time()
-                    frameData.demosaic()
-                    PLOG(PLOG_CPU,"CPU Demosaic completed for frame %d"%frameNumber)
-                    after = time.time()
-                    self.encoder.demosaicDuration(after-before)
+                    if frameData.rgbimage == None:
+                        self.horizontalPattern.bindfbo()
+                        self.shaderPatternNoise.draw(scene.size[0],scene.size[1],self.rawUploadTex,0,frameData.black/65536.0,frameData.white/65536.0)
+                        ssh = self.shaderPatternNoise.calcStripescaleH(scene.size[0],scene.size[1])
+                        self.verticalPattern.bindfbo()
+                        self.shaderPatternNoise.draw(scene.size[0],scene.size[1],self.rawUploadTex,1,frameData.black/65536.0,frameData.white/65536.0) 
+                        ssv = self.shaderPatternNoise.calcStripescaleV(scene.size[0],scene.size[1])
+                        if self.lastPP == self.preprocessTex2:
+                            self.preprocessTex1.bindfbo()
+                            self.shaderPreprocess.draw(scene.size[0],scene.size[1],self.rawUploadTex,self.preprocessTex2,self.horizontalPattern,self.verticalPattern,ssh,ssv,frameData.black/65536.0,frameData.white/65536.0,balance)
+                            self.lastPP = self.preprocessTex1
+                        else:
+                            self.preprocessTex2.bindfbo()
+                            self.shaderPreprocess.draw(scene.size[0],scene.size[1],self.rawUploadTex,self.preprocessTex1,self.horizontalPattern,self.verticalPattern,ssh,ssv,frameData.black/65536.0,frameData.white/65536.0,balance)
+                            self.lastPP = self.preprocessTex2
+                        # Now, read out the results as a 16bit raw image and feed to cpu demosaicer
+                        rawpreprocessed = glReadPixels(0,0,scene.size[0],scene.size[1],GL_RED,GL_UNSIGNED_SHORT)
+                        frameData.rawimage = rawpreprocessed
+                        frameData.rawwbal = balance[:3]
+                        self.rgbImage.bindfbo()
+                        PLOG(PLOG_CPU,"CPU Demosaic started for frame %d"%frameNumber)
+                        before = time.time()
+                        frameData.demosaic()
+                        PLOG(PLOG_CPU,"CPU Demosaic completed for frame %d"%frameNumber)
+                        after = time.time()
+                        self.encoder.demosaicDuration(after-before)
                     if (frameData != self.lastFrameData) or (self.rgbFrameUploaded != frameNumber):
                         PLOG(PLOG_GPU,"RGB texture upload called for frame %d"%frameNumber)
                         self.rgbUploadTex.update(frameData.rgbimage)
                         PLOG(PLOG_GPU,"RGB texture upload returned for frame %d"%frameNumber)
                         self.rgbFrameUploaded = frameNumber
-                    self.shaderQuality.demosaicPass(self.rgbUploadTex,frameData.black,balance=(1.0,1.0,1.0,balance[3]),white=frameData.white,tonemap=tone,colourMatrix=self.settings.setting_colourMatrix,recover=0.0)
+                    newrgb = (rgb[0]/frameData.rawwbal[0],1.0,rgb[2]/frameData.rawwbal[2])
+                    self.shaderQuality.demosaicPass(self.rgbUploadTex,frameData.black,balance=(newrgb[0],newrgb[1],newrgb[2],balance[3]),white=frameData.white,tonemap=tone,colourMatrix=self.settings.setting_colourMatrix,recover=0.0)
             else:
                 # Fast decode for full speed viewing
                 if frameData != self.lastFrameData:
@@ -1309,8 +1313,8 @@ class Viewer(GLCompute.GLCompute):
                 exists = os.path.exists(self.outfilename)
             except:
                 pass
-	    if not exists:
- 		return None
+            if not exists:
+                return None
         rfn = os.path.splitext(os.path.split(fn)[1])[0]
         i = 1
         full = os.path.join(self.outfilename,rfn+"_%06d"%i+ext)
@@ -1358,7 +1362,7 @@ class Viewer(GLCompute.GLCompute):
             for cand in fl:
                 filename = os.path.join(path,cand)
                 outfile = self.checkoutfile(filename,"_DNG")
-		if outfile==None: return # No directory set
+                if outfile==None: return # No directory set
                 wavname = os.path.splitext(filename)[0]+".WAV"
                 if os.path.isdir(filename):
                     wavdir = filename
@@ -1380,7 +1384,7 @@ class Viewer(GLCompute.GLCompute):
             for cand in fl:
                 filename = os.path.join(path,cand)
                 outfile = self.checkoutfile(filename,".MOV")
-		if outfile==None: return # No directory set
+                if outfile==None: return # No directory set
                 wavname = os.path.splitext(filename)[0]+".WAV"
                 if os.path.isdir(filename):
                     wavdir = filename
@@ -1411,7 +1415,7 @@ class Viewer(GLCompute.GLCompute):
 
     def movExport(self):
         outfile = self.checkoutfile(self.raw.filename,".MOV")
-	if outfile==None: return # No directory set
+        if outfile==None: return # No directory set
         c = self.setting_rgb
         rgbl = (c[0],c[1],c[2],self.setting_brightness)
         pp = ExportQueue.ExportQueue.PREPROCESS_NONE
@@ -1673,7 +1677,7 @@ class Viewer(GLCompute.GLCompute):
 
     def dngExport(self):
         outfile = self.checkoutfile(self.raw.filename,"_DNG")
-	if outfile==None: return # No directory set
+        if outfile==None: return # No directory set
         c = self.setting_rgb
         rgbl = (c[0],c[1],c[2],self.setting_brightness)
         pp = ExportQueue.ExportQueue.PREPROCESS_NONE
@@ -1725,10 +1729,12 @@ class Viewer(GLCompute.GLCompute):
             blue = f2[by,bx,2]
             haveColour = True
         if haveColour:
+            red = red/self.playFrame.rawwbal[0]
+            blue = blue/self.playFrame.rawwbal[2]
             redMul = float(green)/float(red)
             blueMul = float(green)/float(blue)
             self.setting_rgb = (redMul,1.0,blueMul)
-            print "Setting white Balance from",x,y,"to",self.setting_rgb
+            print "Setting white Balance from",x,y,"to",self.setting_rgb,self.playFrame.rawwbal
             self.refresh()
 
     def updateColourMatrix(self):
