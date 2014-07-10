@@ -100,7 +100,7 @@ class SerialiseCPUDemosaic(object):
     def doDemosaic(self,demosaicer,width,height):
         # Submit 16 jobs to be spread amongst available threads
         bw = (width/4)
-        bw = bw + (bw%2) # Round up
+        bw = bw + (4-bw%4) # Round up
         bh = height/4
         bh = bh + (bh%2) # Round up
         for y in range(4):
