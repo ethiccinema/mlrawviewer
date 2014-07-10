@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
 	<key>CFBundleShortVersionString</key>
-	<string>1.1.7</string>
+	<string>1.2.0</string>
 	<key>CFBundleExecutable</key>
 	<string>MacOS/mlrawviewer</string>
 	<key>CFBundleName</key>
