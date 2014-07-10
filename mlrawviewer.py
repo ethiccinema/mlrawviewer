@@ -752,7 +752,9 @@ class Viewer(GLCompute.GLCompute):
         self.setting_dropframes = True # Real time playback by default
         self.setting_loop = config.getState("loopPlayback")
         self.setting_colourMatrix = np.matrix(np.eye(3))
-        self.setting_preprocess = False
+        self.setting_preprocess = config.getState("preprocess")
+	if self.setting_preprocess == None:
+	    self.setting_preprocess = False
         self.updateColourMatrix()
         if self.setting_loop == None: self.setting_loop = True
         self.setting_encodeType = config.getState("encodeType")
@@ -1153,6 +1155,7 @@ class Viewer(GLCompute.GLCompute):
         self.refresh()
     def toggleStripes(self):
         self.setting_preprocess = not self.setting_preprocess
+        config.setState("preprocess",self.setting_preprocess)
         self.refresh()
     def toggleAnamorphic(self):
         self.anamorphic = not self.anamorphic
