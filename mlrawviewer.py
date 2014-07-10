@@ -34,7 +34,7 @@ from multiprocessing import Process
 
 from Config import Config
 
-config = Config(version=(1,1,6))
+config = Config(version=(1,1,7))
 
 programpath = os.path.abspath(os.path.split(sys.argv[0])[0])
 if getattr(sys,'frozen',False):

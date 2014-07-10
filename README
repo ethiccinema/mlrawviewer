@@ -72,6 +72,7 @@ State icons along the left are as follows:
 - Drop-frame mode (clock) or non-frop-frame mode
 - Colour curve (sRGB, 709, linear, hdr or log)
 - Demosaic quality
+- Stripe removing (vertical and horizontal)
 - Export type & export state
 - Playing/paused
 
@@ -136,4 +137,4 @@ L - Toggle looping or play-once mode
 
 H/G - Save/load current colour balance & brightness (for matching multiple takes)
 
-0 - Toggle experimental stripe/hot-pixel removing preprocess pass
+0 - Toggle stripe/hot-pixel removing preprocess pass
