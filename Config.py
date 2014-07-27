@@ -21,7 +21,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 Cross-platform configuration
-Persist state 
+Persist state
 Check for updates of the app
 
 """
@@ -41,7 +41,7 @@ TIME_BETWEEN_UPDATE_CHECKS = 3600.0 * 24.0 # 1 day
 
 def verToStr(ver):
     return ".".join((str(v) for v in ver))
-    
+
 def dataToVer(old,data):
     try:
         posver = data.split()[0].split(".")
@@ -80,6 +80,9 @@ class Config(object):
         self.createConfigDir()
         self.readUpdateClicked()
         self.checkForUpdate()
+    def logFilePath(self):
+        self.createConfigDir()
+        return os.path.join(os.path.expanduser(CONFIG_PATH),"mlrawviewer.log")
     def setState(self,varname,value):
         varFileName = os.path.join(self.configPath,varname)
         try:
@@ -88,7 +91,7 @@ class Config(object):
             varFile.close()
         except:
             pass
-    def getState(self,varname): 
+    def getState(self,varname):
         varFileName = os.path.join(self.configPath,varname)
         result = None
         try:
@@ -98,8 +101,8 @@ class Config(object):
                 varFile.close()
         except:
             pass
-        return result 
-        
+        return result
+
     def createConfigDir(self):
         self.configPath = os.path.expanduser(CONFIG_PATH)
         if not os.path.exists(self.configPath):
@@ -144,9 +147,9 @@ class Config(object):
             url = UPDATE_URL_BASE + "current_mac_version"
         elif self.isWin():
             url = UPDATE_URL_BASE + "current_win_version"
-        else: 
+        else:
             self.updateThread = None
-            return 
+            return
         try:
             result = urllib2.urlopen(url)
             if result.getcode()==200:
@@ -159,7 +162,7 @@ class Config(object):
         if self.updateThread == None:
             updateVersionFilename = os.path.join(self.configPath,"updateVersion")
             check = False
-            if not os.path.exists(updateVersionFilename): 
+            if not os.path.exists(updateVersionFilename):
                 check = True
             else:
                 lastUpdate = os.stat(updateVersionFilename).st_mtime

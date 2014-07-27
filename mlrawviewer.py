@@ -35,13 +35,12 @@ from multiprocessing import Process
 from Config import Config
 
 config = Config(version=(1,1,7))
-
 programpath = os.path.abspath(os.path.split(sys.argv[0])[0])
 if getattr(sys,'frozen',False):
     programpath = sys._MEIPASS
     # Assume we have no console, so try to redirect output to a log file...somewhere
     try:
-        sys.stdout = file("mlrawviewer.log","a")
+        sys.stdout = file(config.logFilePath(),"a")
         sys.stderr = sys.stdout
     except:
         pass
@@ -1371,19 +1370,19 @@ class Viewer(GLCompute.GLCompute):
                     wavdir = filename
                 else:
                     wavdir = os.path.split(filename)[0]
-                print filename,wavdir
+                #print filename,wavdir
                 wavnames = [w for w in os.listdir(wavdir) if w.lower().endswith(".wav")]
                 if os.path.isdir(filename) and len(wavnames)>0:
                     wavfilename = os.path.join(wavdir,wavnames[0])
                 else:
                     wavfilename = wavname # Expect this to be extracted by indexing of MLV with SND
-                print cand,outfile,wavfilename
+                #print cand,outfile,wavfilename
                 pp = ExportQueue.ExportQueue.PREPROCESS_NONE
                 if self.setting_preprocess:
                     pp = ExportQueue.ExportQueue.PREPROCESS_ALL
                 self.exporter.exportDng(filename,outfile,wavfilename,0,None,0.0,rgbl=rgbl,preprocess=pp)
 
-        elif self.setting_encodeType[0] == ENCODE_TYPE_MOV:   
+        elif self.setting_encodeType[0] == ENCODE_TYPE_MOV:
             for cand in fl:
                 filename = os.path.join(path,cand)
                 outfile = self.checkoutfile(filename,".MOV")
@@ -1393,13 +1392,13 @@ class Viewer(GLCompute.GLCompute):
                     wavdir = filename
                 else:
                     wavdir = os.path.split(filename)[0]
-                print filename,wavdir,wavname
+                #print filename,wavdir,wavname
                 wavnames = [w for w in os.listdir(wavdir) if w.lower().endswith(".wav")]
                 if os.path.isdir(filename) and len(wavnames)>0:
                     wavfilename = os.path.join(wavdir,wavnames[0])
                 else:
                     wavfilename = wavname # Expect this to be extracted by indexing of MLV with SND
-                print filename,outfile,wavfilename
+                #print filename,outfile,wavfilename
                 pp = ExportQueue.ExportQueue.PREPROCESS_NONE
                 if self.setting_preprocess:
                     pp = ExportQueue.ExportQueue.PREPROCESS_ALL
@@ -1845,7 +1844,7 @@ def main():
         return -1
 
     # Try to pick a sensible default filename for any possible encoding
-    
+
     outfilename = config.getState("targetDir") # Restore persisted target
     if outfilename == None:
         outfilename = os.path.split(filename)[0]
@@ -1855,13 +1854,13 @@ def main():
     else:
         wavdir = os.path.split(filename)[0]
     wavnames = [w for w in os.listdir(wavdir) if w.lower().endswith(".wav")]
-    print "wavnames",wavnames
+    #print "wavnames",wavnames
     if os.path.isdir(filename) and len(wavnames)>0:
         wavfilename = os.path.join(wavdir,wavnames[0])
     else:
         wavfilename = poswavname # Expect this to be extracted by indexing of MLV with SND
 
-    print "wavfilename",wavfilename
+    #print "wavfilename",wavfilename
     if len(sys.argv)==3:
         # Second arg could be WAV or outfilename
         if sys.argv[2].lower().endswith(".wav"):
