@@ -22,7 +22,7 @@ SOFTWARE.
 """
 
 # standard python imports
-import sys,struct,os,math,time,threading,Queue,traceback,wave,multiprocessing,mutex
+import sys,struct,os,math,time,threading,Queue,traceback,wave,multiprocessing,mutex,cPickle
 
 # MlRawViewer imports
 import DNG
@@ -84,7 +84,7 @@ class SerialiseCPUDemosaic(object):
         self.dw = 0
         self.dh = 0
     def getdemosaicer(self,width,height):
-        if self.serq.empty(): 
+        if self.serq.empty():
             raise # Cannot call this if you don't hold the mutex
         if self.demosaicer != None:
             if width==self.dw and height==self.dh:
@@ -115,7 +115,7 @@ class SerialiseCPUDemosaic(object):
                     ah -= (be-height)
                 #print x*bw,y*bh,x*bw+aw,y*bh+ah,width,height,aw,ah,re,be
                 self.jobq.put((demosaicer,x*bw,y*bh,aw,ah))
-        self.jobq.join() 
+        self.jobq.join()
 
     def demosaic14(self,rawdata,width,height,black,byteSwap=0):
         self.serq.put(True) # Let us run
@@ -218,7 +218,7 @@ class Frame:
         if convert:
             self.convertQueued = True
             FrameConverterThread.process(self)
-                
+
     def convert(self):
         if not self.convertQueued:
             self.convertQueued = True
@@ -226,8 +226,8 @@ class Frame:
 
         if self.conversionResult == None:
             self.conversionResult = self.convertQ.get() # Will block until conversion completed
-        return self.conversionResult 
-            
+        return self.conversionResult
+
     def _convert(self):
         if self.rgbimage != None:
             return True # No need to convert anything
@@ -273,10 +273,10 @@ class Frame:
             PLOG(PLOG_CPU,"Frame thumb gen done")
             return (ssnrgb*65536.0).astype(np.uint16)
         if self.rawdata and self.bitsPerSample==14:
-            # Extract low-quality downscaled RGB image 
+            # Extract low-quality downscaled RGB image
             # from packed 14bit bayer data
-            # Take first 2 14bit values from every block of 8 
-            # (packed into 14 bytes) on 2 out of 8 rows. 
+            # Take first 2 14bit values from every block of 8
+            # (packed into 14 bytes) on 2 out of 8 rows.
             # That gives R,G1,G2,B values. Make 1 pixel from those
             h = 8*(self.height/8)
             bayer = np.fromstring(self.rawdata,dtype=np.uint16).reshape(self.height,(self.width*7)/8)[:h,:].astype(np.uint16) # Clip to height divisible by 8
@@ -324,11 +324,47 @@ def getRawFileSeries(basename):
     samenamefiles.sort()
     allfiles.extend(samenamefiles)
     return dirname,allfiles
+
+"""
+An image sequence is a read-only file set
+We also can try to create and restore an own metadata files
+which contain additional derived or user-set data. Examples include:
+- Thumbnail or thumbnails
+- Frame index
+- External audio file link
+- Audio sync offset
+- Colour balance and tone mapping preference
+- FPS overide setting
+"""
+class ImageSequence(object):
+    def __init__(self,userMetadataFilename=None,**kwds):
+        self.userMetadata = {}
+        self.userMetadataFilename = userMetadataFilename
+        self.readUserMetadata()
+        super(ImageSequence,self).__init__(**kwds)
+    def readUserMetadata(self):
+        print "Trying to read user metadata file",self.userMetadataFilename
+        if self.userMetadataFilename == None: return
+        if os.path.exists(self.userMetadataFilename):
+            userMetadataFile = file(self.userMetadataFilename,'rb')
+            self.userMetadata = cPickle.load(userMetadataFile)
+            userMetadataFile.close()
+            print "Read user metadata file. Contents:",self.userMetadata
+    def writeUserMetadata(self):
+        if self.userMetadataFilename == None: return
+        if len(self.userMetadata)>0:
+            userMetadataFile = file(self.userMetadataFilename,'rb')
+            self.userMetadata = cPickle.load(userMetadataFile)
+            userMetadataFile.close()
+    @staticmethod
+    def userMetadataNameFromOriginal(original):
+        return os.path.splitext(original)[0]+".MRX"
+
 """
 ML RAW - need to handle spanning files
 """
-class MLRAW:
-    def __init__(self,filename,preindex=False):
+class MLRAW(ImageSequence):
+    def __init__(self,filename,preindex=False,**kwds):
         #print "Opening MLRAW file",filename
         self.filename = filename
         dirname,allfiles = getRawFileSeries(filename)
@@ -343,7 +379,7 @@ class MLRAW:
             self.fpsden = 1001
         else:
             self.fpsnum = self.footer[6]
-            self.fpsden = 1000   
+            self.fpsden = 1000
         #print "FPS:",self.fps
         self.info = struct.unpack("40i",footerdata[8*4:])
         #print self.footer,self.info
@@ -366,6 +402,7 @@ class MLRAW:
         self.preloaderResults = Queue.Queue(2)
         self.preloader.daemon = True
         self.preloader.start()
+        super(MLRAW,self).__init__(userMetadataFilename=ImageSequence.userMetadataNameFromOriginal(indexfile),**kwds)
     def close(self):
         self.preloaderArgs.put(None) # So that preloader thread exits
         self.preloader.join() # Wait for it to finish
@@ -438,7 +475,7 @@ class MLRAW:
 """
 ML MLV format - need to handle spanning files
 """
-class MLV:
+class MLV(ImageSequence):
     class BlockType:
         FileHeader = 0x49564c4d
         VideoFrame = 0x46444956
@@ -467,7 +504,7 @@ class MLV:
     BlockTypeValues = [getattr(BlockType,n) for n in BlockTypeNames]
     BlockTypeLookup = dict(zip(BlockTypeValues,BlockTypeNames))
 
-    def __init__(self,filename,preindex=True):
+    def __init__(self,filename,preindex=True,**kwds):
         self.filename = filename
         print "Opening MLV file",filename
         dirname,allfiles = getRawFileSeries(filename)
@@ -486,7 +523,7 @@ class MLV:
         header,raw,parsedTo,size,ts = self.parseFile(mlvfile,self.framepos)
         self.fps = float(header[16])/float(header[17])
         self.fpsnum = header[16]
-        self.fpsden = header[17] 
+        self.fpsden = header[17]
         if header[16]==23976:
             self.fpsnum = 24000
             self.fpsden = 1001
@@ -516,6 +553,7 @@ class MLV:
         self.preindexing = preindex
         print "Audio frame count",self.audioFrameCount
         self.initPreloader()
+        super(MLV,self).__init__(userMetadataFilename=ImageSequence.userMetadataNameFromOriginal(filename),**kwds)
     def indexingStatus(self):
         if self.preindexing:
             return float(self.totalParsed)/float(self.totalSize)
@@ -619,8 +657,8 @@ class MLV:
         self.colorMatrix = colorMatrix(raw)
         print "Black level:", self.black,"White level:", self.white
         #print raw
+        print "RawInfo:",raw
         return raw
-        #print "RawInfo:",self.raw
     def parseRtc(self,fh,pos,size):
         fh.seek(pos+8)
         rtcData = fh.read(size-8)
@@ -908,7 +946,7 @@ class MLV:
         mdkw = self.toMetadata(md)
         return Frame(self,rawdata,self.width(),self.height(),self.black,self.white,convert=convert,**mdkw)
 
-class CDNG:
+class CDNG(ImageSequence):
     """
     Treat a directory of DNG files as sequential frames
     """
@@ -925,7 +963,7 @@ class CDNG:
         firstDngName = os.path.join(self.cdngpath,self.dngs[0])
         self.firstDng = fd = DNG.DNG()
         fd.readFile(firstDngName) # Only parse metadata
-    
+
         self.fpsnum = 25000
         self.fpsden = 1000
         self.fps = 25.0
@@ -945,11 +983,11 @@ class CDNG:
         self.colormatrix = np.eye(3)
         if matrix != None:
             self.colorMatrix = np.matrix(np.array([float(n)/float(d) for n,d in matrix[3]]).reshape(3,3))
-        
+
         baselineExposure = 0.0 # EV
         if DNG.Tag.BaselineExposure[0] in fd.FULL_IFD.tags:
             n,d = fd.FULL_IFD.tags[DNG.Tag.BaselineExposure[0]][3][0]
-            baselineExposure = float(n)/float(d)            
+            baselineExposure = float(n)/float(d)
         if DNG.Tag.BaselineExposureOffset[0] in fd.FULL_IFD.tags:
             n,d = fd.FULL_IFD.tags[DNG.Tag.BaselineExposureOffset[0]][3][0]
             baselineExposureOffset = float(n)/float(d)
@@ -975,8 +1013,8 @@ class CDNG:
         if neutral:
             self.whiteBalance = [float(d)/float(n) for n,d in neutral[3]] # Note: immediately take reciprocal
             print "rgb",self.whiteBalance
-        #self.whiteBalance = 
-    
+        #self.whiteBalance =
+
         self._make = "Unknown Make"
         self._model = "Unknown Model"
         try:
@@ -986,7 +1024,7 @@ class CDNG:
                 self._model = self._model[len(self._make):].lstrip()
         except:
             pass
-             
+
         self.firstFrame = self._loadframe(0,convert=False)
 
         self.preloader = threading.Thread(target=self.preloaderMain)
@@ -994,6 +1032,7 @@ class CDNG:
         self.preloaderResults = Queue.Queue(2)
         self.preloader.daemon = True
         self.preloader.start()
+        super(CDNG,self).__init__(userMetadataFilename=ImageSequence.userMetadataNameFromOriginal(firstDngName),**kwds)
     def tag(self,dng,tag):
         if tag[0] in dng.FULL_IFD.tags: return dng.FULL_IFD.tags[tag[0]]
         elif tag[0] in dng.THUMB_IFD.tags: return dng.THUMB_IFD.tags[tag[0]]
@@ -1058,7 +1097,7 @@ class CDNG:
             return Frame(self,rawdata,self.width(),self.height(),self.black,self.white,byteSwap=1,bitsPerSample=self.bitsPerSample,convert=convert)
         return ""
 
-class TIFFSEQ:
+class TIFFSEQ(ImageSequence):
     """
     Treat a directory of (e.g. 16bit) TIFF files as sequential frames
     """
@@ -1104,6 +1143,7 @@ class TIFFSEQ:
         self.preloaderResults = Queue.Queue(2)
         self.preloader.daemon = True
         self.preloader.start()
+        super(TIFFSEQ,self).__init__(userMetadataFilename=ImageSequence.userMetadataNameFromOriginal(firstName),**kwds)
     def description(self):
         firstName = self.tiffs[0]
         lastName = self.tiffs[-1]
