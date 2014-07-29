@@ -316,7 +316,7 @@ def getRawFileSeries(basename):
     dirname,filename = os.path.split(basename)
     base = filename[:-2]
     ld = os.listdir(dirname)
-    samenamefiles = [n for n in ld if n[:-2]==base and n!=filename]
+    samenamefiles = [n for n in ld if n[:-2]==base and n!=filename and n[-4:].lower()!=".mrx"]
     #idxname = base[:-1]+"IDX"
     #indexfile = [n for n in ld if n==idxname]
     allfiles = [filename]
@@ -344,18 +344,28 @@ class ImageSequence(object):
         super(ImageSequence,self).__init__(**kwds)
     def readUserMetadata(self):
         print "Trying to read user metadata file",self.userMetadataFilename
-        if self.userMetadataFilename == None: return
-        if os.path.exists(self.userMetadataFilename):
-            userMetadataFile = file(self.userMetadataFilename,'rb')
-            self.userMetadata = cPickle.load(userMetadataFile)
-            userMetadataFile.close()
-            print "Read user metadata file. Contents:",self.userMetadata
+        try:
+            if self.userMetadataFilename == None: return
+            if os.path.exists(self.userMetadataFilename):
+                userMetadataFile = file(self.userMetadataFilename,'rb')
+                self.userMetadata = cPickle.load(userMetadataFile)
+                userMetadataFile.close()
+                print "Read user metadata file. Contents:",len(self.userMetadata)
+        except:
+            self.userMetadata = None
+            import traceback
+            traceback.print_exc()
     def writeUserMetadata(self):
-        if self.userMetadataFilename == None: return
-        if len(self.userMetadata)>0:
-            userMetadataFile = file(self.userMetadataFilename,'rb')
-            self.userMetadata = cPickle.load(userMetadataFile)
-            userMetadataFile.close()
+        print "Trying to write user metadata",len(self.userMetadata)
+        try:
+            if self.userMetadataFilename == None: return
+            if len(self.userMetadata)>0:
+                userMetadataFile = file(self.userMetadataFilename,'wb')
+                cPickle.dump(self.userMetadata,userMetadataFile,protocol=cPickle.HIGHEST_PROTOCOL)
+                userMetadataFile.close()
+        except:
+            import traceback
+            traceback.print_exc()
     @staticmethod
     def userMetadataNameFromOriginal(original):
         return os.path.splitext(original)[0]+".MRX"
@@ -509,6 +519,7 @@ class MLV(ImageSequence):
         print "Opening MLV file",filename
         dirname,allfiles = getRawFileSeries(filename)
         mlvfile = file(filename,'rb')
+        self.fhs = [mlvfile] # Creates an fh-index to fh table for the index data
         self.wav = None
         self.whiteBalance = None # Not yet read from MLVs
         self.brightness = 1.0 # Not meaningful in MLV
@@ -520,7 +531,7 @@ class MLV(ImageSequence):
         self.currentLens = None
         self.currentRtc = None
         self.identity = ("Canon","EOS","",None)
-        header,raw,parsedTo,size,ts = self.parseFile(mlvfile,self.framepos)
+        header,raw,parsedTo,size,ts = self.parseFile(0,self.framepos)
         self.fps = float(header[16])/float(header[17])
         self.fpsnum = header[16]
         self.fpsden = header[17]
@@ -534,7 +545,7 @@ class MLV(ImageSequence):
         self.header = header
         self.raw = raw
         self.ts = ts
-        self.files = [(mlvfile,0,header[14],header,parsedTo, size)]
+        self.files = [(0,0,header[14],header,parsedTo, size)]
         self.totalSize = size
         self.totalParsed = parsedTo
         self.firstFrame = self._loadframe(0,convert=False)
@@ -542,18 +553,26 @@ class MLV(ImageSequence):
             fullspanfile = os.path.join(dirname,spanfilename)
             #print fullspanfile
             spanfile = file(fullspanfile,'rb')
-            header,raw,parsedTo,size,ts = self.parseFile(spanfile,self.framepos)
-            self.files.append((spanfile,self.framecount,header[14],header,parsedTo, size))
+            self.fhs.append(spanfile)
+            header,raw,parsedTo,size,ts = self.parseFile(len(self.fhs)-1,self.framepos)
+            print fullspanfile,len(header)
+            self.files.append((len(self.fhs)-1,self.framecount,header[14],header,parsedTo, size))
             self.framecount += header[14]
             self.audioFrameCount += header[15]
             self.totalSize += size
             self.totalParsed += parsedTo
+        super(MLV,self).__init__(userMetadataFilename=ImageSequence.userMetadataNameFromOriginal(filename),**kwds)
+        if "frameIndex_v1" in self.userMetadata:
+            print "Existing index data found"
+            self.framepos = self.userMetadata["frameIndex_v1"]
+            self.metadata = self.userMetadata["sequenceMetadata_v1"]
+            self.allParsed = True # No need to reindex
+        else:
+            self.allParsed = False
         self.preloader = None
-        self.allParsed = False
         self.preindexing = preindex
         print "Audio frame count",self.audioFrameCount
         self.initPreloader()
-        super(MLV,self).__init__(userMetadataFilename=ImageSequence.userMetadataNameFromOriginal(filename),**kwds)
     def indexingStatus(self):
         if self.preindexing:
             return float(self.totalParsed)/float(self.totalSize)
@@ -569,8 +588,8 @@ class MLV(ImageSequence):
     def close(self):
         self.preloaderArgs.put(None) # So that preloader thread exits
         self.preloader.join() # Wait for it to finish
-        for fh,firstframe,frames,header,parsedTo,size in self.files:
-            fh.close()
+        for fhi,firstframe,frames,header,parsedTo,size in self.files:
+            self.fhs[fhi].close()
     def currentMetadata(self):
         return (self.currentRtc,self.currentExpo,self.currentWbal,self.currentLens)
     def toMetadata(self,ix):
@@ -578,7 +597,8 @@ class MLV(ImageSequence):
                 "expo":self.metadata[ix[1]],
                 "wbal":self.metadata[ix[2]],
                 "lens":self.metadata[ix[3]]}
-    def parseFile(self,fh,framepos):
+    def parseFile(self,fhi,framepos):
+        fh = self.fhs[fhi]
         fh.seek(0,os.SEEK_END)
         size = fh.tell()
         pos = 0
@@ -590,7 +610,7 @@ class MLV(ImageSequence):
             fh.seek(pos)
             blockType,blockSize = struct.unpack("II",fh.read(8))
             if blockSize <= 0:
-                break # Corrupt! 
+                break # Corrupt!
             """
             try:
                 blockName = MLV.BlockTypeLookup[blockType]
@@ -607,7 +627,7 @@ class MLV(ImageSequence):
                 ts = self.parseRtc(fh,pos,blockSize)
             elif blockType==MLV.BlockType.VideoFrame:
                 videoFrameHeader = self.parseVideoFrame(fh,pos,blockSize)
-                framepos[videoFrameHeader[1]] = (fh,pos,self.currentMetadata())
+                framepos[videoFrameHeader[1]] = (fhi,pos,self.currentMetadata())
                 pos += blockSize
                 break # Only get first frame in this file
                 #print videoFrameHeader[1],pos
@@ -663,7 +683,7 @@ class MLV(ImageSequence):
         fh.seek(pos+8)
         rtcData = fh.read(size-8)
         rtc = struct.unpack("<Q10H8s",rtcData[:(8+10*2+8)])
-        self.currentRtc = len(self.metadata) 
+        self.currentRtc = len(self.metadata)
         self.metadata.append(rtc)
         #print "Rtc:",rtc
         return rtc
@@ -675,7 +695,7 @@ class MLV(ImageSequence):
         serial = idnt[3].split('\0')[0]
         make = "Canon"
         if makemodel.lower().startswith("canon "):
-            model = makemodel[6:] 
+            model = makemodel[6:]
         elif makemodel.lower().startswith("failed"):
             # Workaround for TL-7D builds that couldn't get correct data
             model = "EOS 7D"
@@ -690,7 +710,7 @@ class MLV(ImageSequence):
         name = lens[8].split('\0')[0]
         serial = lens[9].split('\0')[0]
         #print "Lens:",lens[:-2],name,serial
-        self.currentLens = len(self.metadata) 
+        self.currentLens = len(self.metadata)
         self.metadata.append((name,serial,lens[:-2]))
         return lens
     def parseExpo(self,fh,pos,size):
@@ -698,7 +718,7 @@ class MLV(ImageSequence):
         expoData = fh.read(size-8)
         expo = struct.unpack("<Q4IQ",expoData[:(8+4*4+8)])
         #print "Exposure:",expo
-        self.currentExpo = len(self.metadata) 
+        self.currentExpo = len(self.metadata)
         self.metadata.append(expo)
         return expo
     def parseWbal(self,fh,pos,size):
@@ -706,7 +726,7 @@ class MLV(ImageSequence):
         wbalData = fh.read(size-8)
         wbal = struct.unpack("<Q7I",wbalData[:(8+7*4)])
         #print "WhiteBalance:",wbal
-        self.currentWbal = len(self.metadata) 
+        self.currentWbal = len(self.metadata)
         self.metadata.append(wbal)
         return wbal
     def parseWavi(self,fh,pos,size):
@@ -772,7 +792,7 @@ class MLV(ImageSequence):
         return self.audioFrameCount
     def nextUnindexedFile(self):
         for fileindex,info in enumerate(self.files):
-            fh, firstframe, frames, header, parsedTo, size = info
+            fhi, firstframe, frames, header, parsedTo, size = info
             if parsedTo < size:
                 return fileindex,info
         self.allParsed = True
@@ -785,6 +805,9 @@ class MLV(ImageSequence):
                 self.preindexing = False
                 if self.wav:
                     self.wav.close()
+                self.userMetadata["frameIndex_v1"] = self.framepos
+                self.userMetadata["sequenceMetadata_v1"] = self.metadata
+                self.writeUserMetadata() # Write out the index
                 return
             preindexStep = 10
             indexinfo = self.nextUnindexedFile()
@@ -796,7 +819,8 @@ class MLV(ImageSequence):
                     #print "Set indexed. No frames missing."
                 return
             index,info = indexinfo
-            fh, firstframe, frames, header, pos, size = info
+            fhi, firstframe, frames, header, pos, size = info
+            fh = self.fhs[fhi]
             while (pos < size) and ((preindexStep > 0) or self.preloaderArgs.empty()):
                 fh.seek(pos)
                 blockType,blockSize = struct.unpack("II",fh.read(8))
@@ -811,7 +835,7 @@ class MLV(ImageSequence):
 
                 if blockType==MLV.BlockType.VideoFrame:
                     videoFrameHeader = self.parseVideoFrame(fh,pos,blockSize)
-                    self.framepos[videoFrameHeader[1]] = (fh,pos,self.currentMetadata())
+                    self.framepos[videoFrameHeader[1]] = (fhi,pos,self.currentMetadata())
                     #print videoFrameHeader[1],pos
                     preindexStep -= 1
                 elif blockType==MLV.BlockType.AudioFrame:
@@ -826,7 +850,7 @@ class MLV(ImageSequence):
                     wbal = self.parseWbal(fh,pos,blockSize)
                 pos += blockSize
                 self.totalParsed += blockSize
-            self.files[index] = (fh, firstframe, frames, header, pos, size)
+            self.files[index] = (fhi, firstframe, frames, header, pos, size)
             if not self.preloaderArgs.empty():
                 break
 
@@ -868,13 +892,14 @@ class MLV(ImageSequence):
     def _getframedata(self,index,checkNextFile=True):
         printWhenFound = False
         try:
-            fh, framepos, metadata = self.framepos[index]
-            return fh, framepos, metadata
+            fhi, framepos, metadata = self.framepos[index]
+            return fhi, framepos, metadata
         except:
             # Do not have that frame (yet)
             # Find which file should contain that frame
             for fileindex,info in enumerate(self.files):
-                fh, firstframe, frames, header, parsedTo, size = info
+                fhi, firstframe, frames, header, parsedTo, size = info
+                fh = self.fhs[fhi]
                 if index>=firstframe and index<(firstframe+frames):
                     break
             # Parse through file until we find frame
@@ -894,7 +919,7 @@ class MLV(ImageSequence):
                 #print blockName,blockSize
                 if blockType==MLV.BlockType.VideoFrame:
                     videoFrameHeader = self.parseVideoFrame(fh,pos,blockSize)
-                    self.framepos[videoFrameHeader[1]] = (fh,pos,self.currentMetadata())
+                    self.framepos[videoFrameHeader[1]] = (fhi,pos,self.currentMetadata())
                     #print videoFrameHeader[1],index,fh,pos
                     if videoFrameHeader[1]==index:
                         pos += blockSize
@@ -902,7 +927,7 @@ class MLV(ImageSequence):
                         break # Found it
                 pos += blockSize
                 if pos>=size and notFound:
-                    self.files[fileindex] = (fh, firstframe, frames, header, pos, size)
+                    self.files[fileindex] = (fhi, firstframe, frames, header, pos, size)
                     if checkNextFile:
                         # Update parsedTo point
                         # Try next file if there is one
@@ -911,13 +936,14 @@ class MLV(ImageSequence):
                         fileindex += 1
                         if fileindex<len(self.files):
                             #print "TRYING NEXT FILE"
-                            fh, firstframe, frames, header, parsedTo, size = self.files[fileindex]
+                            fhi, firstframe, frames, header, parsedTo, size = self.files[fileindex]
+                            fh = self.fhs[fhi]
                             pos = parsedTo
                     else:
                         print "FAILED TO FIND FRAME",index
                         return None
             # Update parsedTo point
-            self.files[fileindex] = (fh, firstframe, frames, header, pos, size)
+            self.files[fileindex] = (fhi, firstframe, frames, header, pos, size)
             result = None
             try:
                 result = self.framepos[index]
@@ -931,9 +957,10 @@ class MLV(ImageSequence):
         fhframepos = self._getframedata(index)
         if fhframepos==None: # Return black frame
             return Frame(self,None,self.width(),self.height(),self.black,self.white)
-        fh,framepos,md = fhframepos
-        if fh==None: # Return black frame
+        fhi,framepos,md = fhframepos
+        if fhi==None: # Return black frame
             return Frame(self,None,self.width(),self.height(),self.black,self.white)
+        fh = self.fhs[fhi]
         fh.seek(framepos)
         blockType,blockSize = struct.unpack("II",fh.read(8))
         videoFrameHeader = self.parseVideoFrame(fh,framepos,blockSize)
