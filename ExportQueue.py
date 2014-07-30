@@ -65,8 +65,9 @@ class ExportQueue(threading.Thread):
     JOB_MOV = 1
     PREPROCESS_NONE = 0
     PREPROCESS_ALL = 1
-    def __init__(self,**kwds):
+    def __init__(self,config,**kwds):
         super(ExportQueue,self).__init__(**kwds)
+	self.config = config
         self.iq = Queue.Queue()
         self.bgiq = Queue.Queue()
         self.wq = Queue.Queue()
@@ -614,7 +615,8 @@ class ExportQueue(threading.Thread):
         if self.shaderPreprocess == None:
             self.shaderPreprocess = ShaderPreprocess()
         if self.rgbUploadTex:
-            if self.rgbUploadTex.width != w or self.rgbUploadTex.height != h:
+            if self.config.isMac() or (self.rgbUploadTex.width != w or self.rgbUploadTex.height != h):
+            # On OSX10.9.4, eventually crashes in texture upload unless we reallocate it. OS bug?
                 self.rgbUploadTex.free()
                 self.rgbImage.free()
                 self.rawUploadTex.free()

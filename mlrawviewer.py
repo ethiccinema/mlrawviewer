@@ -763,7 +763,7 @@ class Viewer(GLCompute.GLCompute):
         self.fpsMeasure = None
         self.fpsCount = 0
 
-        self.exporter = ExportQueue.ExportQueue()
+        self.exporter = ExportQueue.ExportQueue(config)
         self.wasExporting = False
         self.exportActive = False  
         self.exportLastStatus = 0.0
