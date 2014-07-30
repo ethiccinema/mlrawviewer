@@ -738,6 +738,8 @@ class Viewer(GLCompute.GLCompute):
         self.wav = None
         self.indexing = True
         self.audioOffset = 0.0
+        if "audioOffset_v1" in self.raw.userMetadata:
+            self.audioOffset = self.raw.userMetadata["audioOffset_v1"]
         self.lastEventTime = time.time()
         self.wasFull = False
         self.demosaic = None
@@ -832,11 +834,14 @@ class Viewer(GLCompute.GLCompute):
         self.frameCache = {0:self.raw.firstFrame}
         self.preloadingFrame = []
         self.preloadingFrames = []
+        self.realStartTime = 0
         self.playTime = 0
         self.playFrameNumber = 0
         self.nextFrameNumber = 0
         self.neededFrame = 0
         self.audioOffset = 0.0
+        if "audioOffset_v1" in self.raw.userMetadata:
+            self.audioOffset = self.raw.userMetadata["audioOffset_v1"]
         self.drawnFrameNumber = None
         self.preloadFrame(1) # Immediately try to preload the next frame
         self.indexing = True
@@ -1439,13 +1444,19 @@ class Viewer(GLCompute.GLCompute):
             return
         if not self.wavname:
             return
+        wavname = None
         if os.path.exists(self.wavname):
-            try:
-                self.wav = wave.open(self.wavname,'r')
-            except:
-                self.wav = None
-            #print "wav",self.wav.getparams()
-            #self.startAudio()
+            wavname = self.wavname
+            # Updte the raw file metadata to point to this wav file
+            self.raw.userMetadata["wavfile_v1"] = self.wavname
+            self.raw.writeUserMetadata()
+        elif "wavfile_v1" in self.raw.userMetadata:
+            wavname = self.raw.userMetadata["wavfile_v1"]
+        print "trying to load wavfile",wavname
+        try:
+            self.wav = wave.open(wavname,'r')
+        except:
+            self.wav = None
     def startAudio(self,startTime=0.0):
         if not self.setting_dropframes: return
         if not self.wav: return
@@ -1462,6 +1473,8 @@ class Viewer(GLCompute.GLCompute):
         self.audio.play(wavdata[start:])
     def slideAudio(self,slideBy):
         self.audioOffset += slideBy
+        self.raw.userMetadata["audioOffset_v1"] = self.audioOffset
+        self.raw.writeUserMetadata()
         #if self.audioOffset <= 0.0:
         #    self.audioOffset = 0.0
         print "Audio offset = %.02f seconds"%self.audioOffset
