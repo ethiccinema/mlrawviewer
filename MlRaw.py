@@ -343,20 +343,20 @@ class ImageSequence(object):
         self.readUserMetadata()
         super(ImageSequence,self).__init__(**kwds)
     def readUserMetadata(self):
-        print "Trying to read user metadata file",self.userMetadataFilename
+        #print "Trying to read user metadata file",self.userMetadataFilename
         try:
             if self.userMetadataFilename == None: return
             if os.path.exists(self.userMetadataFilename):
                 userMetadataFile = file(self.userMetadataFilename,'rb')
                 self.userMetadata = cPickle.load(userMetadataFile)
                 userMetadataFile.close()
-                print "Read user metadata file. Contents:",len(self.userMetadata)
+                #print "Read user metadata file. Contents:",len(self.userMetadata)
         except:
             self.userMetadata = None
             import traceback
             traceback.print_exc()
     def writeUserMetadata(self):
-        print "Trying to write user metadata",len(self.userMetadata)
+        #print "Trying to write user metadata",len(self.userMetadata)
         try:
             if self.userMetadataFilename == None: return
             if len(self.userMetadata)>0:
@@ -519,7 +519,7 @@ class MLV(ImageSequence):
 
     def __init__(self,filename,preindex=True,**kwds):
         self.filename = filename
-        print "Opening MLV file",filename
+        #print "Opening MLV file",filename
         dirname,allfiles = getRawFileSeries(filename)
         mlvfile = file(filename,'rb')
         self.fhs = [mlvfile] # Creates an fh-index to fh table for the index data
@@ -541,7 +541,7 @@ class MLV(ImageSequence):
         if header[16]==23976:
             self.fpsnum = 24000
             self.fpsden = 1001
-        print "FPS:",self.fps,"(%d/%d)"%(self.fpsnum,self.fpsden)
+        #print "FPS:",self.fps,"(%d/%d)"%(self.fpsnum,self.fpsden)
         self.framecount = header[14]
         self.audioFrameCount = header[15]
         self.preindexed = 0
@@ -558,7 +558,7 @@ class MLV(ImageSequence):
             spanfile = file(fullspanfile,'rb')
             self.fhs.append(spanfile)
             header,raw,parsedTo,size,ts = self.parseFile(len(self.fhs)-1,self.framepos)
-            print fullspanfile,len(header)
+            #print fullspanfile,len(header)
             self.files.append((len(self.fhs)-1,self.framecount,header[14],header,parsedTo, size))
             self.framecount += header[14]
             self.audioFrameCount += header[15]
@@ -566,7 +566,7 @@ class MLV(ImageSequence):
             self.totalParsed += parsedTo
         super(MLV,self).__init__(userMetadataFilename=ImageSequence.userMetadataNameFromOriginal(filename),**kwds)
         if "frameIndex_v1" in self.userMetadata:
-            print "Existing index data found"
+            #print "Existing index data found"
             self.framepos = self.userMetadata["frameIndex_v1"]
             self.metadata = self.userMetadata["sequenceMetadata_v1"]
             self.allParsed = True # No need to reindex
@@ -574,7 +574,7 @@ class MLV(ImageSequence):
             self.allParsed = False
         self.preloader = None
         self.preindexing = preindex
-        print "Audio frame count",self.audioFrameCount
+        #print "Audio frame count",self.audioFrameCount
         self.initPreloader()
     def indexingStatus(self):
         if self.preindexing:
@@ -681,12 +681,12 @@ class MLV(ImageSequence):
         self.cropOrigin = (raw[12],raw[13])
         self.cropSize = (raw[14],raw[15])
         self.activeArea = tuple(raw[16:20])
-        print "Crop origin:",self.cropOrigin
-        print "Crop size:",self.cropSize
-        print "Active area:",self.activeArea
-        print "Black level:", self.black,"White level:", self.white
+        #print "Crop origin:",self.cropOrigin
+        #print "Crop size:",self.cropSize
+        #print "Active area:",self.activeArea
+        #print "Black level:", self.black,"White level:", self.white
         #print raw
-        print "RawInfo:",raw
+        #print "RawInfo:",raw
         return raw
     def parseRtc(self,fh,pos,size):
         fh.seek(pos+8)
