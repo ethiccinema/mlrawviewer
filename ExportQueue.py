@@ -352,6 +352,11 @@ class ExportQueue(threading.Thread):
         if preprocess:
             self.needBgDraw = False
 
+    def wavOverride(self,r,wavname):
+        if "wavfile_v1" in r.userMetadata:
+            wavname = r.userMetadata["wavfile_v1"]
+        return wavname
+
     def processExportDng(self,jobindex,args):
         filename,dngdir,wavfile,startFrame,endFrame,audioOffset,bits,rgbl,preprocess= args
         os.mkdir(dngdir)
@@ -365,6 +370,7 @@ class ExportQueue(threading.Thread):
             while r.indexingStatus()<1.0:
                 time.sleep(0.1)
         fps,fpsnum,fpsden = self.fpsParts(r)
+        wavfile = self.wavOverride(r,wavfile)
         if os.path.exists(wavfile):
             d = file(wavfile,'rb').read()
             rhead = os.path.splitext(os.path.split(filename)[1])[0]
@@ -476,6 +482,7 @@ class ExportQueue(threading.Thread):
             while r.indexingStatus()<1.0:
                 time.sleep(0.1)
         fps,fpsnum,fpsden = self.fpsParts(r)
+        wavfile = self.wavOverride(r,wavfile)
         if os.path.exists(wavfile):
             tempwavname = movfile[:-4] + ".WAV"
             self.tempEncoderWav(wavfile,fps,tempwavname,startFrame,endFrame,audioOffset)
