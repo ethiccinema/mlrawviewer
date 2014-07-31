@@ -207,6 +207,28 @@ class ExportQueue(threading.Thread):
         else:
             pass
 
+    def fpsParts(self,r):
+        fps = r.fps
+        fpsnum = r.fpsnum
+        fpsden = r.fpsden
+        if "fpsOverride_v1" in r.userMetadata:
+            fpsover = r.userMetadata["fpsOverride_v1"]
+            print "fpsover",fpsover
+            if fpsover == 24000.0/1001.0:
+                fpsnum,fpsden = 24000,1001
+            elif fpsover == 24000.0/1000.0:
+                fpsnum,fpsden = 24000,1000
+            elif fpsover == 25000.0/1000.0:
+                fpsnum,fpsden = 25000,1000
+            elif fpsover == 30000.0/1001.0:
+                fpsnum,fpsden = 30000,1001
+            elif fpsover == 30000.0/1000.0:
+                fpsnum,fpsden = 30000,1000
+            if fpsover != None:
+                fps = fpsover
+        print "FPS parts:",fps,fpsnum,fpsden
+        return fps,fpsnum,fpsden
+    
     def setDngHeader(self,r,d,bits,frame,rgbl):
         d.stripTotal = 3000000
         d.bo = "<" # Little endian
@@ -263,7 +285,8 @@ class ExportQueue(threading.Thread):
             at(e,DNG.Tag.BaselineExposure,(0,1000000)) # Not yet used by dcraw-based tools :-(
             at(e,DNG.Tag.BaselineExposureOffset,(ev,1000000)) # Not yet used by dcraw-based tools :-(
         atm(e,DNG.Tag.ActiveArea,r.activeArea)
-        at(e,DNG.Tag.FrameRate,(r.fpsnum,r.fpsden))
+        fps,fpsnum,fpsden = self.fpsParts(r)
+        at(e,DNG.Tag.FrameRate,(fpsnum,fpsden))
         exif = DNG.DNG.IFD(d)
         d.ifds[0].EXIF_IFD = exif
         e = exif.entries
@@ -341,11 +364,12 @@ class ExportQueue(threading.Thread):
             # Must index the whole file in order that we have the wav file
             while r.indexingStatus()<1.0:
                 time.sleep(0.1)
+        fps,fpsnum,fpsden = self.fpsParts(r)
         if os.path.exists(wavfile):
             d = file(wavfile,'rb').read()
             rhead = os.path.splitext(os.path.split(filename)[1])[0]
             outwavname = os.path.join(dngdir, rhead + ".WAV")
-            self.tempEncoderWav(wavfile,r.fps,outwavname,startFrame,endFrame,audioOffset)
+            self.tempEncoderWav(wavfile,fps,outwavname,startFrame,endFrame,audioOffset)
         targfile = os.path.splitext(os.path.split(r.filename)[1])[0]
         target = os.path.join(target,targfile)
         print "DNG export to",target,"started"
@@ -451,9 +475,10 @@ class ExportQueue(threading.Thread):
             # Must index the whole file in order that we have the wav file
             while r.indexingStatus()<1.0:
                 time.sleep(0.1)
+        fps,fpsnum,fpsden = self.fpsParts(r)
         if os.path.exists(wavfile):
             tempwavname = movfile[:-4] + ".WAV"
-            self.tempEncoderWav(wavfile,r.fps,tempwavname,startFrame,endFrame,audioOffset)
+            self.tempEncoderWav(wavfile,fps,tempwavname,startFrame,endFrame,audioOffset)
 
         if subprocess.mswindows:
             exe = "ffmpeg.exe"
@@ -473,10 +498,10 @@ class ExportQueue(threading.Thread):
             su.wShowWindow = subprocess.SW_HIDE
             kwargs["startupinfo"] = su
         if tempwavname != None: # Includes Audio
-            args = [exe,"-f","rawvideo","-pix_fmt","rgb48","-s","%dx%d"%(r.width(),r.height()),"-r","%.03f"%r.fps,"-i","-","-i",tempwavname,"-f","mov","-vf","vflip","-vcodec","prores_ks","-profile:v","4","-alpha_bits","0","-vendor","ap4h","-q:v","4","-r","%.03f"%r.fps,"-acodec","copy",movfile]
+            args = [exe,"-f","rawvideo","-pix_fmt","rgb48","-s","%dx%d"%(r.width(),r.height()),"-r","%.03f"%fps,"-i","-","-i",tempwavname,"-f","mov","-vf","vflip","-vcodec","prores_ks","-profile:v","4","-alpha_bits","0","-vendor","ap4h","-q:v","4","-r","%.03f"%fps,"-acodec","copy",movfile]
         else: # No audio
             # ProRes 4444 with fixed qscale. Can be much smaller and faster to encode
-            args = [exe,"-f","rawvideo","-pix_fmt","rgb48","-s","%dx%d"%(r.width(),r.height()),"-r","%.03f"%r.fps,"-i","-","-an","-f","mov","-vf","vflip","-vcodec","prores_ks","-profile:v","4","-alpha_bits","0","-vendor","ap4h","-q:v","4","-r","%.03f"%r.fps,movfile]
+            args = [exe,"-f","rawvideo","-pix_fmt","rgb48","-s","%dx%d"%(r.width(),r.height()),"-r","%.03f"%fps,"-i","-","-an","-f","mov","-vf","vflip","-vcodec","prores_ks","-profile:v","4","-alpha_bits","0","-vendor","ap4h","-q:v","4","-r","%.03f"%fps,movfile]
             # ProRes 4444 with fixed bitrate. Can be bigger and slower
             #args = [exe,"-f","rawvideo","-pix_fmt","rgb48","-s","%dx%d"%(r.width(),r.height()),"-r","%.03f"%r.fps,"-i","-","-an","-f","mov","-vf","vflip","-vcodec","prores_ks","-profile:v","4","-alpha_bits","0","-vendor","ap4h","-r","%.03f"%r.fps,movfile]
         #print "Encoder args:",args
