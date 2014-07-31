@@ -503,7 +503,13 @@ class DisplayScene(ui.Scene):
         if f.expo != None and f.lens != None:
             ll = "%d"%f.lens[2][1]
             s += "1/%d sec, f%.01f, ISO %d, %dmm\n"%(1000000.0/f.expo[-1],f.lens[2][3]/100.0,f.expo[2],f.lens[2][1])
-        s += "%d x %d, %.03f FPS"%(r.width(),r.height(),r.fps)
+        fpsover = None
+        if "fpsOverride_v1" in r.userMetadata:
+            fpsover = r.userMetadata["fpsOverride_v1"]
+        if fpsover != None:
+            s += "%d x %d, %.03f FPS (Was %.03f FPS)"%(r.width(),r.height(),fpsover,r.fps)
+        else:
+            s += "%d x %d, %.03f FPS"%(r.width(),r.height(),r.fps)
         if f.rtc != None:
             se,mi,ho,da,mo,ye = f.rtc[1:7]
             s += ", %02d:%02d:%02d %02d:%02d:%04d"%(ho,mi,se,da,mo+1,ye+1900)
