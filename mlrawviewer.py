@@ -722,7 +722,6 @@ class Viewer(GLCompute.GLCompute):
         self.preloadingFrame = []
         self.preloadingFrames = []
         self.preloadFrame(1) # Immediately try to preload the next frame
-        self.fps = raw.fps
         self.paused = False
         self.needsRefresh = False
         self.anamorphic = False # Canon squeeze
@@ -745,6 +744,7 @@ class Viewer(GLCompute.GLCompute):
         self.demosaic = None
         self.markReset()
         # Shared settings
+        self.initFps()
         self.setting_brightness = 1.0
         self.setting_rgb = (2.0, 1.0, 1.5)
         self.setting_highQuality = False
@@ -768,6 +768,14 @@ class Viewer(GLCompute.GLCompute):
         self.wasExporting = False
         self.exportActive = False  
         self.exportLastStatus = 0.0
+
+    def initFps(self):
+        self.fps = self.raw.fps
+        self.setting_fpsOverride = None
+        if "fpsOverride_v1" in self.raw.userMetadata:
+            self.setting_fpsOverride = self.raw.userMetadata["fpsOverride_v1"]
+        if self.setting_fpsOverride != None:
+            self.fps = self.setting_fpsOverride
 
     def candidatesInDir(self,fn):
         path,name = os.path.split(fn) # Correct for files and CDNG dirs
@@ -840,6 +848,7 @@ class Viewer(GLCompute.GLCompute):
         self.nextFrameNumber = 0
         self.neededFrame = 0
         self.audioOffset = 0.0
+        self.initFps()
         if "audioOffset_v1" in self.raw.userMetadata:
             self.audioOffset = self.raw.userMetadata["audioOffset_v1"]
         self.drawnFrameNumber = None
@@ -1045,7 +1054,10 @@ class Viewer(GLCompute.GLCompute):
         elif k==self.KEY_D:
             self.toggleEncodeType()
         elif k==self.KEY_F:
-            self.toggleDropFrames()
+            if m==0: # No mod
+                self.toggleDropFrames()
+            elif m==1:
+                self.toggleFpsOverride()
         elif k==self.KEY_T:
             self.toggleToneMapping()
         elif k==self.KEY_L:
@@ -1182,6 +1194,28 @@ class Viewer(GLCompute.GLCompute):
             self.startAudio(offset)
         else:
             self.audio.stop()
+        self.refresh()
+    def toggleFpsOverride(self):
+        fo = self.setting_fpsOverride
+        if fo==None:
+            fo = 24000.0/1001.0
+        elif fo==24000.0/1001.0:
+            fo = 24000.0/1000.0
+        elif fo==24000.0/1000.0:
+            fo = 25000.0/1000.0
+        elif fo==25000.0/1000.0:
+            fo = 30000.0/1001.0
+        elif fo==30000.0/1001.0:
+            fo = 30000.0/1000.0
+        elif fo==30000.0/1000.0:
+            fo = None
+        self.setting_fpsOverride = fo
+        if fo==None:
+            self.fps = self.raw.fps
+        else:
+            self.fps = fo
+        self.raw.userMetadata["fpsOverride_v1"] = fo
+        self.raw.writeUserMetadata()
         self.refresh()
     def onIdle(self):
         PLOG(PLOG_FRAME,"onIdle start")
