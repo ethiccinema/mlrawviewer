@@ -34,7 +34,7 @@ from multiprocessing import Process
 
 from Config import Config
 
-config = Config(version=(1,1,7))
+config = Config(version=(1,2,0))
 programpath = os.path.abspath(os.path.split(sys.argv[0])[0])
 if getattr(sys,'frozen',False):
     programpath = sys._MEIPASS
