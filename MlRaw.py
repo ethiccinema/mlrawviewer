@@ -395,6 +395,9 @@ class MLRAW(ImageSequence):
         #print self.footer,self.info
         self.black = self.info[7]
         self.white = self.info[8]
+        self.cropOrigin = (self.info[9],self.info[10])
+        self.cropSize = (self.info[11],self.info[12])
+        self.activeArea = tuple(self.info[13:17])
         self.colorMatrix = colorMatrix(self.info)
         self.whiteBalance = None # Not available in RAW
         self.brightness = 1.0
@@ -675,6 +678,12 @@ class MLV(ImageSequence):
         self.black = raw[10]
         self.white = raw[11]
         self.colorMatrix = colorMatrix(raw)
+        self.cropOrigin = (raw[12],raw[13])
+        self.cropSize = (raw[14],raw[15])
+        self.activeArea = tuple(raw[16:20])
+        print "Crop origin:",self.cropOrigin
+        print "Crop size:",self.cropSize
+        print "Active area:",self.activeArea
         print "Black level:", self.black,"White level:", self.white
         #print raw
         print "RawInfo:",raw
@@ -977,7 +986,7 @@ class CDNG(ImageSequence):
     """
     Treat a directory of DNG files as sequential frames
     """
-    def __init__(self,filename,preindex=False):
+    def __init__(self,filename,preindex=False,**kwds):
         print "Opening CinemaDNG",filename
         self.filename = filename
         if os.path.isdir(filename):
@@ -1051,6 +1060,22 @@ class CDNG(ImageSequence):
                 self._model = self._model[len(self._make):].lstrip()
         except:
             pass
+
+        self.cropOrigin = (0,0)
+        self.cropSize = (self._width,self._height)
+        self.activeArea = (0,0,self._width,self._height)
+        if DNG.Tag.DefaultCropOrigin[0] in fd.FULL_IFD.tags:
+            print fd.FULL_IFD.tags[DNG.Tag.DefaultCropOrigin[0]][3]
+            self.cropOrigin = tuple(fd.FULL_IFD.tags[DNG.Tag.DefaultCropOrigin[0]][3])
+        if DNG.Tag.DefaultCropSize[0] in fd.FULL_IFD.tags:
+            print fd.FULL_IFD.tags[DNG.Tag.DefaultCropSize[0]][3]
+            self.cropSize = tuple(fd.FULL_IFD.tags[DNG.Tag.DefaultCropSize[0]][3])
+        if DNG.Tag.ActiveArea[0] in fd.FULL_IFD.tags:
+            print fd.FULL_IFD.tags[DNG.Tag.ActiveArea[0]][3]
+            self.activeArea = tuple(fd.FULL_IFD.tags[DNG.Tag.ActiveArea[0]][3])
+        print "Crop origin:",self.cropOrigin
+        print "Crop size:",self.cropSize
+        print "Active area:",self.activeArea
 
         self.firstFrame = self._loadframe(0,convert=False)
 
@@ -1128,7 +1153,7 @@ class TIFFSEQ(ImageSequence):
     """
     Treat a directory of (e.g. 16bit) TIFF files as sequential frames
     """
-    def __init__(self,filename,preindex=False):
+    def __init__(self,filename,preindex=False,**kwds):
         print "Opening TIFF sequence",filename
         self.filename = filename
         if os.path.isdir(filename):
@@ -1156,6 +1181,9 @@ class TIFFSEQ(ImageSequence):
 
         self._width = fd.ifds[0].width
         self._height = fd.ifds[0].length
+        self.cropOrigin = (0,0)
+        self.cropSize = (self._width,self._height)
+        self.activeArea = (0,0,self._width,self._height)
 
         bps = self.bitsPerSample = fd.ifds[0].tags[DNG.Tag.BitsPerSample[0]][3][0]
         print "BitsPerSample:",bps

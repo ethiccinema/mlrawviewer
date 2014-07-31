@@ -248,8 +248,8 @@ class ExportQueue(threading.Thread):
         atm(e,DNG.Tag.LinearizationTable,[i for i in range(2**14-1)])
         at(e,DNG.Tag.BlackLevel,r.black)
         at(e,DNG.Tag.WhiteLevel,r.white)
-        atm(e,DNG.Tag.DefaultCropOrigin,(0,0))
-        atm(e,DNG.Tag.DefaultCropSize,(r.width(),r.height()))
+        atm(e,DNG.Tag.DefaultCropOrigin,r.cropOrigin)
+        atm(e,DNG.Tag.DefaultCropSize,r.cropSize)
         m = [(int(v*10000),10000) for v in r.colorMatrix.A1]
         atm(e,DNG.Tag.ColorMatrix1,m)
         if rgbl==None: # Pick a default
@@ -262,6 +262,7 @@ class ExportQueue(threading.Thread):
             ev = int(1000000*math.log(rgbl[3],2.0))
             at(e,DNG.Tag.BaselineExposure,(0,1000000)) # Not yet used by dcraw-based tools :-(
             at(e,DNG.Tag.BaselineExposureOffset,(ev,1000000)) # Not yet used by dcraw-based tools :-(
+        atm(e,DNG.Tag.ActiveArea,r.activeArea)
         at(e,DNG.Tag.FrameRate,(r.fpsnum,r.fpsden))
         exif = DNG.DNG.IFD(d)
         d.ifds[0].EXIF_IFD = exif
