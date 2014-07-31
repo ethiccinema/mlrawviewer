@@ -224,6 +224,12 @@ class ExportQueue(threading.Thread):
                 fpsnum,fpsden = 30000,1001
             elif fpsover == 30000.0/1000.0:
                 fpsnum,fpsden = 30000,1000
+            elif fpsover == 48000.0/1000.0:
+                fpsnum,fpsden = 48000,1000
+            elif fpsover == 50000.0/1000.0:
+                fpsnum,fpsden = 50000,1000
+            elif fpsover == 60000.0/1000.0:
+                fpsnum,fpsden = 60000,1000
             if fpsover != None:
                 fps = fpsover
         print "FPS parts:",fps,fpsnum,fpsden

@@ -1214,6 +1214,12 @@ class Viewer(GLCompute.GLCompute):
         elif fo==30000.0/1001.0:
             fo = 30000.0/1000.0
         elif fo==30000.0/1000.0:
+            fo = 48000.0/1000.0
+        elif fo==48000.0/1000.0:
+            fo = 50000.0/1000.0
+        elif fo==50000.0/1000.0:
+            fo = 60000.0/1000.0
+        elif fo==60000.0/1000.0:
             fo = None
         self.setting_fpsOverride = fo
         if fo==None:
