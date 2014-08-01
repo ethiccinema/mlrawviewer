@@ -751,7 +751,6 @@ class Viewer(GLCompute.GLCompute):
         self.markReset()
         # Shared settings
         self.initFps()
-        self.setting_brightness = 1.0
         self.setting_rgb = (2.0, 1.0, 1.5)
         self.setting_highQuality = False
         self.setting_encoding = False
@@ -760,19 +759,19 @@ class Viewer(GLCompute.GLCompute):
         self.setting_loop = config.getState("loopPlayback")
         self.setting_colourMatrix = np.matrix(np.eye(3))
         self.setting_preprocess = config.getState("preprocess")
-	if self.setting_preprocess == None:
-	    self.setting_preprocess = False
+        if self.setting_preprocess == None:
+	        self.setting_preprocess = False
         self.updateColourMatrix()
         if self.setting_loop == None: self.setting_loop = True
         self.setting_encodeType = config.getState("encodeType")
-        if self.setting_encodeType == None: self.setting_encodeType = (ENCODE_TYPE_MOV,)       
+        if self.setting_encodeType == None: self.setting_encodeType = (ENCODE_TYPE_MOV,)
         self.svbo = None
         self.fpsMeasure = None
         self.fpsCount = 0
 
         self.exporter = ExportQueue.ExportQueue(config)
         self.wasExporting = False
-        self.exportActive = False  
+        self.exportActive = False
         self.exportLastStatus = 0.0
 
     def initFps(self):
@@ -798,7 +797,7 @@ class Viewer(GLCompute.GLCompute):
         if len(name)==0:
             path,name = os.path.split(path)
         fl = self.candidatesInDir(fn)
-        print self.raw.filename,fl,path,name
+        #print self.raw.filename,fl,path,name
         current = fl.index(name)
         newOne = (current + step)%len(fl)
         found = False
@@ -1144,6 +1143,8 @@ class Viewer(GLCompute.GLCompute):
     def scaleBrightness(self,scale):
         self.setting_brightness *= scale
         #print "Brightness",self.setting_brightness
+        self.raw.userMetadata["brightness_v1"] = self.setting_brightness
+        self.raw.writeUserMetadata()
         self.refresh()
     def checkMultiplier(self, N, MAX=8.0, MIN=0.0):
         if N > MAX:
@@ -1498,7 +1499,7 @@ class Viewer(GLCompute.GLCompute):
             self.raw.writeUserMetadata()
         elif "wavfile_v1" in self.raw.userMetadata:
             wavname = self.raw.userMetadata["wavfile_v1"]
-        print "trying to load wavfile",wavname
+        #print "trying to load wavfile",wavname
         try:
             self.wav = wave.open(wavname,'r')
         except:
@@ -1805,6 +1806,8 @@ class Viewer(GLCompute.GLCompute):
         #else:
         #    self.setting_rgb = (2.0, 1.0, 1.5)
         self.setting_brightness = self.raw.brightness
+        if "brightness_v1" in self.raw.userMetadata:
+            self.setting_brightness = self.raw.userMetadata["brightness_v1"]
 
         # This calculation should give results matching dcraw
         camToXYZ = self.raw.colorMatrix

@@ -363,6 +363,13 @@ class ExportQueue(threading.Thread):
             wavname = r.userMetadata["wavfile_v1"]
         return wavname
 
+    def rgblOverride(self,raw,rgbl):
+        r,g,b = rgbl[:3]
+        l = rgbl[3]
+        if "brightness_v1" in raw.userMetadata:
+            l = raw.userMetadata["brightness_v1"]
+        return (r,g,b,l)
+
     def processExportDng(self,jobindex,args):
         filename,dngdir,wavfile,startFrame,endFrame,audioOffset,bits,rgbl,preprocess= args
         os.mkdir(dngdir)
@@ -376,6 +383,7 @@ class ExportQueue(threading.Thread):
             while r.indexingStatus()<1.0:
                 time.sleep(0.1)
         fps,fpsnum,fpsden = self.fpsParts(r)
+        rgbl = self.rgblOverride(r,rgbl)
         wavfile = self.wavOverride(r,wavfile)
         if os.path.exists(wavfile):
             d = file(wavfile,'rb').read()
@@ -407,7 +415,7 @@ class ExportQueue(threading.Thread):
             if preprocess==self.PREPROCESS_ALL:
                 # Must first preprocess with shader
                 self.bgiq.put((f,d,2,r.width(),r.height(),i,target,rgbl))
-            else: 
+            else:
                 if bits==14:
                     ifd._strips = [np.frombuffer(f.rawdata,dtype=np.uint16).byteswap().tostring()]
                 elif bits==16:
@@ -422,7 +430,7 @@ class ExportQueue(threading.Thread):
         if preprocess==self.PREPROCESS_ALL:
                 # Must first preprocess with shader
             self.bgiq.put(None)
-        else: 
+        else:
             self.wq.put(None) # Finish
         while (self.writtenFrame+1)<todo:
             time.sleep(0.5)
@@ -488,6 +496,7 @@ class ExportQueue(threading.Thread):
             while r.indexingStatus()<1.0:
                 time.sleep(0.1)
         fps,fpsnum,fpsden = self.fpsParts(r)
+        rgbl = self.rgblOverride(r,rgbl)
         wavfile = self.wavOverride(r,wavfile)
         if os.path.exists(wavfile):
             tempwavname = movfile[:-4] + ".WAV"
