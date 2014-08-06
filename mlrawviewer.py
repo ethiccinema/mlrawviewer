@@ -770,6 +770,7 @@ class Viewer(GLCompute.GLCompute):
         self.wasExporting = False
         self.exportActive = False
         self.exportLastStatus = 0.0
+        self.toggleEncoding() # On by default
 
     def initFps(self):
         self.fps = self.raw.fps
@@ -1237,8 +1238,8 @@ class Viewer(GLCompute.GLCompute):
         if self.exporter.busy:
             self.wasExporting = True
         if self.wasExporting:
-            if not self.exporter.busy:
-                self.toggleEncoding() # Auto pause when queue finished
+            #if not self.exporter.busy:
+            #    self.toggleEncoding() # Auto pause when queue finished
             newstat = 0.0
             try:
                 newstat = self.exporter.jobstatus[self.exporter.currentjob]
