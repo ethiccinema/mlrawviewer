@@ -503,9 +503,7 @@ class DisplayScene(ui.Scene):
         if f.expo != None and f.lens != None:
             ll = "%d"%f.lens[2][1]
             s += "1/%d sec, f%.01f, ISO %d, %dmm\n"%(1000000.0/f.expo[-1],f.lens[2][3]/100.0,f.expo[2],f.lens[2][1])
-        fpsover = None
-        if "fpsOverride_v1" in r.userMetadata:
-            fpsover = r.userMetadata["fpsOverride_v1"]
+        fpsover = self.frames.setting_fpsOverride
         if fpsover != None:
             s += "%d x %d, %.03f FPS (Was %.03f FPS)"%(r.width(),r.height(),fpsover,r.fps)
         else:
@@ -742,13 +740,12 @@ class Viewer(GLCompute.GLCompute):
         self.wavname = wavfilename
         self.wav = None
         self.indexing = True
-        self.audioOffset = 0.0
-        if "audioOffset_v1" in self.raw.userMetadata:
-            self.audioOffset = self.raw.userMetadata["audioOffset_v1"]
+        self.audioOffset = self.raw.getMeta("audioOffset_v1")
+        if self.audioOffset == None: self.audioOffset = 0.0
         self.lastEventTime = time.time()
         self.wasFull = False
         self.demosaic = None
-        self.markReset()
+        self.markLoad()
         # Shared settings
         self.initFps()
         self.setting_rgb = (2.0, 1.0, 1.5)
@@ -776,9 +773,7 @@ class Viewer(GLCompute.GLCompute):
 
     def initFps(self):
         self.fps = self.raw.fps
-        self.setting_fpsOverride = None
-        if "fpsOverride_v1" in self.raw.userMetadata:
-            self.setting_fpsOverride = self.raw.userMetadata["fpsOverride_v1"]
+        self.setting_fpsOverride = self.raw.getMeta("fpsOverride_v1")
         if self.setting_fpsOverride != None:
             self.fps = self.setting_fpsOverride
 
@@ -852,14 +847,13 @@ class Viewer(GLCompute.GLCompute):
         self.playFrameNumber = 0
         self.nextFrameNumber = 0
         self.neededFrame = 0
-        self.audioOffset = 0.0
         self.initFps()
-        if "audioOffset_v1" in self.raw.userMetadata:
-            self.audioOffset = self.raw.userMetadata["audioOffset_v1"]
+        self.audioOffset = self.raw.getMeta("audioOffset_v1")
+        if self.audioOffset == None: self.audioOffset = 0.0
         self.drawnFrameNumber = None
         self.preloadFrame(1) # Immediately try to preload the next frame
         self.indexing = True
-        self.markReset()
+        self.markLoad()
         self._init = False
         self.init()
         self.updateWindowName()
@@ -1140,12 +1134,13 @@ class Viewer(GLCompute.GLCompute):
             self.refresh()
         self.lastEventTime = now
 
-    def scaleBrightness(self,scale):
-        self.setting_brightness *= scale
+    def setBrightness(self,value):
+        self.setting_brightness = value
         #print "Brightness",self.setting_brightness
-        self.raw.userMetadata["brightness_v1"] = self.setting_brightness
-        self.raw.writeUserMetadata()
+        self.raw.setMeta("brightness_v1",self.setting_brightness)
         self.refresh()
+    def scaleBrightness(self,scale):
+        self.setBrightness(self.setting_brightness * scale)
     def checkMultiplier(self, N, MAX=8.0, MIN=0.0):
         if N > MAX:
             return MAX
@@ -1158,6 +1153,7 @@ class Viewer(GLCompute.GLCompute):
         G = self.checkMultiplier(G)
         B = self.checkMultiplier(B)
         self.setting_rgb = (R, G, B)
+        self.raw.setMeta("balance_v1",self.setting_rgb)
         #print "%s:\t %.1f %.1f %.1f"%(Name, R, G, B)
         self.refresh()
     def togglePlay(self):
@@ -1188,6 +1184,7 @@ class Viewer(GLCompute.GLCompute):
         self.refresh()
     def toggleToneMapping(self):
         self.setting_tonemap = (self.setting_tonemap + 1)%5
+        self.raw.setMeta("tonemap_v1",self.setting_tonemap)
         self.refresh()
     def toggleLooping(self):
         self.setting_loop = not self.setting_loop
@@ -1227,8 +1224,7 @@ class Viewer(GLCompute.GLCompute):
             self.fps = self.raw.fps
         else:
             self.fps = fo
-        self.raw.userMetadata["fpsOverride_v1"] = fo
-        self.raw.writeUserMetadata()
+        self.raw.setMeta("fpsOverride_v1",fo)
         self.refresh()
     def onIdle(self):
         PLOG(PLOG_FRAME,"onIdle start")
@@ -1491,14 +1487,12 @@ class Viewer(GLCompute.GLCompute):
             return
         if not self.wavname:
             return
-        wavname = None
         if os.path.exists(self.wavname):
             wavname = self.wavname
-            # Updte the raw file metadata to point to this wav file
-            self.raw.userMetadata["wavfile_v1"] = self.wavname
-            self.raw.writeUserMetadata()
-        elif "wavfile_v1" in self.raw.userMetadata:
-            wavname = self.raw.userMetadata["wavfile_v1"]
+            # Update the raw file metadata to point to this wav file
+            self.raw.setMeta("wavfile_v1",self.wavname)
+        else:
+            wavname = self.raw.getMeta("wavfile_v1")
         #print "trying to load wavfile",wavname
         try:
             self.wav = wave.open(wavname,'r')
@@ -1520,8 +1514,7 @@ class Viewer(GLCompute.GLCompute):
         self.audio.play(wavdata[start:])
     def slideAudio(self,slideBy):
         self.audioOffset += slideBy
-        self.raw.userMetadata["audioOffset_v1"] = self.audioOffset
-        self.raw.writeUserMetadata()
+        self.raw.setMeta("audioOffset_v1",self.audioOffset)
         #if self.audioOffset <= 0.0:
         #    self.audioOffset = 0.0
         print "Audio offset = %.02f seconds"%self.audioOffset
@@ -1651,9 +1644,18 @@ class Viewer(GLCompute.GLCompute):
         self.manageFrameLoading()
     MARK_IN = 0
     MARK_OUT = 1
+    def markLoad(self):
+        self.marks = self.raw.getMeta("marks_v1")
+        if self.marks == None:
+            self.markReset() # Set valid marks
+    def markSet(self,newmarks):
+        if newmarks == self.marks: 
+            return
+        self.marks = newmarks
+        self.raw.setMeta("marks_v1",newmarks)
     def markReset(self):
         # By default, start at start and end at end, whole file in scope
-        self.marks = [(0,self.MARK_IN),(self.raw.frames()-1,self.MARK_OUT)]
+        self.markSet([(0,self.MARK_IN),(self.raw.frames()-1,self.MARK_OUT)])
         #Aprint "markReset",self.marks
     def markNext(self):
         #print "markNext"
@@ -1685,11 +1687,12 @@ class Viewer(GLCompute.GLCompute):
         For now we only allow one pair
         Start/End are implicitly used when needed to create a pair
         """
+        marks = list(self.marks)
         index = 0
         insert = True
         mark = (at,markType)
         # Find index
-        for frame,kind in self.marks:
+        for frame,kind in marks:
             if frame==at:
                 insert = False
                 break  
@@ -1698,14 +1701,14 @@ class Viewer(GLCompute.GLCompute):
             index += 1
         # Do the correct operation
         if insert:
-            if index==len(self.marks):
+            if index==len(marks):
                 # Adding a new mark at the end
                 if kind == markType:
                     #print "replacing prev mark",index
-                    self.marks[index-1] = mark
+                    marks[index-1] = mark
                 else:
-                    self.marks[index-2] = mark
-                    self.marks[index-1] = (self.raw.frames()-1,self.MARK_OUT)
+                    marks[index-2] = mark
+                    marks[index-1] = (self.raw.frames()-1,self.MARK_OUT)
                     
                 """
                     if markType==self.MARK_IN: # Must add end as out
@@ -1716,24 +1719,25 @@ class Viewer(GLCompute.GLCompute):
                 # Adding a new mark at the start
                 if kind == markType:
                     #print "replacing next mark",index
-                    self.marks[index] = mark
+                    marks[index] = mark
                 else:
-                    self.marks[index] = (0,self.MARK_IN)
-                    self.marks[index+1] = mark
+                    marks[index] = (0,self.MARK_IN)
+                    marks[index+1] = mark
             elif markType == kind:
                 # We are inserting same kind of mark as the one after -> replace that
                 #print "replacing next mark",index
-                self.marks[index] = mark
+                marks[index] = mark
             else:
                 # We are inserting same kind of mark as the previous one -> replace that
                 #print "replacing prev mark",index
-                self.marks[index-1] = mark
+                marks[index-1] = mark
         else: 
             pass
             #if kind != markType:
             #    print "deleting mark",index
             #    del self.marks[index] 
 
+        self.markSet(marks)
         #print self.marks               
         self.refresh()
 
@@ -1796,18 +1800,24 @@ class Viewer(GLCompute.GLCompute):
             redMul = float(green)/float(red)
             blueMul = float(green)/float(blue)
             self.setting_rgb = (redMul,1.0,blueMul)
-            print "Setting white Balance from",x,y,"to",self.setting_rgb,self.playFrame.rawwbal
-            self.refresh()
+            self.changeWhiteBalance(redMul,1.0,blueMul,"User")
+            #print "Setting white Balance from",x,y,"to",self.setting_rgb,self.playFrame.rawwbal
+            #self.refresh()
 
     def updateColourMatrix(self):
         # First do the white balance
         if self.raw.whiteBalance != None:
             self.setting_rgb = self.raw.whiteBalance
+        newbalance = self.raw.getMeta("balance_v1")
+        if newbalance != None: self.setting_rgb = newbalance
         #else:
         #    self.setting_rgb = (2.0, 1.0, 1.5)
         self.setting_brightness = self.raw.brightness
-        if "brightness_v1" in self.raw.userMetadata:
-            self.setting_brightness = self.raw.userMetadata["brightness_v1"]
+        newbrightness = self.raw.getMeta("brightness_v1")
+        if newbrightness != None: self.setting_brightness = newbrightness
+
+        newtm = self.raw.getMeta("tonemap_v1")
+        if newtm != None: self.setting_tonemap = newtm
 
         # This calculation should give results matching dcraw
         camToXYZ = self.raw.colorMatrix
@@ -1842,7 +1852,10 @@ class Viewer(GLCompute.GLCompute):
         """
         rgbl = config.getState("balance")
         if rgbl != None:
-            self.setting_rgb,self.setting_brightness = rgbl
+            rgb,l = rgbl
+            r,g,b = rgb
+            self.changeWhiteBalance(r,g,b,"Shared")
+            self.setBrightness(l)
             self.refresh()
 
 def launchDialog(dialogtype,initial="None"):

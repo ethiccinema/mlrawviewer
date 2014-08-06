@@ -336,36 +336,85 @@ which contain additional derived or user-set data. Examples include:
 - Colour balance and tone mapping preference
 - FPS overide setting
 """
+
 class ImageSequence(object):
     def __init__(self,userMetadataFilename=None,**kwds):
-        self.userMetadata = {}
-        self.userMetadataFilename = userMetadataFilename
-        self.readUserMetadata()
+        self._metadataLock = threading.Lock()
+        self._userMetadata = {}
+        self._userMetadataFilename = userMetadataFilename
+        self._metadataLock.acquire()
+        self._readUserMetadata()
+        self._metadataLock.release()
         super(ImageSequence,self).__init__(**kwds)
-    def readUserMetadata(self):
-        #print "Trying to read user metadata file",self.userMetadataFilename
+    def getMeta(self,key):
+        #print "getMeta acquiring lock",key
+        self._metadataLock.acquire()
+        #print "got lock"
+        ret = self._userMetadata.get(key,None)
+        #print "getmeta releasing lock"
+        self._metadataLock.release()
+        #print "getmeta done"
+        return ret
+    def setMetaValues(self,keyvals):
+        #print "setMetaValues acquiring lock"
+        self._metadataLock.acquire()
+        #print "setMetaValue got lock"
+        count = 0
+        for k in keyvals.keys():
+            val = keyvals[k]
+            #print k,len(val)
+            old = self._userMetadata.get(k,None)
+            if old != None and val == old:
+                continue
+            self._userMetadata[k] = val
+            count += 1
+        #print count
+        if count>0:
+            self._writeUserMetadata()
+        #print "setMetaValues releaseing lock"
+        self._metadataLock.release()
+        #print "setMetaValues done"
+    def setMeta(self,key,value):
+        #print "setMeta acquiring lock",key
+        self._metadataLock.acquire()
+        #print "setMeta got lock"
+        old = self._userMetadata.get(key,None)
+        if old != None and value == old:
+            #print "setMeta nothing to do, releasing lock"
+            self._metadataLock.release()
+            #print "setMeta done"
+            return # Nothing to do
+        self._userMetadata[key] = value
+        self._writeUserMetadata()
+        #print "setMeta releasing lock"
+        self._metadataLock.release()
+        #print "setMeta done"
+    def _readUserMetadata(self):
+        #print "Trying to read user metadata file",self._userMetadataFilename
         try:
-            if self.userMetadataFilename == None: return
-            if os.path.exists(self.userMetadataFilename):
-                userMetadataFile = file(self.userMetadataFilename,'rb')
-                self.userMetadata = cPickle.load(userMetadataFile)
+            if self._userMetadataFilename == None: return
+            if os.path.exists(self._userMetadataFilename):
+                userMetadataFile = file(self._userMetadataFilename,'rb')
+                self._userMetadata = cPickle.load(userMetadataFile)
                 userMetadataFile.close()
-                #print "Read user metadata file. Contents:",len(self.userMetadata)
+                #print "Read user metadata file. Contents:",len(self._userMetadata)
         except:
-            self.userMetadata = None
+            self._userMetadata = {}
             import traceback
             traceback.print_exc()
-    def writeUserMetadata(self):
-        #print "Trying to write user metadata",len(self.userMetadata)
+        #print "Read user metadata"
+    def _writeUserMetadata(self):
+        #print "Trying to write user metadata",len(self._userMetadata)
         try:
-            if self.userMetadataFilename == None: return
-            if len(self.userMetadata)>0:
-                userMetadataFile = file(self.userMetadataFilename,'wb')
-                cPickle.dump(self.userMetadata,userMetadataFile,protocol=cPickle.HIGHEST_PROTOCOL)
+            if self._userMetadataFilename == None: return
+            if len(self._userMetadata)>0:
+                userMetadataFile = file(self._userMetadataFilename,'wb')
+                cPickle.dump(self._userMetadata,userMetadataFile,protocol=cPickle.HIGHEST_PROTOCOL)
                 userMetadataFile.close()
         except:
             import traceback
             traceback.print_exc()
+        #print "User metadata written"
     @staticmethod
     def userMetadataNameFromOriginal(original):
         return os.path.splitext(original)[0]+".MRX"
@@ -565,11 +614,13 @@ class MLV(ImageSequence):
             self.totalSize += size
             self.totalParsed += parsedTo
         super(MLV,self).__init__(userMetadataFilename=ImageSequence.userMetadataNameFromOriginal(filename),**kwds)
-        if "frameIndex_v1" in self.userMetadata:
+        oldframepos = self.getMeta("frameIndex_v1")
+        if oldframepos != None:
             #print "Existing index data found"
-            self.framepos = self.userMetadata["frameIndex_v1"]
-            self.metadata = self.userMetadata["sequenceMetadata_v1"]
+            self.framepos = oldframepos
+            self.metadata = self.getMeta("sequenceMetadata_v1")
             self.allParsed = True # No need to reindex
+            #print "Loaded index data"
         else:
             self.allParsed = False
         self.preloader = None
@@ -814,9 +865,10 @@ class MLV(ImageSequence):
                 self.preindexing = False
                 if self.wav:
                     self.wav.close()
-                self.userMetadata["frameIndex_v1"] = self.framepos
-                self.userMetadata["sequenceMetadata_v1"] = self.metadata
-                self.writeUserMetadata() # Write out the index
+                #print "Writing index"
+                update = {"frameIndex_v1":self.framepos,"sequenceMetadata_v1":self.metadata}
+                self.setMetaValues(update)
+                #print "Index written"
                 return
             preindexStep = 10
             indexinfo = self.nextUnindexedFile()

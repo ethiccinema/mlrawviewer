@@ -211,8 +211,8 @@ class ExportQueue(threading.Thread):
         fps = r.fps
         fpsnum = r.fpsnum
         fpsden = r.fpsden
-        if "fpsOverride_v1" in r.userMetadata:
-            fpsover = r.userMetadata["fpsOverride_v1"]
+        fpsover = r.getMeta("fpsOverride_v1")
+        if fpsover != None:
             print "fpsover",fpsover
             if fpsover == 24000.0/1001.0:
                 fpsnum,fpsden = 24000,1001
@@ -234,7 +234,7 @@ class ExportQueue(threading.Thread):
                 fps = fpsover
         print "FPS parts:",fps,fpsnum,fpsden
         return fps,fpsnum,fpsden
-    
+
     def setDngHeader(self,r,d,bits,frame,rgbl):
         d.stripTotal = 3000000
         d.bo = "<" # Little endian
@@ -359,16 +359,20 @@ class ExportQueue(threading.Thread):
             self.needBgDraw = False
 
     def wavOverride(self,r,wavname):
-        if "wavfile_v1" in r.userMetadata:
-            wavname = r.userMetadata["wavfile_v1"]
+        newwavname = r.getMeta("wavfile_v1")
+        if newwavname != None: wavname = newwavname
         return wavname
 
-    def rgblOverride(self,raw,rgbl):
+    def rgblOverride(self,raw,rgbl,tm=None):
         r,g,b = rgbl[:3]
         l = rgbl[3]
-        if "brightness_v1" in raw.userMetadata:
-            l = raw.userMetadata["brightness_v1"]
-        return (r,g,b,l)
+        newl = raw.getMeta("brightness_v1")
+        if newl != None: l = newl
+        newrgb = raw.getMeta("balance_v1")
+        if newrgb != None: r,g,b = newrgb
+        newtm = raw.getMeta("tonemap_v1")
+        if newtm != None: tm = newtm
+        return (r,g,b,l),tm
 
     def processExportDng(self,jobindex,args):
         filename,dngdir,wavfile,startFrame,endFrame,audioOffset,bits,rgbl,preprocess= args
@@ -383,7 +387,7 @@ class ExportQueue(threading.Thread):
             while r.indexingStatus()<1.0:
                 time.sleep(0.1)
         fps,fpsnum,fpsden = self.fpsParts(r)
-        rgbl = self.rgblOverride(r,rgbl)
+        rgbl,dummy = self.rgblOverride(r,rgbl)
         wavfile = self.wavOverride(r,wavfile)
         if os.path.exists(wavfile):
             d = file(wavfile,'rb').read()
@@ -496,7 +500,7 @@ class ExportQueue(threading.Thread):
             while r.indexingStatus()<1.0:
                 time.sleep(0.1)
         fps,fpsnum,fpsden = self.fpsParts(r)
-        rgbl = self.rgblOverride(r,rgbl)
+        rgbl,tm = self.rgblOverride(r,rgbl,tm)
         wavfile = self.wavOverride(r,wavfile)
         if os.path.exists(wavfile):
             tempwavname = movfile[:-4] + ".WAV"
