@@ -505,7 +505,19 @@ class ExportQueue(threading.Thread):
         if os.path.exists(wavfile):
             tempwavname = movfile[:-4] + ".WAV"
             self.tempEncoderWav(wavfile,fps,tempwavname,startFrame,endFrame,audioOffset)
-
+        fw = r.width()
+        fh = r.height()
+        aa = r.activeArea
+        tlx,tly = aa[1],aa[0]
+        aw = aa[3]-aa[1]
+        ah = aa[2]-aa[0]
+        if aw>=fw:
+            aw = fw
+            tlx = 0
+        if ah>=fh:
+            ah = fh
+            tly = 0
+        area = (tlx,tly,aw,ah)
         if subprocess.mswindows:
             exe = "ffmpeg.exe"
         else:
@@ -524,10 +536,10 @@ class ExportQueue(threading.Thread):
             su.wShowWindow = subprocess.SW_HIDE
             kwargs["startupinfo"] = su
         if tempwavname != None: # Includes Audio
-            args = [exe,"-f","rawvideo","-pix_fmt","rgb48","-s","%dx%d"%(r.width(),r.height()),"-r","%.03f"%fps,"-i","-","-i",tempwavname,"-f","mov","-vf","vflip","-vcodec","prores_ks","-profile:v","4","-alpha_bits","0","-vendor","ap4h","-q:v","4","-r","%.03f"%fps,"-acodec","copy",movfile]
+            args = [exe,"-f","rawvideo","-pix_fmt","rgb48","-s","%dx%d"%(aw,ah),"-r","%.03f"%fps,"-i","-","-i",tempwavname,"-f","mov","-vf","vflip","-vcodec","prores_ks","-profile:v","4","-alpha_bits","0","-vendor","ap4h","-q:v","4","-r","%.03f"%fps,"-acodec","copy",movfile]
         else: # No audio
             # ProRes 4444 with fixed qscale. Can be much smaller and faster to encode
-            args = [exe,"-f","rawvideo","-pix_fmt","rgb48","-s","%dx%d"%(r.width(),r.height()),"-r","%.03f"%fps,"-i","-","-an","-f","mov","-vf","vflip","-vcodec","prores_ks","-profile:v","4","-alpha_bits","0","-vendor","ap4h","-q:v","4","-r","%.03f"%fps,movfile]
+            args = [exe,"-f","rawvideo","-pix_fmt","rgb48","-s","%dx%d"%(aw,ah),"-r","%.03f"%fps,"-i","-","-an","-f","mov","-vf","vflip","-vcodec","prores_ks","-profile:v","4","-alpha_bits","0","-vendor","ap4h","-q:v","4","-r","%.03f"%fps,movfile]
             # ProRes 4444 with fixed bitrate. Can be bigger and slower
             #args = [exe,"-f","rawvideo","-pix_fmt","rgb48","-s","%dx%d"%(r.width(),r.height()),"-r","%.03f"%r.fps,"-i","-","-an","-f","mov","-vf","vflip","-vcodec","prores_ks","-profile:v","4","-alpha_bits","0","-vendor","ap4h","-r","%.03f"%r.fps,movfile]
         #print "Encoder args:",args
@@ -555,9 +567,9 @@ class ExportQueue(threading.Thread):
             # Queue job
             if preprocess==self.PREPROCESS_ALL:
                 # Must first preprocess with shader
-                self.bgiq.put((f,i,1,r.width(),r.height(),rgbl,tm,matrix,preprocess))
+                self.bgiq.put((f,i,1,fw,fh,rgbl,tm,matrix,preprocess,area))
             else:
-                self.dq.put((f,i,0,r.width(),r.height(),rgbl,tm,matrix,preprocess))
+                self.dq.put((f,i,0,fw,fh,rgbl,tm,matrix,preprocess,area))
 
             # We need to make sure we don't buffer too many frames. Check what frame the encoder is at
             latest = ""
@@ -697,7 +709,7 @@ class ExportQueue(threading.Thread):
             self.lastPP = self.preprocessTex2
 
         if jobtype==0:
-            frame,index,jobtype,w,h,rgbl,tm,matrix,preprocess = args
+            frame,index,jobtype,w,h,rgbl,tm,matrix,preprocess,area = args
             # Shader part of demosaicing
             self.rgbUploadTex.update(frame.rgbimage)
             self.rgbImage.bindfbo()
@@ -710,10 +722,10 @@ class ExportQueue(threading.Thread):
             else:
                 recover = 1.0
             self.shaderQuality.demosaicPass(self.rgbUploadTex,frame.black,balance=rgbl,white=frame.white,tonemap=tm,colourMatrix=matrix,recover=recover)
-            rgb = glReadPixels(0,0,w,h,GL_RGB,GL_UNSIGNED_SHORT)
+            rgb = glReadPixels(area[0],h-(area[1]+area[3]),area[2],area[3],GL_RGB,GL_UNSIGNED_SHORT)
             return (index,rgb)
         elif jobtype==1:            # Predemosaic processing
-            frame,index,jobtype,w,h,rgbl,tm,matrix,preprocess = args
+            frame,index,jobtype,w,h,rgbl,tm,matrix,preprocess,area = args
             frame.convert()
             self.svbo.bind()
             self.shaderPatternNoise.prepare(self.svbo)
@@ -737,7 +749,7 @@ class ExportQueue(threading.Thread):
             # Now, read out the results as a 16bit raw image and feed to cpu demosaicer
             rawpreprocessed = glReadPixels(0,0,w,h,GL_RED,GL_UNSIGNED_SHORT)
             frame.rawimage = rawpreprocessed
-            self.dq.put((frame,index,0,w,h,rgbl,tm,matrix,preprocess)) # Queue CPU demosaicing
+            self.dq.put((frame,index,0,w,h,rgbl,tm,matrix,preprocess,area)) # Queue CPU demosaicing
             return None
         elif jobtype==2:            # DNG preprocessing
             frame,dng,jobtype,w,h,index,target,rgbl = args
