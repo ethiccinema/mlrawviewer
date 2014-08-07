@@ -67,7 +67,7 @@ class ExportQueue(threading.Thread):
     PREPROCESS_ALL = 1
     def __init__(self,config,**kwds):
         super(ExportQueue,self).__init__(**kwds)
-	self.config = config
+        self.config = config
         self.iq = Queue.Queue()
         self.bgiq = Queue.Queue()
         self.wq = Queue.Queue()
@@ -232,7 +232,7 @@ class ExportQueue(threading.Thread):
                 fpsnum,fpsden = 60000,1000
             if fpsover != None:
                 fps = fpsover
-        print "FPS parts:",fps,fpsnum,fpsden
+        #print "FPS parts:",fps,fpsnum,fpsden
         return fps,fpsnum,fpsden
 
     def setDngHeader(self,r,d,bits,frame,rgbl):
@@ -535,11 +535,29 @@ class ExportQueue(threading.Thread):
             su.dwFlags |= subprocess.STARTF_USESHOWWINDOW
             su.wShowWindow = subprocess.SW_HIDE
             kwargs["startupinfo"] = su
+        ffmpegWithAudioConfig = self.config.getState("ffmpegWithAudioConfig",raw=True)
+        ffmpegNoAudioConfig = self.config.getState("ffmpegNoAudioConfig", raw=True)
+        if ffmpegWithAudioConfig == None:
+            ffmpegWithAudioConfig = "-f mov -vf vflip -vcodec prores_ks -profile:v 4 -alpha_bits 0 -vendor ap4h -q:v 4 -acodec copy %s.MOV"
+            self.config.setState("ffmpegWithAudioConfig",ffmpegWithAudioConfig,raw=True)
+        if ffmpegNoAudioConfig == None:
+            ffmpegNoAudioConfig = "-f mov -vf vflip -vcodec prores_ks -profile:v 4 -alpha_bits 0 -vendor ap4h -q:v 4 %s.MOV"
+            self.config.setState("ffmpegNoAudioConfig",ffmpegNoAudioConfig,raw=True)
         if tempwavname != None: # Includes Audio
-            args = [exe,"-f","rawvideo","-pix_fmt","rgb48","-s","%dx%d"%(aw,ah),"-r","%.03f"%fps,"-i","-","-i",tempwavname,"-f","mov","-vf","vflip","-vcodec","prores_ks","-profile:v","4","-alpha_bits","0","-vendor","ap4h","-q:v","4","-r","%.03f"%fps,"-acodec","copy",movfile]
+            print "ffmpeg config (audio):",ffmpegWithAudioConfig
+            extraArgs = ffmpegWithAudioConfig.strip().split()
+            args = [exe,"-f","rawvideo","-pix_fmt","rgb48","-s","%dx%d"%(aw,ah),"-r","%.03f"%fps,"-i","-","-i",tempwavname]
+            args.extend(extraArgs[:-1])
+            args.extend(["-r","%.03f"%fps,extraArgs[-1]%movfile])
+            #"-f","mov","-vf","vflip","-vcodec","prores_ks","-profile:v","4","-alpha_bits","0","-vendor","ap4h","-q:v","4","-r","%.03f"%fps,"-acodec","copy",movfile]
         else: # No audio
             # ProRes 4444 with fixed qscale. Can be much smaller and faster to encode
-            args = [exe,"-f","rawvideo","-pix_fmt","rgb48","-s","%dx%d"%(aw,ah),"-r","%.03f"%fps,"-i","-","-an","-f","mov","-vf","vflip","-vcodec","prores_ks","-profile:v","4","-alpha_bits","0","-vendor","ap4h","-q:v","4","-r","%.03f"%fps,movfile]
+            print "ffmpeg config (no audio):",ffmpegNoAudioConfig
+            extraArgs = ffmpegNoAudioConfig.strip().split()
+            args = [exe,"-f","rawvideo","-pix_fmt","rgb48","-s","%dx%d"%(aw,ah),"-r","%.03f"%fps,"-i","-","-an"]
+            args.extend(extraArgs[:-1])
+            args.extend(["-r","%.03f"%fps,extraArgs[-1]%movfile])
+            #args = [exe,"-f","rawvideo","-pix_fmt","rgb48","-s","%dx%d"%(aw,ah),"-r","%.03f"%fps,"-i","-","-an","-f","mov","-vf","vflip","-vcodec","prores_ks","-profile:v","4","-alpha_bits","0","-vendor","ap4h","-q:v","4","-r","%.03f"%fps,movfile]
             # ProRes 4444 with fixed bitrate. Can be bigger and slower
             #args = [exe,"-f","rawvideo","-pix_fmt","rgb48","-s","%dx%d"%(r.width(),r.height()),"-r","%.03f"%r.fps,"-i","-","-an","-f","mov","-vf","vflip","-vcodec","prores_ks","-profile:v","4","-alpha_bits","0","-vendor","ap4h","-r","%.03f"%r.fps,movfile]
         #print "Encoder args:",args

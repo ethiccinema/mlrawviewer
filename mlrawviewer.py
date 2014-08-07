@@ -1367,7 +1367,7 @@ class Viewer(GLCompute.GLCompute):
     def refresh(self):
         self.needsRefresh = True
 
-    def checkoutfile(self,fn,ext):
+    def checkoutfile(self,fn,ext=""):
         exists = False
         try:
             exists = os.path.exists(self.outfilename)
@@ -1381,14 +1381,29 @@ class Viewer(GLCompute.GLCompute):
                 pass
             if not exists:
                 return None
-        rfn = os.path.splitext(os.path.split(fn)[1])[0]
+        rfn = os.path.splitext(os.path.split(fn)[1])[0]+ext
         i = 1
-        full = os.path.join(self.outfilename,rfn+"_%06d"%i+ext)
+        name = rfn+"_%06d"%i
+        #full = os.path.join(self.outfilename,name)
         queuedfiles = [j[1][3] for j in self.exporter.jobs.items()]
-        while os.path.exists(full) or full in queuedfiles:
+        increment = True
+        existing = os.listdir(self.outfilename)
+        while increment:
+            increment = False
+            for exists in existing:
+                if exists.startswith(name):
+                    increment = True
+                    break
+            for queued in queuedfiles:
+                if queued.startswith(name):
+                    increment = True
+                    break
+            if not increment:
+                break
             i += 1
-            full = os.path.join(self.outfilename,rfn+"_%06d"%i+ext)
-        return full    
+            name = rfn+"_%06d"%i
+        full = os.path.join(self.outfilename,name)
+        return full
 
     def stdoutReaderLoop(self):
         try:
@@ -1409,10 +1424,9 @@ class Viewer(GLCompute.GLCompute):
         config.setState("encodeType",self.setting_encodeType)
         self.refresh()
     def addEncoding(self):
-        
         if self.setting_encodeType[0] == ENCODE_TYPE_DNG:
             self.dngExport()
-        elif self.setting_encodeType[0] == ENCODE_TYPE_MOV:   
+        elif self.setting_encodeType[0] == ENCODE_TYPE_MOV:
             self.movExport()
     def addEncodingAll(self):
         """
@@ -1449,7 +1463,7 @@ class Viewer(GLCompute.GLCompute):
         elif self.setting_encodeType[0] == ENCODE_TYPE_MOV:
             for cand in fl:
                 filename = os.path.join(path,cand)
-                outfile = self.checkoutfile(filename,".MOV")
+                outfile = self.checkoutfile(filename)
                 if outfile==None: return # No directory set
                 wavname = os.path.splitext(filename)[0]+".WAV"
                 if os.path.isdir(filename):
@@ -1480,7 +1494,7 @@ class Viewer(GLCompute.GLCompute):
         self.refresh()
 
     def movExport(self):
-        outfile = self.checkoutfile(self.raw.filename,".MOV")
+        outfile = self.checkoutfile(self.raw.filename)
         if outfile==None: return # No directory set
         c = self.setting_rgb
         rgbl = (c[0],c[1],c[2],self.setting_brightness)
@@ -1725,7 +1739,6 @@ class Viewer(GLCompute.GLCompute):
                 else:
                     marks[index-2] = mark
                     marks[index-1] = (self.raw.frames()-1,self.MARK_OUT)
-                    
                 """
                     if markType==self.MARK_IN: # Must add end as out
                         self.marks.append((self.raw.frames(),self.MARK_OUT)
@@ -1747,14 +1760,14 @@ class Viewer(GLCompute.GLCompute):
                 # We are inserting same kind of mark as the previous one -> replace that
                 #print "replacing prev mark",index
                 marks[index-1] = mark
-        else: 
+        else:
             pass
             #if kind != markType:
             #    print "deleting mark",index
-            #    del self.marks[index] 
+            #    del self.marks[index]
 
         self.markSet(marks)
-        #print self.marks               
+        #print self.marks
         self.refresh()
 
     def dngExport(self):

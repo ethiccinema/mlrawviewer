@@ -83,21 +83,27 @@ class Config(object):
     def logFilePath(self):
         self.createConfigDir()
         return os.path.join(os.path.expanduser(CONFIG_PATH),"mlrawviewer.log")
-    def setState(self,varname,value):
+    def setState(self,varname,value,raw=False):
         varFileName = os.path.join(self.configPath,varname)
         try:
             varFile = file(varFileName,'wb')
-            cPickle.dump(value,varFile,cPickle.HIGHEST_PROTOCOL)
+            if not raw: # USe a pickle
+                cPickle.dump(value,varFile,cPickle.HIGHEST_PROTOCOL)
+            else:
+                varFile.write(value) # Better be text!
             varFile.close()
         except:
             pass
-    def getState(self,varname):
+    def getState(self,varname,raw=False):
         varFileName = os.path.join(self.configPath,varname)
         result = None
         try:
             if os.path.exists(varFileName):
                 varFile = file(varFileName,'rb')
-                result = cPickle.load(varFile)
+                if not raw:
+                    result = cPickle.load(varFile)
+                else:
+                    result = varFile.read()
                 varFile.close()
         except:
             pass
