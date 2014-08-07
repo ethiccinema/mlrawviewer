@@ -213,7 +213,7 @@ class ExportQueue(threading.Thread):
         fpsden = r.fpsden
         fpsover = r.getMeta("fpsOverride_v1")
         if fpsover != None:
-            print "fpsover",fpsover
+            #print "fpsover",fpsover
             if fpsover == 24000.0/1001.0:
                 fpsnum,fpsden = 24000,1001
             elif fpsover == 24000.0/1000.0:
@@ -280,8 +280,22 @@ class ExportQueue(threading.Thread):
         atm(e,DNG.Tag.DefaultCropSize,r.cropSize)
         m = [(int(v*10000),10000) for v in r.colorMatrix.A1]
         atm(e,DNG.Tag.ColorMatrix1,m)
+        aa = r.activeArea
+        fw = r.width()
+        fh = r.height()
+        tlx,tly = aa[1],aa[0]
+        aw = aa[3]-aa[1]
+        ah = aa[2]-aa[0]
+        if aw>=fw:
+            aw = fw
+            tlx = 0
+        if ah>=fh:
+            ah = fh
+            tly = 0
+        area = (tly,tlx,tly+ah,tlx+aw)
         if rgbl==None: # Pick a default
             atm(e,DNG.Tag.AsShotNeutral,((473635,1000000),(1000000,1000000),(624000,1000000)))
+            atm(e,DNG.Tag.ActiveArea,area)
         else:
             asnred = int(1000000/rgbl[0])
             asngreen = int(1000000/rgbl[1])
@@ -289,8 +303,8 @@ class ExportQueue(threading.Thread):
             atm(e,DNG.Tag.AsShotNeutral,((asnred,1000000),(asngreen,1000000),(asnblue,1000000)))
             ev = int(1000000*math.log(rgbl[3],2.0))
             at(e,DNG.Tag.BaselineExposure,(0,1000000)) # Not yet used by dcraw-based tools :-(
+            atm(e,DNG.Tag.ActiveArea,area)
             at(e,DNG.Tag.BaselineExposureOffset,(ev,1000000)) # Not yet used by dcraw-based tools :-(
-        atm(e,DNG.Tag.ActiveArea,r.activeArea)
         fps,fpsnum,fpsden = self.fpsParts(r)
         at(e,DNG.Tag.FrameRate,(fpsnum,fpsden))
         exif = DNG.DNG.IFD(d)
