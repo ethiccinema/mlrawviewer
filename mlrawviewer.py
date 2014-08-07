@@ -297,7 +297,22 @@ class Display(ui.Drawable):
         #self.rgbImage.addmipmap()
         # Scale
         PLOG(PLOG_GPU,"Display shader draw")
-        self.displayShader.draw(scene.size[0],scene.size[1],self.rgbImage)
+        #print scene.frames.raw.activeArea
+        #print scene.frames.raw.cropOrigin
+        #print scene.frames.raw.cropSize
+        aa = scene.frames.raw.activeArea
+        fw = scene.frames.raw.width()
+        fh = scene.frames.raw.height()
+        tlx,tly = aa[1],aa[0]
+        aw = aa[3]-aa[1]
+        ah = aa[2]-aa[0]
+        if aw>=fw:
+            aw = fw
+            tlx = 0
+        if ah>=fh:
+            ah = fh
+            tly = 0
+        self.displayShader.draw(scene.size[0],scene.size[1],self.rgbImage,(tlx,tly,aw,ah))
         PLOG(PLOG_GPU,"Display shader draw done")
         # 1 to 1
         #self.displayShader.draw(self.rgbImage.width,self.rgbImage.height,self.rgbImage)

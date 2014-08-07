@@ -1115,7 +1115,7 @@ class CDNG(ImageSequence):
 
         self.cropOrigin = (0,0)
         self.cropSize = (self._width,self._height)
-        self.activeArea = (0,0,self._width,self._height)
+        self.activeArea = (0,0,self._height,self._width) # Y,X,Y,X
         if DNG.Tag.DefaultCropOrigin[0] in fd.FULL_IFD.tags:
             print fd.FULL_IFD.tags[DNG.Tag.DefaultCropOrigin[0]][3]
             self.cropOrigin = tuple(fd.FULL_IFD.tags[DNG.Tag.DefaultCropOrigin[0]][3])
@@ -1235,7 +1235,7 @@ class TIFFSEQ(ImageSequence):
         self._height = fd.ifds[0].length
         self.cropOrigin = (0,0)
         self.cropSize = (self._width,self._height)
-        self.activeArea = (0,0,self._width,self._height)
+        self.activeArea = (0,0,self._height,self._width)
 
         bps = self.bitsPerSample = fd.ifds[0].tags[DNG.Tag.BitsPerSample[0]][3][0]
         print "BitsPerSample:",bps

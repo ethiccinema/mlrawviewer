@@ -31,9 +31,18 @@ attribute vec4 vertex;
 varying vec2 texcoord;
 uniform float time;
 uniform vec4 rawres;
+uniform vec4 activeArea; // Only display this area tl.x,tl.y,w,h in pixels
 void main() {
     gl_Position = vertex;
+    vec2 tl = activeArea.xy*rawres.zw;
+    vec2 br = tl + activeArea.zw*rawres.zw;
+    float temp = tl.y;
+    tl.y = 1.0 - br.y;
+    br.y = 1.0 - temp;
+    //br.y = rawres.w-br.y;
+    //tl.y = rawres.w-tl.y;
     texcoord = (vec2(.5*vertex.x+.5,.5+.5*vertex.y));
+    texcoord = max(min(texcoord,br),tl);
 }
 """
     fragment_src = """
@@ -50,16 +59,16 @@ void main() {
 
     def __init__(self,**kwds):
         myclass = self.__class__
-        super(ShaderDisplaySimple,self).__init__(myclass.vertex_src,myclass.fragment_src,["time","tex","rawres"],**kwds)
+        super(ShaderDisplaySimple,self).__init__(myclass.vertex_src,myclass.fragment_src,["time","tex","rawres","activeArea"],**kwds)
         self.svbo = None
     def prepare(self,svbo):
         if self.svbo==None:
             self.svbo = svbo
-            self.svbobase = svbo.allocate(4*12) 
+            self.svbobase = svbo.allocate(4*12)
             vertices = np.array((-1,-1,0,1,-1,0,-1,1,0,1,1,0),dtype=np.float32)
             self.svbo.update(vertices,self.svbobase)
 
-    def draw(self,width,height,texture):
+    def draw(self,width,height,texture,activeArea=None):
         self.use()
         glVertexAttribPointer(self.vertex,3,GL_FLOAT,GL_FALSE,0,self.svbo.vboOffset(self.svbobase))
         glEnableVertexAttribArray(self.vertex)
@@ -70,7 +79,11 @@ void main() {
         if w>0 and h>0:
             glUniform4f(self.uniforms["rawres"], w, h, 1.0/float(w),1.0/float(h))
         glUniform1f(self.uniforms["time"], 0)
+        if activeArea==None:
+            glUniform4f(self.uniforms["activeArea"],0.0,0.0,width,height)
+        else:
+            glUniform4f(self.uniforms["activeArea"],*activeArea)
         glDrawArrays(GL_TRIANGLE_STRIP, 0, 4)
-         
-    
+
+
 
