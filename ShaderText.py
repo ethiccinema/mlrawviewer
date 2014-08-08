@@ -88,7 +88,7 @@ void main() {
         if texture:
             texture.bindtex(True) # Use linear filter
         else:
-            GLCompute.Texture.unbindtex()
+            GLCompute.Texture.unbindtex(context=self.context)
         glUniform4f(self.uniforms["urgba"], rgba[0]*opacity,rgba[1]*opacity,rgba[2]*opacity,rgba[3]*opacity)
         glUniformMatrix4fv(self.uniforms["matrix"], 1, 0, matrix.m.tolist())
         glUniform1i(self.uniforms["tex"], 0)

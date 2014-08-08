@@ -89,6 +89,7 @@ class ExportQueue(threading.Thread):
         self.rgbImage = None
         self.svbo = None
         self.pauseState = True
+        self.context = GLCompute.ContextState()
         self.start()
     def pause(self):
         self.iq.put((self.COMMAND_PAUSE,))
@@ -706,10 +707,13 @@ class ExportQueue(threading.Thread):
             self.svbo = ui.SharedVbo(1024*16)
         if self.shaderQuality == None:
             self.shaderQuality = ShaderDemosaicCPU()
+            self.shaderQuality.context = self.context
         if self.shaderPatternNoise == None:
             self.shaderPatternNoise = ShaderPatternNoise()
+            self.shaderPatternNoise.context = self.context
         if self.shaderPreprocess == None:
             self.shaderPreprocess = ShaderPreprocess()
+            self.shaderPreprocess.context = self.context
         if self.rgbUploadTex:
             if self.config.isMac() or (self.rgbUploadTex.width != w or self.rgbUploadTex.height != h):
             # On OSX10.9.4, eventually crashes in texture upload unless we reallocate it. OS bug?
@@ -730,14 +734,21 @@ class ExportQueue(threading.Thread):
                 self.lastPP = None
         if self.rgbUploadTex == None:
             self.rgbUploadTex = GLCompute.Texture((w,h),None,hasalpha=False,mono=False,sixteen=True)
+            self.rgbUploadTex.context = self.context
             try: self.rgbImage = GLCompute.Texture((w,h),None,hasalpha=False,mono=False,fp=True)
             except GLError: self.rgbImage = GLCompute.Texture((w,h),None,hasalpha=False,sixteen=True)
+            self.rgbImage.context = self.context
             self.rawUploadTex = GLCompute.Texture((w,h),None,hasalpha=False,mono=True,sixteen=True)
+            self.rawUploadTex.context = self.context
             self.horizontalPattern = GLCompute.Texture((w,1),None,hasalpha=False,mono=False,fp=True)
+            self.horizontalPattern.context = self.context
             self.verticalPattern = GLCompute.Texture((1,h),None,hasalpha=False,mono=False,fp=True)
+            self.verticalPattern.context = self.context
             zero = "\0"*w*h*2*4 # 16bit RGBA
             self.preprocessTex1 = GLCompute.Texture((w,h),zero,hasalpha=True,mono=False,sixteen=True)
+            self.preprocessTex1.context = self.context
             self.preprocessTex2 = GLCompute.Texture((w,h),zero,hasalpha=True,mono=False,sixteen=True)
+            self.preprocessTex2.context = self.context
             self.lastPP = self.preprocessTex2
 
         if jobtype==0:

@@ -57,15 +57,17 @@ def glarray(gltype, seq):
     carray[:] = seq
     return carray
 
-current_shader = None
-blending = False
-current_texture = (None,False)
+class ContextState(object):
+    def __init__(self):
+        self.current_shader = None
+        self.blending = False
+        self.current_texture = (None,False)
+    def reset_state(self):
+        self.current_shader = None
+        self.blending = False
+        self.current_texture = (None,False)
 
-def reset_state():
-    global current_shader,blending,current_texture
-    current_shader = None
-    blending = False
-    current_texture = (None,False)
+SharedContextState = ContextState()
 
 class Shader(object):
     def __init__(self,vs,fs,uniforms,**kwds):
@@ -76,22 +78,21 @@ class Shader(object):
         self.uniforms = {}
         for key in uniforms:
             self.uniforms[key] = glGetUniformLocation(self.program,key)
+        self.context = SharedContextState
         super(Shader,self).__init__(**kwds)
     def use(self):
-        global current_shader
-        if current_shader != self:
+        if self.context.current_shader != self:
             PLOG(PLOG_CPU,"Changing shader")
             glUseProgram(self.program)
-            current_shader = self
+            self.context.current_shader = self
     def blend(self,state):
-        global blending
-        if state and not blending:
+        if state and not self.context.blending:
             glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA)
             glEnable(GL_BLEND)
-            blending = state
-        elif not state and blending:
+            self.context.blending = state
+        elif not state and self.context.blending:
             glDisable(GL_BLEND)
-            blending = state 
+            self.context.blending = state
 
 
 class Texture:
@@ -108,6 +109,7 @@ class Texture:
         self.atlasuh = 0 # Atlas is full down to this row
         self.atlasfh = 0 # Atlas is being filled down to here
         self.atlasfw = 0 # Atlas is being filled along to here
+        self.context = SharedContextState
         glActiveTexture(GL_TEXTURE0)
         glBindTexture(GL_TEXTURE_2D,self.id)
         glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
@@ -127,14 +129,14 @@ class Texture:
             try: glTexImage2D(GL_TEXTURE_2D,0,GL_R16,self.width,self.height,0,GL_RED,GL_UNSIGNED_SHORT,rgbadata)
             except GLError: glTexImage2D(GL_TEXTURE_2D,0,GL_RGB16,self.width,self.height,0,GL_RED,GL_UNSIGNED_SHORT,rgbadata)
         elif not mono and sixteen and hasalpha:
-            try: 
+            try:
                 glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA32F,self.width,self.height,0,GL_RGBA,GL_UNSIGNED_SHORT,rgbadata)
-            except GLError: 
+            except GLError:
                 glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA16,self.width,self.height,0,GL_RGBA,GL_UNSIGNED_SHORT,rgbadata)
         elif not mono and sixteen and not hasalpha:
-            try: 
+            try:
                 glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA32F,self.width,self.height,0,GL_RGB,GL_UNSIGNED_SHORT,rgbadata)
-            except GLError: 
+            except GLError:
                 glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA16,self.width,self.height,0,GL_RGB,GL_UNSIGNED_SHORT,rgbadata)
         else:
             glTexImage2D(GL_TEXTURE_2D,0,GL_RGB,self.width,self.height,0,GL_RGB,GL_UNSIGNED_BYTE,rgbadata)
@@ -197,7 +199,7 @@ class Texture:
             if (self.atlasfh + height) > self.height:
                 return None # Too high for new row
             newfw = width
-            xoff = 0 
+            xoff = 0
             yoff = self.atlasfh
             newuh = self.atlasfh
             newfh = newuh + height
@@ -214,7 +216,7 @@ class Texture:
         self.atlasfh = newfh
         self.atlasfw = newfw
         return len(self.atlas)-1
-        
+
     def update(self,rgbadata=None,xoff=0,yoff=0,width=None,height=None):
         w = width
         if (w==None):
@@ -257,16 +259,14 @@ class Texture:
         glViewport(0,0,self.width,self.height)
 
     @staticmethod
-    def unbindtex(texnum=0):
-        global current_texture
+    def unbindtex(texnum=0,context=SharedContextState):
         if texnum==0:
-            current_texture = (None,False)
+            context.current_texture = (None,False)
         glActiveTexture(GL_TEXTURE0+texnum)
         glBindTexture(GL_TEXTURE_2D, 0)
-        
+
     def bindtex(self,linear=False,texnum=0):
-        global current_texture
-        if texnum==0 and current_texture == (self,linear):
+        if texnum==0 and self.context.current_texture == (self,linear):
             return
         glActiveTexture(GL_TEXTURE0+texnum)
         glBindTexture(GL_TEXTURE_2D, self.id)
@@ -283,7 +283,7 @@ class Texture:
                 glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST)
             else:
                 glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST_MIPMAP_NEAREST)
-        current_texture = (self,linear)
+        self.context.current_texture = (self,linear)
 
 from datetime import datetime
 def timeInUsec():

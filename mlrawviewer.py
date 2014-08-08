@@ -926,7 +926,7 @@ class Viewer(GLCompute.GLCompute):
         PLOG(PLOG_FRAME,"onDraw start")
         self.init()
         if self._isFull != self.wasFull:
-            GLCompute.reset_state()
+            GLCompute.SharedContextState.reset_state()
             self.svbo.bound = False
             self.wasFull = self._isFull
         if not self.svbo.bound:

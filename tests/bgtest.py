@@ -161,7 +161,7 @@ class Viewer(GLCompute.GLCompute):
     def onDraw(self,width,height):
         self.init()
         if self._isFull != self.wasFull:
-            GLCompute.reset_state()
+            GLCompute.SharedContextState.reset_state()
             self.svbo.bound = False
             self.wasFull = self._isFull
             self.svbo.bind()
@@ -170,7 +170,7 @@ class Viewer(GLCompute.GLCompute):
         self.hw.update()
         self.iconitems[1].setRotation(self.iconAnim.value())
         self.scene.setSize(width,height)
-        
+
         self.box.setRotation(self.box.rotation - 0.1)
 
         self.svbo.upload() # In case there are changes
