@@ -10,7 +10,11 @@ rm -rf macdmg
 rm *.dmg
 mkdir macdmg
 mv dist/mlrawviewer.app macdmg/MlRawViewer.app
+rm -rf dist
+pyinstaller mlrawviewer_mac.spec
+rm macdmg/MlRawViewer.app/Contents/MacOS/mlrawviewer
+mv dist/mlrawviewer/* macdmg/MlRawViewer.app/Contents/MacOS/
 cp README macdmg/
-hdiutil create -srcfolder "macdmg" -volname "MlRawViewer" -fs HFS+ -fsargs "-c c=64,a=16,e=16" -format UDRW -size 20000k mlrawviewer.temp.dmg
+hdiutil create -srcfolder "macdmg" -volname "MlRawViewer" -fs HFS+ -fsargs "-c c=64,a=16,e=16" -format UDRW -size 50000k mlrawviewer.temp.dmg
 hdiutil convert "mlrawviewer.temp.dmg" -format UDZO -imagekey zlib-level=9 -o "MlRawViewer_1_2_0"
 
