@@ -16,11 +16,16 @@ a.binaries += [('glfw3.dll', 'glfw3.dll', 'DATA')]
 a.binaries += [('dialogs.exe', 'dialogs.exe', 'DATA')]
 exe = EXE(pyz,
           a.scripts,
-          a.binaries,
-          a.zipfiles,
-          a.datas,
+          exclude_binaries=True,
           name='mlrawviewer.exe',
           debug=False,
           strip=None,
           upx=True,
           console=False, icon='mlrawviewer-logo.ico' )
+coll = COLLECT(exe,
+               a.binaries,
+               a.zipfiles,
+               a.datas,
+               strip=None,
+               upx=True,
+               name='mlrawviewer')

@@ -138,3 +138,5 @@ L - Toggle looping or play-once mode
 H/G - Save/load current colour balance & brightness (for matching multiple takes)
 
 0 - Toggle stripe/hot-pixel removing preprocess pass
+
+Shift-F - FPS override

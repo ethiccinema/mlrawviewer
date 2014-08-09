@@ -397,7 +397,7 @@ class ImageSequence(object):
                 userMetadataFile = file(self._userMetadataFilename,'rb')
                 self._userMetadata = cPickle.load(userMetadataFile)
                 userMetadataFile.close()
-                #print "Read user metadata file. Contents:",len(self._userMetadata)
+                #print "Read user metadata file. Contents:",len(self._userMetadata),self._userMetadata.keys()
         except:
             self._userMetadata = {}
             import traceback
