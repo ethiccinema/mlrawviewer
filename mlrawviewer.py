@@ -1946,7 +1946,7 @@ def main():
             if afile != '':
                 config.setState("directory",os.path.dirname(filename))
     if filename == None:
-        filename = sys.argv[1]
+        filename = sys.argv[1].decode(sys.getfilesystemencoding())
     if not os.path.exists(filename):
         print "Error. Specified filename",filename,"does not exist"
         return -1
