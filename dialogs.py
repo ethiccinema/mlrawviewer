@@ -34,12 +34,17 @@ def openFilename(initialDir):
     return afile
 
 if __name__ == '__main__':
+    import codecs
+    toUtf8=codecs.getencoder('UTF8')
+
     dialogType = sys.argv[1]
     initial = sys.argv[2]
     if dialogType=="okToExit":
-        print okToExit()
+        sys.stdout.write(okToExit())
     elif dialogType=="chooseOutputDir":
-        print chooseOutputDir(initial)
+	e = toUtf8(chooseOutputDir(initial))
+	sys.stdout.write(e[0])
     elif dialogType=="openFilename":
-        print openFilename(initial)
+	e = toUtf8(openFilename(initial))
+	sys.stdout.write(e[0])
 

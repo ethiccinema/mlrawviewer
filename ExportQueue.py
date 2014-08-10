@@ -277,8 +277,6 @@ class ExportQueue(threading.Thread):
         atm(e,DNG.Tag.LinearizationTable,[i for i in range(2**14-1)])
         at(e,DNG.Tag.BlackLevel,r.black)
         at(e,DNG.Tag.WhiteLevel,r.white)
-        atm(e,DNG.Tag.DefaultCropOrigin,r.cropOrigin)
-        atm(e,DNG.Tag.DefaultCropSize,r.cropSize)
         m = [(int(v*10000),10000) for v in r.colorMatrix.A1]
         atm(e,DNG.Tag.ColorMatrix1,m)
         aa = r.activeArea
@@ -287,13 +285,18 @@ class ExportQueue(threading.Thread):
         tlx,tly = aa[1],aa[0]
         aw = aa[3]-aa[1]
         ah = aa[2]-aa[0]
+	cw,ch = r.cropSize
         if aw>=fw:
             aw = fw
             tlx = 0
+            cw = fw
         if ah>=fh:
             ah = fh
             tly = 0
+            ch = fh
         area = (tly,tlx,tly+ah,tlx+aw)
+        atm(e,DNG.Tag.DefaultCropOrigin,r.cropOrigin)
+        atm(e,DNG.Tag.DefaultCropSize,(cw,ch))
         if rgbl==None: # Pick a default
             atm(e,DNG.Tag.AsShotNeutral,((473635,1000000),(1000000,1000000),(624000,1000000)))
             atm(e,DNG.Tag.ActiveArea,area)
