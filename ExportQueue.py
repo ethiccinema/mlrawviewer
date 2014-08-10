@@ -414,7 +414,7 @@ class ExportQueue(threading.Thread):
             self.tempEncoderWav(wavfile,fps,outwavname,startFrame,endFrame,audioOffset)
         targfile = os.path.splitext(os.path.split(r.filename)[1])[0]
         target = os.path.join(target,targfile)
-        print "DNG export to",target,"started"
+        print "DNG export to",repr(target),"started"
         self.writer = threading.Thread(target=self.dngWriter)
         self.writer.daemon = True
         self.writer.start()
@@ -463,7 +463,7 @@ class ExportQueue(threading.Thread):
                 break
         self.wq.join()
         self.jobstatus[jobindex] = 1.0
-        print "DNG export to",target,"finished"
+        print "DNG export to",repr(target),"finished"
         r.close()
 
     def dngWriter(self):
@@ -506,8 +506,10 @@ class ExportQueue(threading.Thread):
         self.stdoutReader = None
 
     def processExportMov(self,jobindex,filename,movfile,wavfile,startFrame,endFrame,audioOffset,rgbl,tm,matrix,preprocess):
+        import codecs
+        toUtf8 = codecs.getencoder('UTF8')
         target = movfile
-        print "MOV export to",movfile,"started"
+        print "MOV export to",repr(movfile),"started"
         tempwavname = None
         r = MlRaw.loadRAWorMLV(filename)
         if endFrame == None:
@@ -561,12 +563,13 @@ class ExportQueue(threading.Thread):
         if ffmpegNoAudioConfig == None:
             ffmpegNoAudioConfig = "-f mov -vf vflip -vcodec prores_ks -profile:v 4 -alpha_bits 0 -vendor ap4h -q:v 4 %s.MOV"
             self.config.setState("ffmpegNoAudioConfig",ffmpegNoAudioConfig,raw=True)
+	outname = movfile.encode(sys.getfilesystemencoding())
         if tempwavname != None: # Includes Audio
             print "ffmpeg config (audio):",ffmpegWithAudioConfig
             extraArgs = ffmpegWithAudioConfig.strip().split()
             args = [exe,"-f","rawvideo","-pix_fmt","rgb48","-s","%dx%d"%(aw,ah),"-r","%.03f"%fps,"-i","-","-i",tempwavname]
             args.extend(extraArgs[:-1])
-            args.extend(["-r","%.03f"%fps,extraArgs[-1]%movfile])
+            args.extend(["-r","%.03f"%fps,extraArgs[-1]%outname])
             #"-f","mov","-vf","vflip","-vcodec","prores_ks","-profile:v","4","-alpha_bits","0","-vendor","ap4h","-q:v","4","-r","%.03f"%fps,"-acodec","copy",movfile]
         else: # No audio
             # ProRes 4444 with fixed qscale. Can be much smaller and faster to encode
@@ -574,11 +577,11 @@ class ExportQueue(threading.Thread):
             extraArgs = ffmpegNoAudioConfig.strip().split()
             args = [exe,"-f","rawvideo","-pix_fmt","rgb48","-s","%dx%d"%(aw,ah),"-r","%.03f"%fps,"-i","-","-an"]
             args.extend(extraArgs[:-1])
-            args.extend(["-r","%.03f"%fps,extraArgs[-1]%movfile])
+            args.extend(["-r","%.03f"%fps,extraArgs[-1]%outname])
             #args = [exe,"-f","rawvideo","-pix_fmt","rgb48","-s","%dx%d"%(aw,ah),"-r","%.03f"%fps,"-i","-","-an","-f","mov","-vf","vflip","-vcodec","prores_ks","-profile:v","4","-alpha_bits","0","-vendor","ap4h","-q:v","4","-r","%.03f"%fps,movfile]
             # ProRes 4444 with fixed bitrate. Can be bigger and slower
             #args = [exe,"-f","rawvideo","-pix_fmt","rgb48","-s","%dx%d"%(r.width(),r.height()),"-r","%.03f"%r.fps,"-i","-","-an","-f","mov","-vf","vflip","-vcodec","prores_ks","-profile:v","4","-alpha_bits","0","-vendor","ap4h","-r","%.03f"%r.fps,movfile]
-        #print "Encoder args:",args
+        print "Encoder args:",args
         #print "Subprocess args:",kwargs
         self.encoderProcess = subprocess.Popen(args,**kwargs)
         self.encoderProcess.poll()
@@ -644,7 +647,7 @@ class ExportQueue(threading.Thread):
                 break
         self.dq.join()
         self.jobstatus[jobindex] = 1.0
-        print "MOV export to",movfile,"finished"
+        print "MOV export to",repr(movfile),"finished"
         r.close()
 
     def stdoutReaderLoop(self):
