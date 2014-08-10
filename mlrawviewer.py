@@ -34,7 +34,7 @@ from multiprocessing import Process
 
 from Config import Config
 
-config = Config(version=(1,2,0))
+config = Config(version=(1,2,1))
 programpath = os.path.abspath(os.path.split(sys.argv[0])[0])
 if getattr(sys,'frozen',False):
     programpath = sys._MEIPASS
@@ -1888,11 +1888,15 @@ class Viewer(GLCompute.GLCompute):
             self.refresh()
 
 def launchDialog(dialogtype,initial="None"):
+    import codecs
+    toUtf8=codecs.getencoder('UTF8')
+    fromUtf8=codecs.getdecoder('UTF8')
+    initialUtf8 = toUtf8(initial)[0]
     kwargs = {"stdout":subprocess.PIPE}
     frozen = getattr(sys,'frozen',False)
     if config.isMac() and frozen:
         exepath = os.path.join(sys._MEIPASS,"dialogs")
-        args = [exepath,dialogtype,initial]
+        args = [exepath,dialogtype,initialUtf8]
     elif config.isWin() and frozen:
         kwargs = {"stdin":subprocess.PIPE,"stdout":subprocess.PIPE,"stderr":subprocess.STDOUT}
         if subprocess.mswindows:
@@ -1901,15 +1905,15 @@ def launchDialog(dialogtype,initial="None"):
             su.wShowWindow = subprocess.SW_HIDE
             kwargs["startupinfo"] = su
         exepath = os.path.join(sys._MEIPASS,"dialogs.exe")
-        args = [exepath,dialogtype,initial]
+        args = [exepath,dialogtype,initialUtf8]
     else:
-        args = ["python","dialogs.py",dialogtype,initial]
-    print "args:",args
-    print "kwargs:",kwargs
+        args = ["python","dialogs.py",dialogtype,initialUtf8]
+    #print "args:",args
+    #print "kwargs:",kwargs
     p = subprocess.Popen(args,**kwargs)
-    print p
-    result = p.stdout.read().strip()
-    print "result",result
+    #print p
+    result = fromUtf8(p.stdout.read())[0].strip()
+    #print "result",result
     p.wait()
     return result
 

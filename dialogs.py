@@ -35,10 +35,11 @@ def openFilename(initialDir):
 
 if __name__ == '__main__':
     import codecs
+    fromUtf8=codecs.getdecoder('UTF8')
     toUtf8=codecs.getencoder('UTF8')
 
     dialogType = sys.argv[1]
-    initial = sys.argv[2]
+    initial = unicode(fromUtf8(sys.argv[2])[0])
     if dialogType=="okToExit":
         sys.stdout.write(okToExit())
     elif dialogType=="chooseOutputDir":
