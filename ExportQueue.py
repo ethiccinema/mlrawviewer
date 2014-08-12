@@ -558,10 +558,10 @@ class ExportQueue(threading.Thread):
         ffmpegWithAudioConfig = self.config.getState("ffmpegWithAudioConfig",raw=True)
         ffmpegNoAudioConfig = self.config.getState("ffmpegNoAudioConfig", raw=True)
         if ffmpegWithAudioConfig == None:
-            ffmpegWithAudioConfig = "-f mov -vf vflip -vcodec prores_ks -profile:v 4 -alpha_bits 0 -vendor ap4h -q:v 4 -acodec copy %s.MOV"
+            ffmpegWithAudioConfig = "-f mov -vf vflip -vcodec prores_ks -profile:v 4 -alpha_bits 0 -vendor ap4h -q:v 0 -acodec copy %s.MOV"
             self.config.setState("ffmpegWithAudioConfig",ffmpegWithAudioConfig,raw=True)
         if ffmpegNoAudioConfig == None:
-            ffmpegNoAudioConfig = "-f mov -vf vflip -vcodec prores_ks -profile:v 4 -alpha_bits 0 -vendor ap4h -q:v 4 %s.MOV"
+            ffmpegNoAudioConfig = "-f mov -vf vflip -vcodec prores_ks -profile:v 4 -alpha_bits 0 -vendor ap4h -q:v 0 %s.MOV"
             self.config.setState("ffmpegNoAudioConfig",ffmpegNoAudioConfig,raw=True)
 	outname = movfile.encode(sys.getfilesystemencoding())
         if tempwavname != None: # Includes Audio

@@ -409,6 +409,7 @@ class DisplayScene(ui.Scene):
         self.coldata = ui.Text("",svbo=self.frames.svbo)
         self.coldata.setScale(0.18)
         self.coldata.ignoreInput = True
+        self.coldata.maxchars = 9
         self.exportq = ui.Flickable(400.0,200.0,svbo=frames.svbo)
         self.exportq.edges = (1.0,1.0,0.01,0.01)
         self.exportq.colour = (1.0,1.0,1.0,1.0)
