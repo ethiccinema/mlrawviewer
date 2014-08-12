@@ -58,7 +58,7 @@ Playback will happen at the file frame rate or the closest achievable if constra
 Encoding is made using the version of "ffmpeg" found either in the scritp directory or on the path. Currently it tries to encode
 with the "prores_ks" codec, which may only be found in newer versions of (real) ffmpeg. You can download a suitable (e.g. static) version of ffmpeg from http://www.ffmpeg.org/download.html
 
-A new file can be dragged onto an existing window and will be 
+A new file can be dragged onto an existing window and will be
 loaded (GLFW backend only).
 
 Usage (gui)
@@ -78,7 +78,14 @@ State icons along the left are as follows:
 
 They can be clicked to change the current state.
 
-On the bottom right are a brightness (exposure) bar and a white balance box. Also, clicking anywhere else in the image will set the white balance using the given pixel as a neutral colour.
+On the bottom right are a brightness (exposure) bar and a white balance box.
+Above that are 6 icons:
+- Reset brightness to EV 0.0
+- White balance dropper. Click it to red, then click a neutral colour anywhere in the image to set the white balance
+- Undo brightness/balance change
+- Redo brightness/balance change (after undoing)
+- Store current brightness/balance to memory
+- Restore brightness/balance from memory (can be in another clip)
 
 Keys
 ----

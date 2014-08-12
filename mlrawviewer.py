@@ -34,7 +34,7 @@ from multiprocessing import Process
 
 from Config import Config
 
-config = Config(version=(1,2,1))
+config = Config(version=(1,2,2))
 programpath = os.path.abspath(os.path.split(sys.argv[0])[0])
 if getattr(sys,'frozen',False):
     programpath = sys._MEIPASS
@@ -320,6 +320,7 @@ class Display(ui.Drawable):
 class DisplayScene(ui.Scene):
     def __init__(self,frames,**kwds):
         super(DisplayScene,self).__init__(**kwds)
+        self.dropperActive = False
         self.frames = frames # Frames interface
         self.icons = zlib.decompress(file(os.path.join(programpath,"data/icons.z"),'rb').read())
         self.iconsz = int(math.sqrt(len(self.icons)))
@@ -366,6 +367,26 @@ class DisplayScene(ui.Scene):
         self.encode = self.newIcon(0,0,128,128,2,self.encodeClick)
         self.encode.colour = (0.2,0.0,0.0,0.5)
         self.encode.setScale(0.5)
+
+        self.cidropper = self.newIcon(0,0,128,128,24,self.ciDropperClick)
+        self.cidropper.colour = (0.5,0.5,0.5,0.5)
+        self.cidropper.setScale(0.25)
+        self.cievzero = self.newIcon(0,0,128,128,25,self.ciEvzeroClick)
+        self.cievzero.colour = (0.5,0.5,0.5,0.5)
+        self.cievzero.setScale(0.25)
+        self.ciundo = self.newIcon(0,0,128,128,26,self.ciUndoClick)
+        self.ciundo.colour = (0.5,0.5,0.5,0.5)
+        self.ciundo.setScale(0.25)
+        self.ciredo = self.newIcon(0,0,128,128,27,self.ciRedoClick)
+        self.ciredo.colour = (0.5,0.5,0.5,0.5)
+        self.ciredo.setScale(0.25)
+        self.cistore = self.newIcon(0,0,128,128,28,self.ciStoreClick)
+        self.cistore.colour = (0.5,0.5,0.5,0.5)
+        self.cistore.setScale(0.25)
+        self.cirecall = self.newIcon(0,0,128,128,29,self.ciRecallClick)
+        self.cirecall.colour = (0.5,0.5,0.5,0.5)
+        self.cirecall.setScale(0.25)
+        self.ciItems = [self.cievzero,self.cidropper,self.ciundo,self.ciredo,self.cistore,self.cirecall]
         #self.encodeStatus = ui.Geometry(svbo=frames.svbo)
         self.balance = ui.XYGraph(128,128,self.balanceClick,svbo=self.frames.svbo)
         self.balance.gradient(128,128,tl=(0.25,0.0,0.0,0.25),tr=(0.25,0.0,0.25,0.25),bl=(0.0,0.0,0.0,0.25),br=(0.0,0.0,0.25,0.25))
@@ -385,6 +406,9 @@ class DisplayScene(ui.Scene):
         self.metadata = ui.Text("",svbo=self.frames.svbo)
         self.metadata.setScale(0.25)
         self.metadata.ignoreInput = True
+        self.coldata = ui.Text("",svbo=self.frames.svbo)
+        self.coldata.setScale(0.18)
+        self.coldata.ignoreInput = True
         self.exportq = ui.Flickable(400.0,200.0,svbo=frames.svbo)
         self.exportq.edges = (1.0,1.0,0.01,0.01)
         self.exportq.colour = (1.0,1.0,1.0,1.0)
@@ -395,31 +419,34 @@ class DisplayScene(ui.Scene):
         self.exportq.children.append(self.exportqlist)
         self.timestamp = ui.Geometry(svbo=frames.svbo)
         self.iconItems = [self.fullscreen,self.mapping,self.drop,self.quality,self.stripes,self.loop,self.outformat,self.addencode,self.encode,self.play]
-        self.overlay = [self.iconBackground,self.progressBackground,self.progress,self.timestamp,self.update,self.balance,self.balanceHandle,self.brightness,self.brightnessHandle,self.mark,self.mdbg,self.metadata,self.exportq]
+        self.overlay = [self.iconBackground,self.progressBackground,self.progress,self.timestamp,self.update,self.balance,self.balanceHandle,self.brightness,self.brightnessHandle,self.mark,self.mdbg,self.metadata,self.exportq,self.coldata]
         self.overlay.extend(self.iconItems)
+        self.overlay.extend(self.ciItems)
         self.overlay.append(self.whitePicker) # So it is on the bottom
         self.drawables.extend([self.display])
         self.drawables.extend(self.overlay)
         self.timeline = ui.Timeline()
         self.fadeAnimation = ui.Animation(self.timeline,1.0)
-        
+
     def isDirty(self):
         dirty = False
         for d in self.drawables:
             if d.matrixDirty: dirty = True
         return dirty
-    
+
     def setRgbImage(self,rgbImage):
         self.display.setRgbImage(rgbImage)
 
     def whiteClick(self,x,y):
-        self.frames.useWhitePoint(float(x)/float(self.size[0])*self.frames.raw.width(),float(y)/float(self.size[1])*self.frames.raw.height())
+        if self.dropperActive:
+            self.frames.useWhitePoint(float(x)/float(self.size[0])*self.frames.raw.width(),float(y)/float(self.size[1])*self.frames.raw.height())
+        self.dropperActive = False
 
     def progressClick(self,x,y):
         targetFrame = self.frames.raw.frames()*(float(x)/float(self.progress.size[0]))
         #print "Progress click",x,y,"targetFrame",targetFrame
         self.frames.jumpTo(targetFrame)
-    
+
     def updateClick(self,x,y):
         global config
         import webbrowser
@@ -437,13 +464,24 @@ class DisplayScene(ui.Scene):
     def brightnessClick(self,x,y):
         b = 15.0*(1.0-y/128.0)-5.0
         b2 = math.pow(2.0,b)
-        self.frames.setting_brightness = b2
-        #self.frames.changeWhiteBalance(r,g,b,"%f,%f,%f"%(r,g,b))
-        if self.frames.paused:
-            self.frames.refresh()
+        self.frames.setBrightness(b2)
 
     def playClick(self,x,y):
         self.frames.togglePlay()
+
+    def ciEvzeroClick(self,x,y):
+        self.frames.setBrightness(1.0)
+
+    def ciDropperClick(self,x,y):
+        self.dropperActive = True
+    def ciUndoClick(self,x,y):
+        self.frames.colourUndo()
+    def ciRedoClick(self,x,y):
+        self.frames.colourRedo()
+    def ciStoreClick(self,x,y):
+        self.frames.saveBalance()
+    def ciRecallClick(self,x,y):
+        self.frames.loadBalance()
 
     def loopClick(self,x,y):
         self.frames.toggleLooping()
@@ -456,13 +494,13 @@ class DisplayScene(ui.Scene):
 
     def qualityClick(self,x,y):
         self.frames.toggleQuality()
-    
+
     def stripesClick(self,x,y):
         self.frames.toggleStripes()
 
     def dropClick(self,x,y):
         self.frames.toggleDropFrames()
-    
+
     def outfmtClick(self,x,y):
         self.frames.toggleEncodeType()
 
@@ -503,9 +541,17 @@ class DisplayScene(ui.Scene):
             self.encode.colour = (0.5,0.0,0.0,0.5)
         else:
             self.encode.colour = (0.2,0.0,0.0,0.5)
+        if self.dropperActive:
+            self.cidropper.colour = (1.0,0.0,0.0,0.5)
+        else:
+            self.cidropper.colour = (0.5,0.5,0.5,0.5)
         #if self.exporter.busy:
         #    for index in self.exporter.jobs.keys():
         #        print "export",index,self.exporter.status(index)
+
+    def summariseColdata(self):
+        b = math.log(self.frames.setting_brightness,2.0)
+        return "EV: %+0.3f"%b
 
     def summariseMetadata(self):
         r = self.frames.raw
@@ -540,7 +586,6 @@ class DisplayScene(ui.Scene):
         idle = self.frames.userIdleTime()
         if idle>5.0 and self.fadeAnimation.targval == 1.0 and not self.frames.encoding():
             self.fadeAnimation.setTarget(0.0,2.0,0.0,ui.Animation.SMOOTH)
-            
             self.frames.setCursorVisible(False)
         elif idle<=5.0:
             self.frames.setCursorVisible(True)
@@ -582,7 +627,13 @@ class DisplayScene(ui.Scene):
         b = math.log(self.frames.setting_brightness,2.0)
         b2 = 128.0-128.0*((b+5.0)/15.0)
         self.brightnessHandle.setPos(rtl+16.0-4.0,rtr+b2-4.0)
-        self.updateIcons() 
+        base = rtl+4.0
+        iconSpacing = 28.0
+        for i in self.ciItems:
+            i.setScale(0.18)
+            i.setPos(base,rtr-24.0)
+            base += iconSpacing
+        self.updateIcons()
         fw = self.frames.raw.frames()-1
         if fw==0: fw=1
         progWidth = (float(frameNumber)/float(fw))*rectWidth
@@ -602,12 +653,15 @@ class DisplayScene(ui.Scene):
         else:
             self.timestamp.label("%02d:%02d.%03d (%d/%d) Indexing %s: %d%%"%(minutes,seconds,fsec,frameNumber+1,self.frames.raw.frames(),self.frames.raw.description(),self.frames.raw.indexingStatus()*100.0),maxchars=100)
         self.timestamp.colour = (0.0,0.0,0.0,1.0)
-        self.metadata.setPos(66.0,10.0)      
-        self.metadata.text = self.summariseMetadata() 
+        self.metadata.setPos(66.0,10.0)
+        self.metadata.text = self.summariseMetadata()
         self.metadata.update()
+        self.coldata.setPos(rtl+4.0,rtr+126.0)
+        self.coldata.text = self.summariseColdata()
+        self.coldata.update()
         self.mdbg.setPos(54.0,4.0)
         self.mdbg.rectangle(self.metadata.size[0]+24.0,self.metadata.size[1]+12.0,rgba=(0.0,0.0,0.0,0.25))
- 
+
         ua = config.isUpdateAvailable()
         uc = config.versionUpdateClicked()
         showUpdate = ua and (ua != uc)
@@ -627,7 +681,7 @@ class DisplayScene(ui.Scene):
             if len(exports)>0:
                 exports += "\n"
             job = self.frames.exporter.jobs[ix]
-            jobtype = job[1] 
+            jobtype = job[1]
             if jobtype == ExportQueue.ExportQueue.JOB_DNG:
                 rfile = os.path.split(job[2])[1]
                 targ = os.path.split(job[3])[1]
@@ -724,6 +778,8 @@ class Audio(object):
 class Viewer(GLCompute.GLCompute):
     def __init__(self,raw,outfilename,wavfilename=None,**kwds):
         userWidth = 720
+        self.colourUndoStack = []
+        self.colourRedoStack = []
         self.vidAspectHeight = float(raw.height())/(raw.width()) # multiply this number on width to give height in aspect
         self.vidAspectWidth = float(raw.width())/(raw.height()) # multiply this number on height to give height in aspect
         self.raw = raw
@@ -801,7 +857,7 @@ class Viewer(GLCompute.GLCompute):
         fl.extend(cdngs)
         fl.sort()
         return fl
- 
+
     def loadNewRawSet(self,step):
         fn = self.raw.filename
         path,name = os.path.split(fn) # Correct for files and CDNG dirs
@@ -825,7 +881,7 @@ class Viewer(GLCompute.GLCompute):
 
     def loadSet(self,raw,newname):
         self.wavname = newname[:-3]+"WAV"
-    
+
         # Hack to load any WAV file we find in a DNG dir
         if os.path.isdir(newname) or newname.lower().endswith(".dng"):
             wavdir = os.path.split(newname)[0]
@@ -849,6 +905,8 @@ class Viewer(GLCompute.GLCompute):
             except:
                 self.wavname = newname[:-3]+".WAV"
         """
+        self.colourUndoStack = []
+        self.colourRedoStack = []
         self.audio.stop()
         self.demosaic.free() # Release textures
         self.wav = None
@@ -890,8 +948,8 @@ class Viewer(GLCompute.GLCompute):
     def loadWav(self,wavname):
         self.audio.stop()
         self.wav = None
-        self.wavname = wavname    
-        self.initWav()    
+        self.wavname = wavname
+        self.initWav()
         if not self.paused:
             self.togglePlay() # Pause..
             self.togglePlay() # ...and restart with new Wav
@@ -946,13 +1004,13 @@ class Viewer(GLCompute.GLCompute):
                 aspectWidth = int(aspectWidth*(4.0/3))
             elif self.anamorLens == 2:
                 aspectHeight = int(aspectHeight/1.4)
-                aspectWidth = int(aspectWidth*1.4)          
+                aspectWidth = int(aspectWidth*1.4)
             elif self.anamorLens == 3:
                 aspectHeight = int(aspectHeight/1.5)
-                aspectWidth = int(aspectWidth*1.5)                 
+                aspectWidth = int(aspectWidth*1.5)
             elif self.anamorLens == 4:
                 aspectHeight = int(aspectHeight/2.0)
-                aspectWidth = int(aspectWidth*2.0)          
+                aspectWidth = int(aspectWidth*2.0)
         if height > aspectHeight:
             self.display.setSize(width,aspectHeight)
             self.display.setPosition(0, height/2 - aspectHeight/2)
@@ -960,7 +1018,7 @@ class Viewer(GLCompute.GLCompute):
             self.display.setSize(aspectWidth,height)
             self.display.setPosition(width/2 - aspectWidth/2, 0)
         self.renderScenes()
-        """ 
+        """
         now = time.time()
         if self.fpsMeasure == None:
             self.fpsMeasure = now
@@ -1045,8 +1103,8 @@ class Viewer(GLCompute.GLCompute):
             self.changeWhiteBalance(self.setting_rgb[0], self.setting_rgb[1], self.setting_rgb[2]*0.99, "blue-")
         elif k==self.KEY_NINE:
             self.changeWhiteBalance(self.setting_rgb[0], self.setting_rgb[1], self.setting_rgb[2]*(1.0/0.99), "blue+")
-        
-        # Green control is now done by modifying R/B/brightness together 
+
+        # Green control is now done by modifying R/B/brightness together
         elif k==self.KEY_FIVE:
             self.changeWhiteBalance(self.setting_rgb[0]*(1.0/0.99), self.setting_rgb[1], self.setting_rgb[2]*(1.0/0.99), "green-")
             self.scaleBrightness(0.99)
@@ -1121,7 +1179,7 @@ class Viewer(GLCompute.GLCompute):
                 self.exporter.cancelJob(self.exporter.currentjob)
             else:
                 nextjobs = self.exporter.jobs.keys()
-                if len(nextjobs)>0: 
+                if len(nextjobs)>0:
                     nextjobs.sort()
                     self.exporter.cancelJob(nextjobs[0])
             self.refresh()
@@ -1150,7 +1208,29 @@ class Viewer(GLCompute.GLCompute):
             self.refresh()
         self.lastEventTime = now
 
+    def colourUndo(self):
+        if len(self.colourUndoStack)==0: return
+        brightness,balance = self.colourUndoStack.pop()
+        self.colourRedoStack.append((self.setting_brightness,self.setting_rgb))
+        self.setting_brightness = brightness
+        self.setting_rgb = balance
+        self.raw.setMeta("brightness_v1",self.setting_brightness)
+        self.raw.setMeta("balance_v1",self.setting_rgb)
+        self.refresh()
+
+    def colourRedo(self):
+        if len(self.colourRedoStack)==0: return
+        brightness,balance = self.colourRedoStack.pop()
+        self.colourUndoStack.append((self.setting_brightness,self.setting_rgb))
+        self.setting_brightness = brightness
+        self.setting_rgb = balance
+        self.raw.setMeta("brightness_v1",self.setting_brightness)
+        self.raw.setMeta("balance_v1",self.setting_rgb)
+        self.refresh()
+
     def setBrightness(self,value):
+        self.colourRedoStack = []
+        self.colourUndoStack.append((self.setting_brightness,self.setting_rgb))
         self.setting_brightness = value
         #print "Brightness",self.setting_brightness
         self.raw.setMeta("brightness_v1",self.setting_brightness)
@@ -1168,9 +1248,11 @@ class Viewer(GLCompute.GLCompute):
         R = self.checkMultiplier(R)
         G = self.checkMultiplier(G)
         B = self.checkMultiplier(B)
+        self.colourUndoStack.append((self.setting_brightness,self.setting_rgb))
         self.setting_rgb = (R, G, B)
         self.raw.setMeta("balance_v1",self.setting_rgb)
         #print "%s:\t %.1f %.1f %.1f"%(Name, R, G, B)
+        self.colourRedoStack = []
         self.refresh()
     def togglePlay(self):
         self.paused = not self.paused
@@ -1262,16 +1344,16 @@ class Viewer(GLCompute.GLCompute):
                 pass
             if (newstat < self.exportLastStatus) or ((newstat - self.exportLastStatus)>0.01):
                 self.exportLastStatus = newstat
-                self.refresh() 
+                self.refresh()
         if self.wasExporting and not self.exporter.busy:
             self.wasExporting = False
-       
+
         if self.userIdleTime()>5.0 and self.userIdleTime()<7.0:
             self.refresh()
 
         if self.display.isDirty():
             self.refresh()
- 
+
         self.handleIndexing()
         self.checkForLoadedFrames()
         wrongFrame = self.neededFrame != self.drawnFrameNumber
@@ -1318,22 +1400,22 @@ class Viewer(GLCompute.GLCompute):
                 self.needsRefresh = True
                 self.redisplay()
             else:
-                # Is there a better frame in the cache than the one we are currently displaying? 
+                # Is there a better frame in the cache than the one we are currently displaying?
                 newer = []
-                older = [] 
+                older = []
                 for ix in self.frameCache:
                     if ix>self.neededFrame:
                         newer.append(ix)
                     if ix<self.neededFrame:
                         older.append(ix)
-                       
+
                 newer.sort()
                 older.sort()
                 nearest = None
                 if len(newer)>0:
                     nearest = newer[0]
                 elif len(older)>0:
-                    nearest = older[-1] 
+                    nearest = older[-1]
                 if nearest:
                     if abs(nearest-self.neededFrame)<abs(self.neededFrame-self.playFrameNumber):
                         # It is "better"
@@ -1828,7 +1910,7 @@ class Viewer(GLCompute.GLCompute):
             blue = blue/self.playFrame.rawwbal[2]
             redMul = float(green)/float(red)
             blueMul = float(green)/float(blue)
-            self.setting_rgb = (redMul,1.0,blueMul)
+            #self.setting_rgb = (redMul,1.0,blueMul)
             self.changeWhiteBalance(redMul,1.0,blueMul,"User")
             #print "Setting white Balance from",x,y,"to",self.setting_rgb,self.playFrame.rawwbal
             #self.refresh()
