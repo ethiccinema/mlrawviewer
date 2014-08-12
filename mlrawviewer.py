@@ -871,7 +871,7 @@ class Viewer(GLCompute.GLCompute):
         found = False
         while not found:
             newname = os.path.join(path,fl[newOne])
-            print "Loading",newname
+            print "Loading",repr(newname)
             try:
                 r = MlRaw.loadRAWorMLV(newname)
                 found = True
