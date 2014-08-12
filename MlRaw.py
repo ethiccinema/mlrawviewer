@@ -583,6 +583,7 @@ class MLV(ImageSequence):
         self.currentLens = None
         self.currentRtc = None
         self.identity = ("Canon","EOS","",None)
+        self.allParsed = False
         header,raw,parsedTo,size,ts = self.parseFile(0,self.framepos)
         self.fps = float(header[16])/float(header[17])
         self.fpsnum = header[16]
@@ -615,14 +616,13 @@ class MLV(ImageSequence):
             self.totalParsed += parsedTo
         super(MLV,self).__init__(userMetadataFilename=ImageSequence.userMetadataNameFromOriginal(filename),**kwds)
         oldframepos = self.getMeta("frameIndex_v1")
-        if oldframepos != None:
+        if oldframepos != None and self.wav==None:
+            # If there is wav, it means we must reindex to generate it
             #print "Existing index data found"
             self.framepos = oldframepos
             self.metadata = self.getMeta("sequenceMetadata_v1")
             self.allParsed = True # No need to reindex
             #print "Loaded index data"
-        else:
-            self.allParsed = False
         self.preloader = None
         self.preindexing = preindex
         #print "Audio frame count",self.audioFrameCount
@@ -793,7 +793,24 @@ class MLV(ImageSequence):
         fh.seek(pos+8)
         waviData = fh.read(size-8)
         wavi = struct.unpack("<QHHIIHH",waviData[:(8+4+8+4)])
-        self.wav = wave.open(self.filename[:-3]+"WAV",'w')
+        name = self.filename[:-3]+"WAV"
+        if self.allParsed: # Index already loaded
+            if not os.path.exists(name): # File not found!
+                self.allParsed = False
+                print "Regenerating embedded WAV file"
+            else:
+                # Load it to check it contains frames
+                self.wav = wave.open(name,'r')
+                if self.wav.getnframes()==0:
+                    self.wav.close()
+                    self.wav = None
+                    self.allParsed = False
+                    print "Regenerating embedded WAV file"
+                else:
+                    self.wav.close()
+                    self.wav = None
+                    return wavi
+        self.wav = wave.open(name,'w')
         self.wav.setparams((wavi[2],2,wavi[3],0,'NONE',''))
         #print "Wavi:",wavi,self.wav
         return wavi
