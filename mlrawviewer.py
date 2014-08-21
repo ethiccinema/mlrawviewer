@@ -23,7 +23,7 @@ SOFTWARE.
 """
 
 # standard python imports. Should not be missing
-import sys,struct,os,math,time,datetime,subprocess,signal,threading,Queue,wave,zlib
+import sys,struct,os,math,time,datetime,subprocess,signal,threading,Queue,wave,zlib,array
 from threading import Thread
 
 import dialogs
@@ -33,6 +33,8 @@ import multiprocessing.queues
 from multiprocessing import Process
 
 from Config import Config
+
+import LUT
 
 config = Config(version=(1,2,2))
 programpath = os.path.abspath(os.path.split(sys.argv[0])[0])
@@ -131,8 +133,22 @@ class Demosaicer(ui.Drawable):
         self.rawUploadTex = rawUploadTex
         self.rgbUploadTex = rgbUploadTex
         self.lastPP = self.preprocessTex2
+        self.lut = None
+        self.luttex = None
 
     def render(self,scene,matrix,opacity):
+        lut = self.frames.currentLut3D()
+        lutchanged = False
+        if lut != self.lut:
+            self.lut = lut
+            lutchanged = True
+            if self.luttex != None:
+                self.luttex.free()
+                self.luttex = None
+        if self.luttex == None:
+            l = self.lut
+            if l != None:
+                self.luttex = GLCompute.Texture3D(l.len(),l.lut().tostring())
         frameData = self.frames.currentFrame()
         frameNumber = self.frames.currentFrameNumber()
 
@@ -147,7 +163,7 @@ class Demosaicer(ui.Drawable):
         rgb = self.settings.rgb()
         balance = (rgb[0], rgb[1], rgb[2], brightness)
         tone = self.settings.tonemap()
-        different = (frameData != self.lastFrameData) or (brightness != self.lastBrightness) or (rgb != self.lastRgb) or (frameNumber != self.lastFrameNumber) or (tone != self.lastTone)
+        different = (frameData != self.lastFrameData) or (brightness != self.lastBrightness) or (rgb != self.lastRgb) or (frameNumber != self.lastFrameNumber) or (tone != self.lastTone) or (lutchanged)
         # or (rgb[0] != frameData.rawwbal[0]) or (rgb[2] != frameData.rawwbal[2])
         if (frameData and different):
             if ((frameData.rgbimage!=None) or self.settings.highQuality() or self.settings.encoding()) and (frameData.canDemosaic):
@@ -164,7 +180,12 @@ class Demosaicer(ui.Drawable):
                         self.rgbUploadTex.update(frameData.rgbimage)
                         PLOG(PLOG_GPU,"RGB texture upload returned for frame %d"%frameNumber)
                         self.rgbFrameUploaded = frameNumber
-                    self.shaderQuality.demosaicPass(self.rgbUploadTex,frameData.black,balance=balance,white=frameData.white,tonemap=tone,colourMatrix=self.settings.setting_colourMatrix)
+                    self.shaderQuality.demosaicPass(self.rgbUploadTex,self.luttex,frameData.black,balance=balance,white=frameData.white,tonemap=tone,colourMatrix=self.settings.setting_colourMatrix)
+                    #mydump = glReadPixels(0,0,scene.size[0],scene.size[1],GL_RGB,GL_UNSIGNED_SHORT)
+                    #print frameNumber
+                    #for i in range(10):
+                    #    print "(%04x,%04x,%04x)"%tuple(mydump[0,i,:]),
+                    #print
                     if self.settings.encoding():
                         self.rgb = glReadPixels(0,0,scene.size[0],scene.size[1],GL_RGB,GL_UNSIGNED_SHORT)
                         self.encoder.encode(frameNumber,self.rgb)
@@ -208,7 +229,7 @@ class Demosaicer(ui.Drawable):
                         PLOG(PLOG_GPU,"RGB texture upload returned for frame %d"%frameNumber)
                         self.rgbFrameUploaded = frameNumber
                     newrgb = (rgb[0]/frameData.rawwbal[0],1.0,rgb[2]/frameData.rawwbal[2])
-                    self.shaderQuality.demosaicPass(self.rgbUploadTex,frameData.black,balance=(newrgb[0],newrgb[1],newrgb[2],balance[3]),white=frameData.white,tonemap=tone,colourMatrix=self.settings.setting_colourMatrix,recover=0.0)
+                    self.shaderQuality.demosaicPass(self.rgbUploadTex,self.luttex,frameData.black,balance=(newrgb[0],newrgb[1],newrgb[2],balance[3]),white=frameData.white,tonemap=tone,colourMatrix=self.settings.setting_colourMatrix,recover=0.0)
             else:
                 # Fast decode for full speed viewing
                 if frameData != self.lastFrameData:
@@ -238,9 +259,9 @@ class Demosaicer(ui.Drawable):
                     #debug = glReadPixels(0,0,16,16,GL_RGBA,GL_FLOAT)
                     #print debug
                     self.rgbImage.bindfbo()
-                    self.shaderNormal.demosaicPass(self.lastPP,frameData.black,balance=(1.0,1.0,1.0,balance[3]),white=frameData.white,tonemap=self.settings.tonemap(),colourMatrix=self.settings.setting_colourMatrix,recover=0.0)
+                    self.shaderNormal.demosaicPass(self.lastPP,self.luttex,frameData.black,balance=(1.0,1.0,1.0,balance[3]),white=frameData.white,tonemap=self.settings.tonemap(),colourMatrix=self.settings.setting_colourMatrix,recover=0.0)
                 else:
-                    self.shaderNormal.demosaicPass(self.rawUploadTex,frameData.black,balance=balance,white=frameData.white,tonemap=self.settings.tonemap(),colourMatrix=self.settings.setting_colourMatrix)
+                    self.shaderNormal.demosaicPass(self.rawUploadTex,self.luttex,frameData.black,balance=balance,white=frameData.white,tonemap=self.settings.tonemap(),colourMatrix=self.settings.setting_colourMatrix)
                 PLOG(PLOG_GPU,"Demosaic shader draw done for frame %d"%frameNumber)
         self.lastFrameData = frameData
         self.lastFrameNumber = frameNumber
@@ -280,6 +301,8 @@ class DemosaicScene(ui.Scene):
         self.rawUploadTex.free()
         self.rgbUploadTex.free()
         self.rgbImage.free()
+        if self.demosaicer.luttex != None:
+            self.demosaicer.luttex.free()
     def prepareToRender(self):
         self.demosaicer.shaderNormal.prepare(self.frames.svbo)
         self.demosaicer.shaderQuality.prepare(self.frames.svbo)
@@ -843,7 +866,8 @@ class Viewer(GLCompute.GLCompute):
         self.exportActive = False
         self.exportLastStatus = 0.0
         self.toggleEncoding() # On by default
-
+        self.lutindex = 0
+        self.setting_lut3d = None
     def initFps(self):
         self.fps = self.raw.fps
         self.setting_fpsOverride = self.raw.getMeta("fpsOverride_v1")
@@ -1190,12 +1214,33 @@ class Viewer(GLCompute.GLCompute):
         elif k==self.KEY_RIGHT: # Right cursor
             self.jump(self.fps) # Go forward 1 second (will wrap)
         elif k==self.KEY_UP: # Up cursor
-            self.scaleBrightness(1.1)
+            if m==0:
+                self.scaleBrightness(1.1)
+            elif m==1:
+                self.changeLut(1)
         elif k==self.KEY_DOWN: # Down cursor
-            self.scaleBrightness(1.0/1.1)
+            if m==0:
+                self.scaleBrightness(1.0/1.1)
+            elif m==1:
+                self.changeLut(-1)
 
         else:
             super(Viewer,self).key(k,m) # Inherit standard behaviour
+
+    def currentLut3D(self):
+        return self.setting_lut3d
+
+    def changeLut(self,change):
+        self.lutindex += change
+
+        ix = self.lutindex%(len(LUT.LUTS)+1)
+        if ix == 0:
+            self.setting_lut3d = None
+            print "LUT3D disabled"
+        else:
+            print "Loading LUT",LUT.LUT_FNS[ix-1]
+            self.setting_lut3d = LUT.LUTS[ix-1]
+        self.refresh()
 
     def userIdleTime(self):
         now = time.time()

@@ -20,7 +20,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-This is a simple framework for doing (graphics) 
+This is a simple framework for doing (graphics)
 computation and display using OpenGL FBOs
 
 """
@@ -32,7 +32,7 @@ import sys,time,os,os.path
 try:
     from OpenGL.GL import *
     from OpenGL.arrays import vbo
-    from OpenGL.GL.shaders import compileShader, compileProgram
+    from OpenGL.GL.shaders import compileShader,ShaderProgram
     from OpenGL.GL.framebufferobjects import *
     from OpenGL.GL.ARB.texture_rg import *
     from OpenGL.GL.ARB.texture_float import *
@@ -57,6 +57,21 @@ def glarray(gltype, seq):
     carray[:] = seq
     return carray
 
+def mrvCompileProgramPreValidate(*shaders, **named):
+    program = glCreateProgram()
+    for shader in shaders:
+        glAttachShader(program, shader)
+    program = ShaderProgram( program )
+    glLinkProgram(program)
+    return program
+
+def mrvCompileProgramPostValidate(program, *shaders, **named):
+    program.check_validate()
+    program.check_linked()
+    for shader in shaders:
+        glDeleteShader(shader)
+    return program
+
 class ContextState(object):
     def __init__(self):
         self.current_shader = None
@@ -73,13 +88,17 @@ class Shader(object):
     def __init__(self,vs,fs,uniforms,**kwds):
         vertexShaderHandle = compileShader(vs,GL_VERTEX_SHADER)
         fragmentShaderHandle = compileShader(fs,GL_FRAGMENT_SHADER)
-        self.program = compileProgram(vertexShaderHandle,fragmentShaderHandle)
+        self.program = mrvCompileProgramPreValidate(vertexShaderHandle,fragmentShaderHandle)
         self.vertex = glGetAttribLocation(self.program, "vertex")
         self.uniforms = {}
         for key in uniforms:
             self.uniforms[key] = glGetUniformLocation(self.program,key)
         self.context = SharedContextState
+        self.preValidateConfig()
+        mrvCompileProgramPostValidate(self.program,vertexShaderHandle,fragmentShaderHandle)
         super(Shader,self).__init__(**kwds)
+    def preValidateConfig(self):
+        pass
     def use(self):
         if self.context.current_shader != self:
             PLOG(PLOG_CPU,"Changing shader")
@@ -93,6 +112,29 @@ class Shader(object):
         elif not state and self.context.blending:
             glDisable(GL_BLEND)
             self.context.blending = state
+
+class Texture3D:
+    """ 3D texture, for 3D LUTs. Floats only """
+    def __init__(self,size,data):
+        glEnable(GL_TEXTURE_3D)
+        self.id = glGenTextures(1)
+        glBindTexture(GL_TEXTURE_3D,self.id)
+        glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_NEAREST)
+        glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_NEAREST)
+        glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE)
+        glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE)
+        glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE)
+        glTexImage3D(GL_TEXTURE_3D, 0, GL_RGB32F, size, size, size, 0, GL_RGB, GL_FLOAT, data)
+        self.size = size
+    def bindtex(self,texnum=0):
+        if texnum==0 and self.context.current_texture == (self,True):
+            return
+        glActiveTexture(GL_TEXTURE0+texnum)
+        glBindTexture(GL_TEXTURE_3D, self.id)
+        if texnum==0:
+            self.context.current_texture = (self,True)
+    def free(self):
+        glDeleteTextures(self.id)
 
 
 class Texture:
@@ -112,7 +154,9 @@ class Texture:
         self.context = SharedContextState
         glActiveTexture(GL_TEXTURE0)
         glBindTexture(GL_TEXTURE_2D,self.id)
-        glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+        glPixelStorei(GL_UNPACK_ALIGNMENT, 1)
+        #print "Max texture size",glGetInteger(GL_MAX_TEXTURE_SIZE)
+        #print "Max 3D texture size",glGetInteger(GL_MAX_3D_TEXTURE_SIZE)
         if hasalpha and not fp and not sixteen:
             glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA,self.width,self.height,0,GL_RGBA,GL_UNSIGNED_BYTE,rgbadata)
         elif hasalpha and fp:
@@ -193,7 +237,7 @@ class Texture:
         newuh = self.atlasuh
         newfw = self.atlasfw + width
         newfh = self.atlasfh
-        if (self.atlasuh + height) > newfh: 
+        if (self.atlasuh + height) > newfh:
             newfh = self.atlasuh + height # Expand the current row height
         if newfw > self.width:
             if (self.atlasfh + height) > self.height:
@@ -266,7 +310,7 @@ class Texture:
         glBindTexture(GL_TEXTURE_2D, 0)
 
     def bindtex(self,linear=False,texnum=0):
-        if texnum==0 and self.context.current_texture == (self,linear):
+        if self.context.current_texture == (self,linear):
             return
         glActiveTexture(GL_TEXTURE0+texnum)
         glBindTexture(GL_TEXTURE_2D, self.id)

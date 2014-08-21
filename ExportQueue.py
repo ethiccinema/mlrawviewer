@@ -770,7 +770,7 @@ class ExportQueue(threading.Thread):
                 rgbl = (1.0,1.0,1.0,rgbl[3])
             else:
                 recover = 1.0
-            self.shaderQuality.demosaicPass(self.rgbUploadTex,frame.black,balance=rgbl,white=frame.white,tonemap=tm,colourMatrix=matrix,recover=recover)
+            self.shaderQuality.demosaicPass(self.rgbUploadTex,None,frame.black,balance=rgbl,white=frame.white,tonemap=tm,colourMatrix=matrix,recover=recover)
             rgb = glReadPixels(area[0],h-(area[1]+area[3]),area[2],area[3],GL_RGB,GL_UNSIGNED_SHORT)
             return (index,rgb)
         elif jobtype==1:            # Predemosaic processing

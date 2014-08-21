@@ -20,7 +20,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-This is a simple framework for doing (graphics) 
+This is a simple framework for doing (graphics)
 computation and display using OpenGL FBOs
 
 """
@@ -84,7 +84,7 @@ class SharedVbo(object):
         ow = offset/4
         self.vbo[ow:(ow+len(data))] = data
     def vboOffset(self,offset):
-        return self.vbo + offset        
+        return self.vbo + offset
     def upload(self):
         PLOG(PLOG_CPU,"SharedVbo upload")
         self.vbo.copy_data()
@@ -104,7 +104,7 @@ def clip(val,low,high):
     if val<low: return low
     elif val>high: return high
     else: return val
- 
+
 class Animation(object):
     LINEAR = 0
     SMOOTH = 1
@@ -138,7 +138,7 @@ class Animation(object):
             return self.oldval + self.delta*p
         elif self.interp == self.SMOOTH: # Standard smoothstep function
             return self.oldval + self.delta*p*p*(3.0 - 2.0*p)
- 
+
 class Drawable(object):
     def __init__(self,**kwds):
         super(Drawable,self).__init__(**kwds)
