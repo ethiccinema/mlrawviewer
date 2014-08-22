@@ -868,7 +868,6 @@ class Viewer(GLCompute.GLCompute):
         self.exportLastStatus = 0.0
         self.toggleEncoding() # On by default
         self.lutindex = 0
-        self.setting_lut3d = None
     def initFps(self):
         self.fps = self.raw.fps
         self.setting_fpsOverride = self.raw.getMeta("fpsOverride_v1")
@@ -1241,6 +1240,7 @@ class Viewer(GLCompute.GLCompute):
         else:
             print "Loading LUT",LUT.LUT_FNS[ix-1]
             self.setting_lut3d = LUT.LUTS[ix-1]
+        self.raw.setMeta("lut3d_v1",self.setting_lut3d)
         self.refresh()
 
     def userIdleTime(self):
@@ -1999,6 +1999,7 @@ class Viewer(GLCompute.GLCompute):
         rgb2cam[2,:]/=np.sum(rgb2cam[2])
         cam2rgb = rgb2cam.getI()
         self.setting_colourMatrix = cam2rgb.getT() # Must be transposed
+        self.setting_lut3d = self.raw.getMeta("lut3d_v1")
     def onBgDraw(self,w,h):
         self.exporter.onBgDraw(w,h)
 

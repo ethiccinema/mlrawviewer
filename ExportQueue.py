@@ -86,6 +86,8 @@ class ExportQueue(threading.Thread):
         self.rgbUploadTex = None
         self.shaderPatternNoise = None
         self.shaderPreprocess = None
+        self.lutTex = None
+        self.currentLut = None
         self.rgbImage = None
         self.svbo = None
         self.pauseState = True
@@ -521,6 +523,7 @@ class ExportQueue(threading.Thread):
                 time.sleep(0.1)
         fps,fpsnum,fpsden = self.fpsParts(r)
         rgbl,tm = self.rgblOverride(r,rgbl,tm)
+        lut = r.getMeta("lut3d_v1")
         wavfile = self.wavOverride(r,wavfile)
         if os.path.exists(wavfile):
             tempwavname = movfile[:-4] + ".WAV"
@@ -601,6 +604,7 @@ class ExportQueue(threading.Thread):
         for i in range(endFrame-startFrame+1):
             self.processCommands(block=False)
             f = r.frame(startFrame+i)
+            f.lut = lut
             if ((startFrame+i+1)<r.frames()):
                 r.preloadFrame(startFrame+i+1)
             # Queue job
@@ -770,7 +774,11 @@ class ExportQueue(threading.Thread):
                 rgbl = (1.0,1.0,1.0,rgbl[3])
             else:
                 recover = 1.0
-            self.shaderQuality.demosaicPass(self.rgbUploadTex,None,frame.black,balance=rgbl,white=frame.white,tonemap=tm,colourMatrix=matrix,recover=recover)
+            if frame.lut != None and self.currentLut != frame.lut:
+                l = frame.lut
+                self.luttex = GLCompute.Texture3D(l.len(),l.lut().tostring())
+                self.currentLut = frame.lut
+            self.shaderQuality.demosaicPass(self.rgbUploadTex,self.luttex,frame.black,balance=rgbl,white=frame.white,tonemap=tm,colourMatrix=matrix,recover=recover)
             rgb = glReadPixels(area[0],h-(area[1]+area[3]),area[2],area[3],GL_RGB,GL_UNSIGNED_SHORT)
             return (index,rgb)
         elif jobtype==1:            # Predemosaic processing
