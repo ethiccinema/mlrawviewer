@@ -360,7 +360,7 @@ class Button(Geometry):
             # Clicked
             if self.notClicked:
                 self.onclick(lx,ly)
-                self.notClicked = False            
+                self.notClicked = False
             return self
         else:
             self.notClicked = True
@@ -370,13 +370,19 @@ class XYGraph(Button):
     def __init__(self,width,height,onclick,**kwds):
         super(XYGraph,self).__init__(width,height,onclick,**kwds)
         self.motionWhileClicked = True
+        self.inMotion = False
     def event2d(self,lx,ly,buttons):
         if buttons[0] == 1:
             # Clicked
-            self.onclick(lx,ly)
+            self.onclick(lx,ly,self.inMotion)
+            if not self.inMotion:
+                self.inMotion = True
             return self
-        return None
-       
+        else:
+            self.inMotion = False
+            self.onclick(lx,ly,self.inMotion)
+            return None
+
 class Text(Button):
     def __init__(self,text="",**kwds):
         self.text = text

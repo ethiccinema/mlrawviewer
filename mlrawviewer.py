@@ -461,10 +461,9 @@ class DisplayScene(ui.Scene):
     def setRgbImage(self,rgbImage):
         self.display.setRgbImage(rgbImage)
 
-    def whiteClick(self,x,y):
+    def whiteClick(self,x,y,down):
         if self.dropperActive:
             self.frames.useWhitePoint(float(x)/float(self.size[0])*self.frames.raw.width(),float(y)/float(self.size[1])*self.frames.raw.height())
-        self.dropperActive = False
 
     def progressClick(self,x,y):
         targetFrame = self.frames.raw.frames()*(float(x)/float(self.progress.size[0]))
@@ -477,18 +476,18 @@ class DisplayScene(ui.Scene):
         webbrowser.open("https://bitbucket.org/baldand/mlrawviewer/downloads")
         config.updateClickedNow()
 
-    def balanceClick(self,x,y):
+    def balanceClick(self,x,y,down):
         r = 4.0*(1.0-y/128.0)
         b = 4.0*(x/128.0)
         g = 1.0
-        self.frames.changeWhiteBalance(r,g,b,"%f,%f,%f"%(r,g,b))
+        self.frames.changeWhiteBalance(r,g,b,"%f,%f,%f"%(r,g,b),not down)
         if self.frames.paused:
             self.frames.refresh()
 
-    def brightnessClick(self,x,y):
+    def brightnessClick(self,x,y,down):
         b = 15.0*(1.0-y/128.0)-5.0
         b2 = math.pow(2.0,b)
-        self.frames.setBrightness(b2)
+        self.frames.setBrightness(b2,not down)
 
     def playClick(self,x,y):
         self.frames.togglePlay()
@@ -497,7 +496,9 @@ class DisplayScene(ui.Scene):
         self.frames.setBrightness(1.0)
 
     def ciDropperClick(self,x,y):
-        self.dropperActive = True
+        self.dropperActive = not self.dropperActive
+        if self.frames.paused:
+            self.frames.refresh()
     def ciUndoClick(self,x,y):
         self.frames.colourUndo()
     def ciRedoClick(self,x,y):
@@ -1274,12 +1275,14 @@ class Viewer(GLCompute.GLCompute):
         self.raw.setMeta("balance_v1",self.setting_rgb)
         self.refresh()
 
-    def setBrightness(self,value):
-        self.colourRedoStack = []
-        self.colourUndoStack.append((self.setting_brightness,self.setting_rgb))
+    def setBrightness(self,value,updateUndoStack=True):
+        if updateUndoStack:
+            self.colourRedoStack = []
+            self.colourUndoStack.append((self.setting_brightness,self.setting_rgb))
         self.setting_brightness = value
         #print "Brightness",self.setting_brightness
-        self.raw.setMeta("brightness_v1",self.setting_brightness)
+        if updateUndoStack:
+            self.raw.setMeta("brightness_v1",self.setting_brightness)
         self.refresh()
     def scaleBrightness(self,scale):
         self.setBrightness(self.setting_brightness * scale)
@@ -1290,15 +1293,18 @@ class Viewer(GLCompute.GLCompute):
             return MIN
         else:
             return N
-    def changeWhiteBalance(self, R, G, B, Name="WB"):
+    def changeWhiteBalance(self, R, G, B, Name="WB",updateUndoStack=True):
         R = self.checkMultiplier(R)
         G = self.checkMultiplier(G)
         B = self.checkMultiplier(B)
-        self.colourUndoStack.append((self.setting_brightness,self.setting_rgb))
+        if updateUndoStack:
+            self.colourUndoStack.append((self.setting_brightness,self.setting_rgb))
         self.setting_rgb = (R, G, B)
-        self.raw.setMeta("balance_v1",self.setting_rgb)
+        if updateUndoStack:
+            self.raw.setMeta("balance_v1",self.setting_rgb)
         #print "%s:\t %.1f %.1f %.1f"%(Name, R, G, B)
-        self.colourRedoStack = []
+        if updateUndoStack:
+            self.colourRedoStack = []
         self.refresh()
     def togglePlay(self):
         self.paused = not self.paused
