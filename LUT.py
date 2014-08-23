@@ -43,19 +43,36 @@ class LutCube(LutBase):
         self.d = 0
         self.n = 0
         self.a = array.array('f')
+        self.t = ""
     def dim(self):
         return self.d
     def len(self):
         return self.n
     def lut(self):
         return self.a
+    def name(self):
+        return self.t
     def load(self,filename):
         f = open(filename,'r')
-        for l in f:
+        data = f.read()
+        f.close()
+        lines = data.split('\n')
+        name = os.path.split(filename)[1]
+        try:
+            name = os.path.splitext(name)[0]
+        except:
+            pass
+        for l in lines:
             l = l.strip()
             if l.startswith("#"):
                 continue
             elif l.startswith("TITLE"):
+                title = l.split("\"")[1]
+                if title.startswith("Generate"):
+                    # Useless Resolve comment
+                    pass
+                else:
+                    name = title
                 continue
             elif l.startswith("LUT_3D_SIZE"):
                 self.d = 3
@@ -69,6 +86,7 @@ class LutCube(LutBase):
                 r,g,b = l.split()
                 rgb = (float(r),float(g),float(b))
                 self.a.extend(rgb)
+        self.t = name
 
 def loadLut(filename):
     if filename.lower().endswith(".cube"):

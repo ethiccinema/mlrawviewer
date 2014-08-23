@@ -137,7 +137,7 @@ class Demosaicer(ui.Drawable):
         self.luttex = None
 
     def render(self,scene,matrix,opacity):
-        lutname,lut = self.frames.currentLut3D()
+        lut = self.frames.currentLut3D()
         lutchanged = False
         if lut != self.lut:
             self.lut = lut
@@ -590,8 +590,8 @@ class DisplayScene(ui.Scene):
         if f.rtc != None:
             se,mi,ho,da,mo,ye = f.rtc[1:7]
             s += ", %02d:%02d:%02d %02d:%02d:%04d"%(ho,mi,se,da,mo+1,ye+1900)
-        if self.frames.setting_lut3d[1] != None:
-            s += "\n3D LUT:%s"%self.frames.setting_lut3d[0]
+        if self.frames.setting_lut3d != None:
+            s += "\n3D LUT:%s"%self.frames.setting_lut3d.name()
         return s
         #make = self.frames.raw.
         #self.frames.playFrame.
@@ -1230,12 +1230,11 @@ class Viewer(GLCompute.GLCompute):
 
         ix = self.lutindex%(len(LUT.LUTS)+1)
         if ix == 0:
-            self.setting_lut3d = ("",None)
-            print "LUT3D disabled"
+            self.setting_lut3d = None
+            #print "LUT3D disabled"
         else:
-            print "Loading LUT",LUT.LUT_FNS[ix-1]
-            name = os.path.split(LUT.LUT_FNS[ix-1])[1]
-            self.setting_lut3d = (name,LUT.LUTS[ix-1])
+            #print "Loading LUT",LUT.LUT_FNS[ix-1]
+            self.setting_lut3d = LUT.LUTS[ix-1]
         self.raw.setMeta("lut3d_v1",self.setting_lut3d)
         self.refresh()
 
@@ -1996,10 +1995,11 @@ class Viewer(GLCompute.GLCompute):
         cam2rgb = rgb2cam.getI()
         self.setting_colourMatrix = cam2rgb.getT() # Must be transposed
         self.setting_lut3d = self.raw.getMeta("lut3d_v1")
-        if self.setting_lut3d == None or type(self.setting_lut3d)!=tuple:
-            self.setting_lut3d = ("",None)
-        else:
-            print "3D LUT:",self.setting_lut3d[0]
+        if type(self.setting_lut3d)==tuple:
+            self.setting_lut3d = None
+        if self.setting_lut3d != None:
+            if self.setting_lut3d.len()==0 or len(self.setting_lut3d.lut())==0:
+                self.setting_lut3d = None
     def onBgDraw(self,w,h):
         self.exporter.onBgDraw(w,h)
 

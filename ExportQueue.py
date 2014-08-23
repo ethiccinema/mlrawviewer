@@ -524,11 +524,10 @@ class ExportQueue(threading.Thread):
         fps,fpsnum,fpsden = self.fpsParts(r)
         rgbl,tm = self.rgblOverride(r,rgbl,tm)
         lut = r.getMeta("lut3d_v1")
-        if lut == None or type(lut)!=tuple:
+        if type(lut)==tuple:
             lut = None
         else:
-            print "Exporting using 3D LUT",lut[0]
-            lut = lut[1]
+            print "Exporting using 3D LUT",lut.name()
         wavfile = self.wavOverride(r,wavfile)
         if os.path.exists(wavfile):
             tempwavname = movfile[:-4] + ".WAV"
