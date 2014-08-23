@@ -86,7 +86,7 @@ class ExportQueue(threading.Thread):
         self.rgbUploadTex = None
         self.shaderPatternNoise = None
         self.shaderPreprocess = None
-        self.lutTex = None
+        self.luttex = None
         self.currentLut = None
         self.rgbImage = None
         self.svbo = None
@@ -524,6 +524,11 @@ class ExportQueue(threading.Thread):
         fps,fpsnum,fpsden = self.fpsParts(r)
         rgbl,tm = self.rgblOverride(r,rgbl,tm)
         lut = r.getMeta("lut3d_v1")
+        if lut == None or type(lut)!=tuple:
+            lut = None
+        else:
+            print "Exporting using 3D LUT",lut[0]
+            lut = lut[1]
         wavfile = self.wavOverride(r,wavfile)
         if os.path.exists(wavfile):
             tempwavname = movfile[:-4] + ".WAV"

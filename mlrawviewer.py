@@ -137,7 +137,7 @@ class Demosaicer(ui.Drawable):
         self.luttex = None
 
     def render(self,scene,matrix,opacity):
-        lut = self.frames.currentLut3D()
+        lutname,lut = self.frames.currentLut3D()
         lutchanged = False
         if lut != self.lut:
             self.lut = lut
@@ -387,9 +387,6 @@ class DisplayScene(ui.Scene):
         self.addencode = self.newIcon(0,0,128,128,21,self.addEncodeClick)
         self.addencode.colour = (0.5,0.5,0.5,0.5)
         self.addencode.setScale(0.5)
-        self.encode = self.newIcon(0,0,128,128,2,self.encodeClick)
-        self.encode.colour = (0.2,0.0,0.0,0.5)
-        self.encode.setScale(0.5)
 
         self.cidropper = self.newIcon(0,0,128,128,24,self.ciDropperClick)
         self.cidropper.colour = (0.5,0.5,0.5,0.5)
@@ -442,7 +439,7 @@ class DisplayScene(ui.Scene):
         self.exportqlist.setScale(0.25)
         self.exportq.children.append(self.exportqlist)
         self.timestamp = ui.Geometry(svbo=frames.svbo)
-        self.iconItems = [self.fullscreen,self.mapping,self.drop,self.quality,self.stripes,self.loop,self.outformat,self.addencode,self.encode,self.play]
+        self.iconItems = [self.fullscreen,self.mapping,self.drop,self.quality,self.stripes,self.loop,self.outformat,self.addencode,self.play]
         self.overlay = [self.iconBackground,self.progressBackground,self.progress,self.timestamp,self.update,self.balance,self.balanceHandle,self.brightness,self.brightnessHandle,self.mark,self.mdbg,self.metadata,self.exportq,self.coldata]
         self.overlay.extend(self.iconItems)
         self.overlay.extend(self.ciItems)
@@ -562,10 +559,6 @@ class DisplayScene(ui.Scene):
                 if state: state = 1
                 else: state = 0
             self.setIcon(itm,128,128,itm.idx+state)
-        if self.frames.exportActive:
-            self.encode.colour = (0.5,0.0,0.0,0.5)
-        else:
-            self.encode.colour = (0.2,0.0,0.0,0.5)
         if self.dropperActive:
             self.cidropper.colour = (1.0,0.0,0.0,0.5)
         else:
@@ -597,6 +590,8 @@ class DisplayScene(ui.Scene):
         if f.rtc != None:
             se,mi,ho,da,mo,ye = f.rtc[1:7]
             s += ", %02d:%02d:%02d %02d:%02d:%04d"%(ho,mi,se,da,mo+1,ye+1900)
+        if self.frames.setting_lut3d[1] != None:
+            s += "\n3D LUT:%s"%self.frames.setting_lut3d[0]
         return s
         #make = self.frames.raw.
         #self.frames.playFrame.
@@ -1235,11 +1230,12 @@ class Viewer(GLCompute.GLCompute):
 
         ix = self.lutindex%(len(LUT.LUTS)+1)
         if ix == 0:
-            self.setting_lut3d = None
+            self.setting_lut3d = ("",None)
             print "LUT3D disabled"
         else:
             print "Loading LUT",LUT.LUT_FNS[ix-1]
-            self.setting_lut3d = LUT.LUTS[ix-1]
+            name = os.path.split(LUT.LUT_FNS[ix-1])[1]
+            self.setting_lut3d = (name,LUT.LUTS[ix-1])
         self.raw.setMeta("lut3d_v1",self.setting_lut3d)
         self.refresh()
 
@@ -2000,6 +1996,10 @@ class Viewer(GLCompute.GLCompute):
         cam2rgb = rgb2cam.getI()
         self.setting_colourMatrix = cam2rgb.getT() # Must be transposed
         self.setting_lut3d = self.raw.getMeta("lut3d_v1")
+        if self.setting_lut3d == None or type(self.setting_lut3d)!=tuple:
+            self.setting_lut3d = ("",None)
+        else:
+            print "3D LUT:",self.setting_lut3d[0]
     def onBgDraw(self,w,h):
         self.exporter.onBgDraw(w,h)
 
