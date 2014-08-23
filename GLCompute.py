@@ -113,9 +113,31 @@ class Shader(object):
             glDisable(GL_BLEND)
             self.context.blending = state
 
+class Texture1D:
+    """ 1D texture, for 1D LUTs. Floats only """
+    def __init__(self,size,data):
+        self.context = SharedContextState
+        glEnable(GL_TEXTURE_1D)
+        self.id = glGenTextures(1)
+        glBindTexture(GL_TEXTURE_1D,self.id)
+        glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MIN_FILTER, GL_NEAREST)
+        glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MAG_FILTER, GL_NEAREST)
+        glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE)
+        glTexImage1D(GL_TEXTURE_1D, 0, GL_RGB32F, size, 0, GL_RGB, GL_FLOAT, data)
+        self.size = size
+    def bindtex(self,texnum=0):
+        if self.context.current_texture == (self,True):
+            return
+        glActiveTexture(GL_TEXTURE0+texnum)
+        glBindTexture(GL_TEXTURE_1D, self.id)
+        self.context.current_texture = (self,True)
+    def free(self):
+        glDeleteTextures(self.id)
+
 class Texture3D:
     """ 3D texture, for 3D LUTs. Floats only """
     def __init__(self,size,data):
+        self.context = SharedContextState
         glEnable(GL_TEXTURE_3D)
         self.id = glGenTextures(1)
         glBindTexture(GL_TEXTURE_3D,self.id)
@@ -127,12 +149,11 @@ class Texture3D:
         glTexImage3D(GL_TEXTURE_3D, 0, GL_RGB32F, size, size, size, 0, GL_RGB, GL_FLOAT, data)
         self.size = size
     def bindtex(self,texnum=0):
-        if texnum==0 and self.context.current_texture == (self,True):
+        if self.context.current_texture == (self,True):
             return
         glActiveTexture(GL_TEXTURE0+texnum)
         glBindTexture(GL_TEXTURE_3D, self.id)
-        if texnum==0:
-            self.context.current_texture = (self,True)
+        self.context.current_texture = (self,True)
     def free(self):
         glDeleteTextures(self.id)
 

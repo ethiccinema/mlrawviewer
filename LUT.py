@@ -23,23 +23,11 @@ SOFTWARE.
 Utilities and support code for reading,writing and generating different 1D/3D LUT formats
 """
 
-import sys,array,os
+import sys,array,os,math
 
 class LutBase(object):
     def __init__(self,**kwds):
         super(LutBase,self).__init__(**kwds)
-
-class LutCube(LutBase):
-    """
-    Read 3D LUT files in the .cube format
-    Comments follow lines starting with #
-    TITLE "string" specifies a title for the LUT to display
-    LUT_3D_SIZE n specifies number of samples in 3D
-    LUT_1D_SIZE n specifies number of samples in 1D
-
-    """
-    def __init__(self,**kwds):
-        super(LutCube,self).__init__(**kwds)
         self.d = 0
         self.n = 0
         self.a = array.array('f')
@@ -52,6 +40,18 @@ class LutCube(LutBase):
         return self.a
     def name(self):
         return self.t
+
+class LutCube(LutBase):
+    """
+    Read 3D LUT files in the .cube format
+    Comments follow lines starting with #
+    TITLE "string" specifies a title for the LUT to display
+    LUT_3D_SIZE n specifies number of samples in 3D
+    LUT_1D_SIZE n specifies number of samples in 1D
+
+    """
+    def __init__(self,**kwds):
+        super(LutCube,self).__init__(**kwds)
     def load(self,filename):
         f = open(filename,'r')
         data = f.read()
@@ -105,6 +105,19 @@ IDENTITY_3D_LUT = array.array('f',[
             1.0,0.0,1.0,
             0.0,1.0,1.0,
             1.0,1.0,1.0]).tostring()
+
+def LogLut():
+    l = LutBase()
+    l.d = 1
+    l.n = 1024
+    l.t = "Log"
+    for i in range(1024):
+        f = float(i)
+        if f==0.0: f=1.0
+        v = math.log(f*1.0,2.0)/10.0
+        l.a.extend((v,v,v))
+    return l
+LOG_1D_LUT = LogLut()
 
 def loadAllLuts():
     root = os.path.expanduser("~/.mlrawviewer/lut/")

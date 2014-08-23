@@ -135,6 +135,8 @@ class Demosaicer(ui.Drawable):
         self.lastPP = self.preprocessTex2
         self.lut = None
         self.luttex = None
+        self.lut1d1tex = None
+        self.lut1d2tex = None
 
     def render(self,scene,matrix,opacity):
         lut = self.frames.currentLut3D()
@@ -149,6 +151,9 @@ class Demosaicer(ui.Drawable):
             l = self.lut
             if l != None:
                 self.luttex = GLCompute.Texture3D(l.len(),l.lut().tostring())
+        #if self.lut1d1tex == None:
+        #    l = LUT.LOG_1D_LUT
+        #    self.lut1d1tex = GLCompute.Texture1D(l.len(),l.lut().tostring())
         frameData = self.frames.currentFrame()
         frameNumber = self.frames.currentFrameNumber()
 
@@ -180,7 +185,7 @@ class Demosaicer(ui.Drawable):
                         self.rgbUploadTex.update(frameData.rgbimage)
                         PLOG(PLOG_GPU,"RGB texture upload returned for frame %d"%frameNumber)
                         self.rgbFrameUploaded = frameNumber
-                    self.shaderQuality.demosaicPass(self.rgbUploadTex,self.luttex,frameData.black,balance=balance,white=frameData.white,tonemap=tone,colourMatrix=self.settings.setting_colourMatrix)
+                    self.shaderQuality.demosaicPass(self.rgbUploadTex,self.luttex,frameData.black,balance=balance,white=frameData.white,tonemap=tone,colourMatrix=self.settings.setting_colourMatrix,lut1d1=self.lut1d1tex)
                     #mydump = glReadPixels(0,0,scene.size[0],scene.size[1],GL_RGB,GL_UNSIGNED_SHORT)
                     #print frameNumber
                     #for i in range(10):
@@ -229,7 +234,7 @@ class Demosaicer(ui.Drawable):
                         PLOG(PLOG_GPU,"RGB texture upload returned for frame %d"%frameNumber)
                         self.rgbFrameUploaded = frameNumber
                     newrgb = (rgb[0]/frameData.rawwbal[0],1.0,rgb[2]/frameData.rawwbal[2])
-                    self.shaderQuality.demosaicPass(self.rgbUploadTex,self.luttex,frameData.black,balance=(newrgb[0],newrgb[1],newrgb[2],balance[3]),white=frameData.white,tonemap=tone,colourMatrix=self.settings.setting_colourMatrix,recover=0.0)
+                    self.shaderQuality.demosaicPass(self.rgbUploadTex,self.luttex,frameData.black,balance=(newrgb[0],newrgb[1],newrgb[2],balance[3]),white=frameData.white,tonemap=tone,colourMatrix=self.settings.setting_colourMatrix,recover=0.0,lut1d1=self.lut1d1tex)
             else:
                 # Fast decode for full speed viewing
                 if frameData != self.lastFrameData:
@@ -259,9 +264,9 @@ class Demosaicer(ui.Drawable):
                     #debug = glReadPixels(0,0,16,16,GL_RGBA,GL_FLOAT)
                     #print debug
                     self.rgbImage.bindfbo()
-                    self.shaderNormal.demosaicPass(self.lastPP,self.luttex,frameData.black,balance=(1.0,1.0,1.0,balance[3]),white=frameData.white,tonemap=self.settings.tonemap(),colourMatrix=self.settings.setting_colourMatrix,recover=0.0)
+                    self.shaderNormal.demosaicPass(self.lastPP,self.luttex,frameData.black,balance=(1.0,1.0,1.0,balance[3]),white=frameData.white,tonemap=self.settings.tonemap(),colourMatrix=self.settings.setting_colourMatrix,recover=0.0,lut1d1=self.lut1d1tex)
                 else:
-                    self.shaderNormal.demosaicPass(self.rawUploadTex,self.luttex,frameData.black,balance=balance,white=frameData.white,tonemap=self.settings.tonemap(),colourMatrix=self.settings.setting_colourMatrix)
+                    self.shaderNormal.demosaicPass(self.rawUploadTex,self.luttex,frameData.black,balance=balance,white=frameData.white,tonemap=self.settings.tonemap(),colourMatrix=self.settings.setting_colourMatrix,lut1d1=self.lut1d1tex)
                 PLOG(PLOG_GPU,"Demosaic shader draw done for frame %d"%frameNumber)
         self.lastFrameData = frameData
         self.lastFrameNumber = frameNumber
