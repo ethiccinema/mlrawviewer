@@ -34,7 +34,6 @@ from multiprocessing import Process
 
 from Config import Config
 
-import LUT
 
 config = Config(version=(1,2,2))
 programpath = os.path.abspath(os.path.split(sys.argv[0])[0])
@@ -46,6 +45,9 @@ if getattr(sys,'frozen',False):
         sys.stderr = sys.stdout
     except:
         pass
+
+import LUT
+LUTS3D,LUT3D_FNS,LUTS1D,LUT1D_FNS = LUT.loadAllLuts()
 
 print "MlRawViewer v"+config.versionString()
 print "(c) Andrew Baldwin & contributors 2013-2014"
@@ -135,6 +137,7 @@ class Demosaicer(ui.Drawable):
         self.lastPP = self.preprocessTex2
         self.lut = None
         self.luttex = None
+        self.lut1d1 = None
         self.lut1d1tex = None
         self.lut1d2tex = None
 
@@ -151,6 +154,17 @@ class Demosaicer(ui.Drawable):
             l = self.lut
             if l != None:
                 self.luttex = GLCompute.Texture3D(l.len(),l.lut().tostring())
+        lut1d = self.frames.currentLut1D1()
+        if lut1d != self.lut1d1:
+            self.lut1d1 = lut1d
+            lutchanged = True
+            if self.lut1d1tex != None:
+                self.lut1d1tex.free()
+                self.lut1d1tex = None
+        if self.lut1d1tex == None:
+            l = self.lut1d1
+            if l != None:
+                self.lut1d1tex = GLCompute.Texture1D(l.len(),l.lut().tostring())
         #if self.lut1d1tex == None:
         #    l = LUT.LOG_1D_LUT
         #    self.lut1d1tex = GLCompute.Texture1D(l.len(),l.lut().tostring())
@@ -608,6 +622,8 @@ class DisplayScene(ui.Scene):
         if f.rtc != None:
             se,mi,ho,da,mo,ye = f.rtc[1:7]
             s += ", %02d:%02d:%02d %02d:%02d:%04d"%(ho,mi,se,da,mo+1,ye+1900)
+        if self.frames.setting_lut1d1 != None:
+            s += "\n1D LUT1:%s"%self.frames.setting_lut1d1.name()
         if self.frames.setting_lut3d != None:
             s += "\n3D LUT:%s"%self.frames.setting_lut3d.name()
         return s
@@ -889,7 +905,9 @@ class Viewer(GLCompute.GLCompute):
         self.exportActive = False
         self.exportLastStatus = 0.0
         self.toggleEncoding() # On by default
-        self.lutindex = 0
+        self.lut3dindex = 0
+        self.lut1d1index = 0
+        self.lut1d2index = 0
     def initFps(self):
         self.fps = self.raw.fps
         self.setting_fpsOverride = self.raw.getMeta("fpsOverride_v1")
@@ -1232,37 +1250,67 @@ class Viewer(GLCompute.GLCompute):
             self.refresh()
 
         elif k==self.KEY_LEFT: # Left cursor
-            self.jump(-self.fps) # Go back 1 second (will wrap)
+            if m==0:
+                self.jump(-self.fps) # Go back 1 second (will wrap)
+            elif m==1:
+                self.changeLut1D1(-1)
         elif k==self.KEY_RIGHT: # Right cursor
-            self.jump(self.fps) # Go forward 1 second (will wrap)
+            if m==0:
+                self.jump(self.fps) # Go forward 1 second (will wrap)
+            elif m==1:
+                self.changeLut1D1(1)
         elif k==self.KEY_UP: # Up cursor
             if m==0:
                 self.scaleBrightness(1.1)
             elif m==1:
-                self.changeLut(1)
+                self.changeLut3D(1)
         elif k==self.KEY_DOWN: # Down cursor
             if m==0:
                 self.scaleBrightness(1.0/1.1)
             elif m==1:
-                self.changeLut(-1)
+                self.changeLut3D(-1)
 
         else:
             super(Viewer,self).key(k,m) # Inherit standard behaviour
 
     def currentLut3D(self):
         return self.setting_lut3d
+    def currentLut1D1(self):
+        return self.setting_lut1d1
+    def currentLut1D2(self):
+        return self.setting_lut1d2
 
-    def changeLut(self,change):
-        self.lutindex += change
+    def changeLut3D(self,change):
+        self.lut3dindex += change
 
-        ix = self.lutindex%(len(LUT.LUTS)+1)
+        ix = self.lut3dindex%(len(LUTS3D)+1)
         if ix == 0:
             self.setting_lut3d = None
             #print "LUT3D disabled"
         else:
             #print "Loading LUT",LUT.LUT_FNS[ix-1]
-            self.setting_lut3d = LUT.LUTS[ix-1]
+            self.setting_lut3d = LUTS3D[ix-1]
         self.raw.setMeta("lut3d_v1",self.setting_lut3d)
+        self.refresh()
+
+    def changeLut1D1(self,change):
+        self.lut1d1index += change
+
+        ix = self.lut1d1index%(len(LUTS1D)+1)
+        if ix == 0:
+            self.setting_lut1d1 = None
+        else:
+            self.setting_lut1d1 = LUTS1D[ix-1]
+        self.refresh()
+
+    def changeLut1D2(self,change):
+        self.lut1d2index += change
+
+        ix = self.lut1d2index%(len(LUTS1D)+1)
+        if ix == 0:
+            self.setting_lut1d2 = None
+        else:
+            self.setting_lut1d2 = LUTS1D[ix-1]
         self.refresh()
 
     def userIdleTime(self):
@@ -2028,6 +2076,8 @@ class Viewer(GLCompute.GLCompute):
         if self.setting_lut3d != None:
             if self.setting_lut3d.len()==0 or len(self.setting_lut3d.lut())==0:
                 self.setting_lut3d = None
+        self.setting_lut1d1 = None
+        self.setting_lut1d2 = None
     def onBgDraw(self,w,h):
         self.exporter.onBgDraw(w,h)
 

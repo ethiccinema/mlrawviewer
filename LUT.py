@@ -135,19 +135,24 @@ def loadAllLuts():
     if not os.path.exists(root):
         os.mkdir(root)
     lutfiles = os.listdir(root)
-    luts = []
-    lutfns = []
+    lutfiles.sort()
+    luts3d = []
+    lut3dfns = []
+    luts1d = []
+    lut1dfns = []
     for f in lutfiles:
         fn = os.path.join(root,f)
         try:
             lut = loadLut(fn)
         except:
             continue
-        lutfns.append(fn)
-        luts.append(lut)
-    return luts,lutfns
-
-LUTS,LUT_FNS = loadAllLuts()
+        if lut.dim()==1:
+            lut1dfns.append(fn)
+            luts1d.append(lut)
+        elif lut.dim()==3:
+            lut3dfns.append(fn)
+            luts3d.append(lut)
+    return luts3d,lut3dfns,luts1d,lut1dfns
 
 if __name__ == '__main__':
     lut = loadLut(sys.argv[1])
