@@ -207,7 +207,7 @@ class Demosaicer(ui.Drawable):
                         self.shaderPatternNoise.draw(scene.size[0],scene.size[1],self.rawUploadTex,0,frameData.black/65536.0,frameData.white/65536.0)
                         ssh = self.shaderPatternNoise.calcStripescaleH(scene.size[0],scene.size[1])
                         self.verticalPattern.bindfbo()
-                        self.shaderPatternNoise.draw(scene.size[0],scene.size[1],self.rawUploadTex,1,frameData.black/65536.0,frameData.white/65536.0) 
+                        self.shaderPatternNoise.draw(scene.size[0],scene.size[1],self.rawUploadTex,1,frameData.black/65536.0,frameData.white/65536.0)
                         ssv = self.shaderPatternNoise.calcStripescaleV(scene.size[0],scene.size[1])
                         if self.lastPP == self.preprocessTex2:
                             self.preprocessTex1.bindfbo()
@@ -247,10 +247,10 @@ class Demosaicer(ui.Drawable):
                 if self.settings.setting_preprocess:
                     # Do some preprocess passes to find horizontal/vertical stripes
                     self.horizontalPattern.bindfbo()
-                    self.shaderPatternNoise.draw(scene.size[0],scene.size[1],self.rawUploadTex,0,frameData.black/65536.0,frameData.white/65536.0) 
+                    self.shaderPatternNoise.draw(scene.size[0],scene.size[1],self.rawUploadTex,0,frameData.black/65536.0,frameData.white/65536.0)
                     ssh = self.shaderPatternNoise.calcStripescaleH(scene.size[0],scene.size[1])
                     self.verticalPattern.bindfbo()
-                    self.shaderPatternNoise.draw(scene.size[0],scene.size[1],self.rawUploadTex,1,frameData.black/65536.0,frameData.white/65536.0) 
+                    self.shaderPatternNoise.draw(scene.size[0],scene.size[1],self.rawUploadTex,1,frameData.black/65536.0,frameData.white/65536.0)
                     ssv = self.shaderPatternNoise.calcStripescaleV(scene.size[0],scene.size[1])
                     # Swap preprocess buffer - feed previous one to new call
                     if self.lastPP == self.preprocessTex2:
@@ -363,52 +363,52 @@ class DisplayScene(ui.Scene):
         self.progressBackground.edges = (1.0,1.0,0.01,0.25)
         self.progress = ui.Button(0,0,self.progressClick,svbo=frames.svbo)
         self.progress.edges = (1.0,1.0,0.01,0.5)
-        self.play = self.newIcon(0,0,128,128,0,self.playClick)
+        self.play = self.newIcon(0,0,128,128,0,self.playClick,"Pause or Play the current clip (Key:SPACE)")
         self.play.colour = (0.5,0.5,0.5,0.5) # Quite transparent white
-        self.quality = self.newIcon(0,0,128,128,5,self.qualityClick)
+        self.quality = self.newIcon(0,0,128,128,5,self.qualityClick,"Quality of preview debayering - Bilinear or AMaZE (Key:Q)")
         self.quality.colour = (0.5,0.5,0.5,0.5) # Quite transparent white
         self.quality.setScale(0.25)
-        self.stripes = self.newIcon(0,0,128,128,22,self.stripesClick)
+        self.stripes = self.newIcon(0,0,128,128,22,self.stripesClick,"Status of stripe correction (X means active) - (Key:0)")
         self.stripes.colour = (0.5,0.5,0.5,0.5) # Quite transparent white
         self.stripes.setScale(0.25)
-        self.drop = self.newIcon(0,30,128,128,7,self.dropClick)
+        self.drop = self.newIcon(0,30,128,128,7,self.dropClick,"Drop-frames to keep frame rate (clock) or show all frames (Key:F)")
         self.drop.colour = (0.5,0.5,0.5,0.5) # Quite transparent white
         self.drop.setScale(0.25)
-        self.fullscreen = self.newIcon(0,60,128,128,9,self.fullscreenClick)
+        self.fullscreen = self.newIcon(0,60,128,128,9,self.fullscreenClick,"Toggle Fullscreen view (Key:TAB)")
         self.fullscreen.colour = (0.5,0.5,0.5,0.5) # Quite transparent white
         self.fullscreen.setScale(0.25)
-        self.mapping = self.newIcon(0,90,128,128,11,self.mappingClick)
+        self.mapping = self.newIcon(0,90,128,128,11,self.mappingClick,"Tone mapping - sRGB,R709,Linear,LOG,HDR (Key:T)")
         self.mapping.colour = (0.5,0.5,0.5,0.5) # Quite transparent white
         self.mapping.setScale(0.25)
-        self.update = self.newIcon(0,0,128,128,16,self.updateClick)
+        self.update = self.newIcon(0,0,128,128,16,self.updateClick,"New version of MlRawViewer is available. Click to download")
         self.update.colour = (0.5,0.1,0.0,0.5)
         self.update.setScale(0.5)
-        self.loop = self.newIcon(0,0,128,128,17,self.loopClick)
+        self.loop = self.newIcon(0,0,128,128,17,self.loopClick,"Loop clip or play once (Key:L)")
         self.loop.colour = (0.5,0.5,0.5,0.5)
         self.loop.setScale(0.5)
-        self.outformat = self.newIcon(0,0,128,128,19,self.outfmtClick)
+        self.outformat = self.newIcon(0,0,128,128,19,self.outfmtClick,"Export format - MOV or DNG (Key:D)")
         self.outformat.colour = (0.5,0.5,0.5,0.5)
         self.outformat.setScale(0.5)
-        self.addencode = self.newIcon(0,0,128,128,21,self.addEncodeClick)
+        self.addencode = self.newIcon(0,0,128,128,21,self.addEncodeClick,"Add clip to export queue (Key:E)")
         self.addencode.colour = (0.5,0.5,0.5,0.5)
         self.addencode.setScale(0.5)
 
-        self.cidropper = self.newIcon(0,0,128,128,24,self.ciDropperClick)
+        self.cidropper = self.newIcon(0,0,128,128,24,self.ciDropperClick,"Choose white balance from neutral object")
         self.cidropper.colour = (0.5,0.5,0.5,0.5)
         self.cidropper.setScale(0.25)
-        self.cievzero = self.newIcon(0,0,128,128,25,self.ciEvzeroClick)
+        self.cievzero = self.newIcon(0,0,128,128,25,self.ciEvzeroClick,"Reset exposure to zero EV")
         self.cievzero.colour = (0.5,0.5,0.5,0.5)
         self.cievzero.setScale(0.25)
-        self.ciundo = self.newIcon(0,0,128,128,26,self.ciUndoClick)
+        self.ciundo = self.newIcon(0,0,128,128,26,self.ciUndoClick,"Undo colour/exposure change")
         self.ciundo.colour = (0.5,0.5,0.5,0.5)
         self.ciundo.setScale(0.25)
-        self.ciredo = self.newIcon(0,0,128,128,27,self.ciRedoClick)
+        self.ciredo = self.newIcon(0,0,128,128,27,self.ciRedoClick,"Redo colour/exposure change")
         self.ciredo.colour = (0.5,0.5,0.5,0.5)
         self.ciredo.setScale(0.25)
-        self.cistore = self.newIcon(0,0,128,128,28,self.ciStoreClick)
+        self.cistore = self.newIcon(0,0,128,128,28,self.ciStoreClick,"Store current colour/exposure (Key:H)")
         self.cistore.colour = (0.5,0.5,0.5,0.5)
         self.cistore.setScale(0.25)
-        self.cirecall = self.newIcon(0,0,128,128,29,self.ciRecallClick)
+        self.cirecall = self.newIcon(0,0,128,128,29,self.ciRecallClick,"Recall current colour/exposure (Key:G)")
         self.cirecall.colour = (0.5,0.5,0.5,0.5)
         self.cirecall.setScale(0.25)
         self.ciItems = [self.cievzero,self.cidropper,self.ciundo,self.ciredo,self.cistore,self.cirecall]
@@ -435,6 +435,12 @@ class DisplayScene(ui.Scene):
         self.coldata.setScale(0.18)
         self.coldata.ignoreInput = True
         self.coldata.maxchars = 9
+        self.tooltip = ui.Text("",svbo=self.frames.svbo)
+        self.tooltip.setScale(0.25)
+        self.tooltip.maxchars = 70
+        self.tooltip.colour = (1.0,0.9,0.9,1.0)
+        self.ttbg = ui.Geometry(svbo=frames.svbo)
+        self.ttbg.edges = (1.0,1.0,0.05,0.3)
         self.exportq = ui.Flickable(400.0,200.0,svbo=frames.svbo)
         self.exportq.edges = (1.0,1.0,0.01,0.01)
         self.exportq.colour = (1.0,1.0,1.0,1.0)
@@ -445,7 +451,7 @@ class DisplayScene(ui.Scene):
         self.exportq.children.append(self.exportqlist)
         self.timestamp = ui.Geometry(svbo=frames.svbo)
         self.iconItems = [self.fullscreen,self.mapping,self.drop,self.quality,self.stripes,self.loop,self.outformat,self.addencode,self.play]
-        self.overlay = [self.iconBackground,self.progressBackground,self.progress,self.timestamp,self.update,self.balance,self.balanceHandle,self.brightness,self.brightnessHandle,self.mark,self.mdbg,self.metadata,self.exportq,self.coldata]
+        self.overlay = [self.iconBackground,self.progressBackground,self.progress,self.timestamp,self.update,self.balance,self.balanceHandle,self.brightness,self.brightnessHandle,self.mark,self.mdbg,self.metadata,self.exportq,self.coldata,self.ttbg,self.tooltip]
         self.overlay.extend(self.iconItems)
         self.overlay.extend(self.ciItems)
         self.overlay.append(self.whitePicker) # So it is on the bottom
@@ -453,6 +459,13 @@ class DisplayScene(ui.Scene):
         self.drawables.extend(self.overlay)
         self.timeline = ui.Timeline()
         self.fadeAnimation = ui.Animation(self.timeline,1.0)
+        self.clearhover = self.clearTooltip
+
+    def clearTooltip(self):
+        self.tooltip.text = ""
+
+    def updateTooltip(self,button,tiptext):
+        self.tooltip.text = tiptext
 
     def isDirty(self):
         dirty = False
@@ -537,8 +550,8 @@ class DisplayScene(ui.Scene):
     def addEncodeClick(self,x,y):
         self.frames.addEncoding()
 
-    def newIcon(self,x,y,w,h,idx,cb):
-        icon = ui.Button(w,h,cb,svbo=self.frames.svbo)
+    def newIcon(self,x,y,w,h,idx,cb,tip=""):
+        icon = ui.Button(w,h,cb,svbo=self.frames.svbo,onhover=self.updateTooltip,onhoverobj=tip)
         self.setIcon(icon,w,h,idx)
         icon.setPos(x,y)
         icon.colour = (1.0,1.0,1.0,1.0)
@@ -681,6 +694,15 @@ class DisplayScene(ui.Scene):
         self.metadata.setPos(66.0,10.0)
         self.metadata.text = self.summariseMetadata()
         self.metadata.update()
+        self.tooltip.setPos(66.0,rtr+115.0)
+        self.tooltip.update()
+        self.ttbg.setPos(60.0,rtr+112.0)
+        if len(self.tooltip.text)>0:
+            self.ttbg.rectangle(self.tooltip.size[0]+10.0,self.tooltip.size[1]+6.0,rgba=(0.0,0.0,0.0,0.25))
+        else:
+            self.ttbg.rectangle(0,0,rgba=(0.0,0.0,0.0,0.25))
+        self.coldata.text = self.summariseColdata()
+        self.coldata.update()
         self.coldata.setPos(rtl+4.0,rtr+126.0)
         self.coldata.text = self.summariseColdata()
         self.coldata.update()
@@ -726,9 +748,9 @@ class DisplayScene(ui.Scene):
             self.exportq.opacity = 0.0
         else:
             self.exportq.opacity = self.overlayOpacity
-            mlh = height-12.0-rectHeight-5.0-self.metadata.size[1]-12.0
+            mlh = height-12.0-rectHeight-5.0-self.metadata.size[1]-20.0
             lh = min(self.exportqlist.size[1]+12.0,mlh)
-            self.exportq.setPos(60.0,height-lh-rectHeight-5.0)
+            self.exportq.setPos(60.0,height-lh-rectHeight-5.0-30.0)
             self.exportq.rectangle(self.exportqlist.size[0]+12.0,lh,rgba=(0.0,0.0,0.0,0.25))
             self.exportq.size = (self.exportqlist.size[0]+12.0,lh)
             self.exportqlist.setPos(6.0,6.0)
@@ -1520,6 +1542,7 @@ class Viewer(GLCompute.GLCompute):
         name = rfn+"_%06d"%i
         #full = os.path.join(self.outfilename,name)
         queuedfiles = [j[1][3] for j in self.exporter.jobs.items()]
+        print queuedfiles
         increment = True
         existing = os.listdir(self.outfilename)
         while increment:
@@ -1813,7 +1836,7 @@ class Viewer(GLCompute.GLCompute):
         if self.marks == None:
             self.markReset() # Set valid marks
     def markSet(self,newmarks):
-        if newmarks == self.marks: 
+        if newmarks == self.marks:
             return
         self.marks = newmarks
         self.raw.setMeta("marks_v1",newmarks)
@@ -1859,7 +1882,7 @@ class Viewer(GLCompute.GLCompute):
         for frame,kind in marks:
             if frame==at:
                 insert = False
-                break  
+                break
             elif frame>at:
                 break
             index += 1
@@ -2064,11 +2087,11 @@ def okToExitDialog():
     else:
         return False
 
-def askOutputDialog(initial): 
+def askOutputDialog(initial):
     result = launchDialog("chooseOutputDir",initial)
     return result
 
-def openFilename(initial): 
+def openFilename(initial):
     result = launchDialog("openFilename",initial)
     return result.strip()
 
@@ -2078,7 +2101,7 @@ def main():
         #print "Error. Please specify an MLV or RAW file to view"
         #return -1
         directory = config.getState("directory")
-        if directory == None: 
+        if directory == None:
             directory = '~'
         afile = openFilename(directory)
         if afile != None:

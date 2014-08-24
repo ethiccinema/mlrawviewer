@@ -78,7 +78,7 @@ class SharedVbo(object):
             offset = self.allocated
             self.allocated += amount
             self.avail -= amount
-            return offset 
+            return offset
         return None
     def update(self,data,offset):
         ow = offset/4
@@ -160,6 +160,7 @@ class Scene(object):
         self.eventHandler = None
         self.ignoreMotion = True
         self.setPosition(0.0, 0.0)
+        self.clearhover = None
     def setSize(self,w,h):
         self.size = (float(w),float(h))
         self.updateMatrices()
@@ -185,14 +186,16 @@ class Scene(object):
     def renderComplete(self):
         pass
     def input2d(self,x,y,buttons):
-        if self.eventHandler == None: 
+        if self.clearhover: self.clearhover()
+        if self.eventHandler == None:
             if self.ignoreMotion:
                 ignore = True
                 for b in buttons:
                     if b==GLCompute.GLCompute.BUTTON_DOWN:
                         ignore = False
-                if ignore:
-                    return None
+                # Can no longer ignore here because of tooltips.
+                #if ignore:
+                #    return None
             #if buttons[0]==0 and buttons[1]==0: return None
             for d in self.drawables:
                 if d.ignoreInput: continue
@@ -241,7 +244,7 @@ class Geometry(Drawable):
             self.matrix.identity()
             self.matrix.translate(self.pos[0],self.pos[1])
             if self.rotation != 0.0:
-                self.matrix.rotation(2.0*3.1415927*self.rotation/360.0)    
+                self.matrix.rotation(2.0*3.1415927*self.rotation/360.0)
             self.matrix.translate(-self.transformOffset[0],-self.transformOffset[1])
             if self.scale != 1.0:
                 self.matrix.scale(self.scale)
@@ -249,7 +252,7 @@ class Geometry(Drawable):
             PLOG(PLOG_CPU,"Update of matrix done %d,%d"%self.pos)
 
     def reserve(self,space):
-        self.svbobase = self.svbo.allocate(space) 
+        self.svbobase = self.svbo.allocate(space)
         #print "reserved",self.svbobase,space
         if self.svbobase != None:
             self.svbospace = space
@@ -259,11 +262,11 @@ class Geometry(Drawable):
             self.matrixDirty = True
     def setPos(self,x,y):
         if self.pos != (x,y):
-            self.pos = (x,y)    
+            self.pos = (x,y)
             self.matrixDirty = True
     def setScale(self,scale):
         if self.scale != scale:
-            self.scale = scale    
+            self.scale = scale
             self.matrixDirty = True
     def setRotation(self,rotation):
         if self.rotation != rotation:
@@ -344,17 +347,19 @@ class Geometry(Drawable):
         return handler # Not handled
     def event2d(self,lx,ly,buttons):
         """
-        A 2d event ocurred in our active region    
+        A 2d event ocurred in our active region
         """
         return None
 
 class Button(Geometry):
-    def __init__(self,width,height,onclick,**kwds):
+    def __init__(self,width,height,onclick,onhover=None,onhoverobj=None,**kwds):
         super(Button,self).__init__(**kwds)
         self.size = (width,height)
         self.ignoreInput = False
         self.onclick = onclick
         self.notClicked = True
+        self.onhover = onhover
+        self.onhoverobj = onhoverobj
     def event2d(self,lx,ly,buttons):
         if buttons[0] == 1:
             # Clicked
@@ -363,6 +368,8 @@ class Button(Geometry):
                 self.notClicked = False
             return self
         else:
+            if self.onhover:
+                self.onhover(self,self.onhoverobj)
             self.notClicked = True
         return None
 
@@ -379,8 +386,9 @@ class XYGraph(Button):
                 self.inMotion = True
             return self
         else:
-            self.inMotion = False
-            self.onclick(lx,ly,self.inMotion)
+            if self.inMotion:
+                self.inMotion = False
+                self.onclick(lx,ly,self.inMotion)
             return None
 
 class Text(Button):
@@ -394,7 +402,7 @@ class Text(Button):
         if self.oldtext != self.text:
             text = self.text
             if len(text)>self.maxchars:
-                text = text[:self.maxchars] 
+                text = text[:self.maxchars]
             self.label(text,maxchars=self.maxchars)
             self.oldtext = self.text
     def clickHandler(self,x,y):
@@ -412,9 +420,9 @@ class Text(Button):
             c = k - GLCompute.GLCompute.KEY_A
             if m&GLCompute.GLCompute.KEY_MOD_SHIFT:
                 c = c + ord('A')
-            else:    
+            else:
                 c = c + ord('a')
-            self.text += chr(c) 
+            self.text += chr(c)
         else:
             print "edit",k
 
@@ -429,7 +437,7 @@ class Flickable(Button):
         self.dragstarty = 0
         self.canvdragstartx = 0
         self.canvdragstarty = 0
-        self.allowx = True 
+        self.allowx = True
         self.allowy = True
     def event2d(self,lx,ly,buttons):
         if buttons[0] == 1:
@@ -460,9 +468,9 @@ class Flickable(Button):
             if self.allowy:
                 newy = self.canvdragstarty + (y-self.dragstarty)
             newy = max(newy,miny)
-            newy = min(newy,maxy)    
+            newy = min(newy,maxy)
             newx = max(newx,minx)
-            newx = min(newx,maxx)    
+            newx = min(newx,maxx)
             #print newx,newy
             self.children[0].setPos(newx,newy)
- 
+
