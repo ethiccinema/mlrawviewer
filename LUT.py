@@ -39,6 +39,7 @@ class LutBase(object):
     def lut(self):
         return self.a
     def name(self):
+        if not hasattr(self,"t"): self.t = ""
         return self.t
 
 class LutCube(LutBase):
@@ -87,6 +88,26 @@ class LutCube(LutBase):
                 rgb = (float(r),float(g),float(b))
                 self.a.extend(rgb)
         self.t = name
+    def save(self,filename):
+        l = list()
+        l.append("TITLE \"%s\"\n\n"%self.name())
+        if self.dim()==1:
+            l.append("LUT_1D_SIZE %d\n\n"%self.len())
+        elif self.dim==3:
+            l.append("LUT_3D_SIZE %d\n\n"%self.len())
+        vi = iter(self.a)
+        try:
+            while 1:
+                r = vi.next()
+                g = vi.next()
+                b = vi.next()
+                l.append("%.8f %.8f %.8f\n"%(r,g,b))
+        except:
+            pass
+        final = ''.join(l)
+        lutfile = open(filename,'wb')
+        lutfile.write(final)
+        lutfile.close()
 
 def loadLut(filename):
     if filename.lower().endswith(".cube"):
@@ -106,21 +127,13 @@ IDENTITY_3D_LUT = array.array('f',[
             0.0,1.0,1.0,
             1.0,1.0,1.0]).tostring()
 
-def LogLut():
-    l = LutBase()
-    l.d = 1
-    l.n = 1024
-    l.t = "Log"
-    for i in range(1024):
-        f = float(i)
-        if f==0.0: f=1.0
-        v = math.log(f*1.0,2.0)/10.0
-        l.a.extend((v,v,v))
-    return l
-LOG_1D_LUT = LogLut()
-
 def loadAllLuts():
+    config = os.path.expanduser("~/.mlrawviewer/")
+    if not os.path.exists(config):
+        os.mkdir(config)
     root = os.path.expanduser("~/.mlrawviewer/lut/")
+    if not os.path.exists(root):
+        os.mkdir(root)
     lutfiles = os.listdir(root)
     luts = []
     lutfns = []
