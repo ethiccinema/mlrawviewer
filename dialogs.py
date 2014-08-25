@@ -33,6 +33,12 @@ def openFilename(initialDir):
     afile = tkFileDialog.askopenfilename(title='Open ML video...', initialdir=initialDir, filetypes=mlFileTypes)
     return afile
 
+def importLuts():
+    mlFT1 = ('*.cube', '*.CUBE')
+    mlFileTypes = [('CUBE', mlFT1), ('All', '*.*')]
+    afiles = tkFileDialog.askopenfilename(title='Choose LUT files to import...', filetypes=mlFileTypes, multiple=1)
+    return afiles
+
 if __name__ == '__main__':
     import codecs
     fromUtf8=codecs.getdecoder('UTF8')
@@ -43,9 +49,14 @@ if __name__ == '__main__':
     if dialogType=="okToExit":
         sys.stdout.write(okToExit())
     elif dialogType=="chooseOutputDir":
-	e = toUtf8(chooseOutputDir(initial))
-	sys.stdout.write(e[0])
+        e = toUtf8(chooseOutputDir(initial))
+        sys.stdout.write(e[0])
     elif dialogType=="openFilename":
-	e = toUtf8(openFilename(initial))
-	sys.stdout.write(e[0])
+	    e = toUtf8(openFilename(initial))
+	    sys.stdout.write(e[0])
+    elif dialogType=="importLut":
+        e = importLuts()
+        for f in e:
+            sys.stdout.write(f)
+            sys.stdout.write('\n')
 

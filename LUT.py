@@ -127,32 +127,86 @@ IDENTITY_3D_LUT = array.array('f',[
             0.0,1.0,1.0,
             1.0,1.0,1.0]).tostring()
 
-def loadAllLuts():
-    config = os.path.expanduser("~/.mlrawviewer/")
-    if not os.path.exists(config):
-        os.mkdir(config)
-    root = os.path.expanduser("~/.mlrawviewer/lut/")
-    if not os.path.exists(root):
-        os.mkdir(root)
-    lutfiles = os.listdir(root)
-    lutfiles.sort()
-    luts3d = []
-    lut3dfns = []
-    luts1d = []
-    lut1dfns = []
-    for f in lutfiles:
-        fn = os.path.join(root,f)
-        try:
-            lut = loadLut(fn)
-        except:
-            continue
-        if lut.dim()==1:
-            lut1dfns.append(fn)
-            luts1d.append(lut)
-        elif lut.dim()==3:
-            lut3dfns.append(fn)
-            luts3d.append(lut)
-    return luts3d,lut3dfns,luts1d,lut1dfns
+"""
+Generate log curve LUTs for different numbers of stops DR
+0 always maps to 0
+1 always maps to 1
+16 stops maps input to range 1-65536. log2 maps this to 0-16.0
+14 stops maps input to range 1-16384. log2 maps this to 0-14.0
+12 stops maps input to range 1-4096. log2 maps this to 0-12.0
+10 stops maps input to range 1-1024. log2 maps this to 0-10.0
+etc.
+"""
+def LogLut(n,stops):
+    l = LutCube()
+    l.d = 1
+    l.n = n
+    l.t = "Linear to Log %d"%stops
+    premul = math.pow(2.0,stops)-1.0
+    scale = premul*1.0/float(l.n-1.0)
+    for i in range(l.n):
+        f = 1.0+float(i)*scale
+        v = math.log(f,2.0)/float(stops)
+        l.a.extend((v,v,v))
+    return l
+
+"""
+Generate sRGB gamma curve
+0-0.0031308    y = 12.92*x
+0.0031308-1.0  y = (1.0+0.055)*x^(1.0/2.4)-0.055
+"""
+def sRGBLut(n):
+    l = LutCube()
+    l.d = 1
+    l.n = n
+    l.t = "Linear to sRGB Gamma"
+    scale = 1.0/float(l.n-1.0)
+    power = 1.0/2.4
+    for i in range(l.n):
+        f = float(i)*scale
+        if f<=0.0031308:
+            v = 12.92 * f
+        else:
+            v = (1.0+0.055)*math.pow(f,power)-0.055
+        l.a.extend((v,v,v))
+    return l
+
+"""
+Generate Rec.709 gamma curve
+0-0.018    y = 4.5*x
+0.018-1.0  y = 1.099*x^(0.45)-0.099
+"""
+def Rec709Lut(n):
+    l = LutCube()
+    l.d = 1
+    l.n = n
+    l.t = "Linear to Rec.709 Gamma"
+    scale = 1.0/float(l.n-1.0)
+    for i in range(l.n):
+        f = float(i)*scale
+        if f<0.018:
+            v = 4.5 * f
+        else:
+            v = (1.099)*math.pow(f,0.45)-0.099
+        l.a.extend((v,v,v))
+    return l
+
+"""
+Generate Reinhard global tone map y = x/(1+x) curve
+"""
+def ReinhardHDRLut(n):
+    l = LutCube()
+    l.d = 1
+    l.n = n
+    l.t = "Linear to HDR Reinhard global tone map"
+    scale = 6.0 * 1.0/float(l.n-1.0)
+    maxval = 6.0/7.0
+    for i in range(l.n):
+        f = float(i)*scale
+        v = f/((1.0+f)*maxval)
+        #print i,f,v
+        l.a.extend((v,v,v))
+    return l
 
 if __name__ == '__main__':
     lut = loadLut(sys.argv[1])

@@ -47,7 +47,6 @@ if getattr(sys,'frozen',False):
         pass
 
 import LUT
-LUTS3D,LUT3D_FNS,LUTS1D,LUT1D_FNS = LUT.loadAllLuts()
 
 print "MlRawViewer v"+config.versionString()
 print "(c) Andrew Baldwin & contributors 2013-2014"
@@ -108,6 +107,37 @@ ENCODE_TYPE_MOV = 0
 ENCODE_TYPE_DNG = 1
 ENCODE_TYPE_MAX = 2
 
+"""
+LUT default configuration
+"""
+
+LUT3D = config.getState("lut3d")
+LUT1D = config.getState("lut1d")
+
+LUT_STANDARD = 1 # Not deletable
+LUT_USER = 2 # Deletable
+
+if LUT3D == None:
+    LUT3D = list()
+if LUT1D == None:
+    LUT1D = list()
+
+def generateDefaultLuts():
+    global LUT1D
+    if len(LUT1D)==0:
+        print "Creating default 1D LUTs"
+        for n in [5,6,7,8,9,10,12,14,16]:
+            l = LUT.LogLut(2**12,n)
+            LUT1D.append((l,LUT_STANDARD))
+        LUT1D.append((LUT.sRGBLut(2**12),LUT_STANDARD))
+        LUT1D.append((LUT.Rec709Lut(2**12),LUT_STANDARD))
+        LUT1D.append((LUT.ReinhardHDRLut(2**12),LUT_STANDARD))
+        config.setState("lut1d",LUT1D)
+
+generateDefaultLuts()
+
+"""
+"""
 class Demosaicer(ui.Drawable):
     def __init__(self,settings,encoder,frames,**kwds):
         super(Demosaicer,self).__init__(**kwds)
@@ -1213,7 +1243,10 @@ class Viewer(GLCompute.GLCompute):
         elif k==self.KEY_T:
             self.toggleToneMapping()
         elif k==self.KEY_L:
-            self.toggleLooping()
+            if m==0:
+                self.toggleLooping()
+            elif m==1:
+                self.importLut()
 
         elif k==self.KEY_G:
             self.loadBalance()
@@ -1299,38 +1332,62 @@ class Viewer(GLCompute.GLCompute):
     def currentLut1D2(self):
         return self.setting_lut1d2
 
+    def importLut(self):
+        result = launchDialog("importLut")
+        filenames = result.split("\n")
+        update1d = False
+        update3d = False
+        for f in filenames:
+            fn = f.strip()
+            l = LUT.LutCube()
+            try:
+                l.load(fn)
+                print "Importing LUT",fn
+                if l.dim()==1:
+                    LUT1D.append((l,LUT_USER))
+                    update1d = True
+                elif l.dim()==3:
+                    LUT3D.append((l,LUT_USER))
+                    update3d = True
+            except:
+                pass
+        if update1d:
+            config.setState("lut1d",LUT1D)
+        if update3d:
+            config.setState("lut3d",LUT3D)
+
     def changeLut3D(self,change):
         self.lut3dindex += change
 
-        ix = self.lut3dindex%(len(LUTS3D)+1)
+        ix = self.lut3dindex%(len(LUT3D)+1)
         if ix == 0:
             self.setting_lut3d = None
             #print "LUT3D disabled"
         else:
             #print "Loading LUT",LUT.LUT_FNS[ix-1]
-            self.setting_lut3d = LUTS3D[ix-1]
+            self.setting_lut3d = LUT3D[ix-1][0]
         self.raw.setMeta("lut3d_v1",self.setting_lut3d)
         self.refresh()
 
     def changeLut1D1(self,change):
         self.lut1d1index += change
 
-        ix = self.lut1d1index%(len(LUTS1D)+1)
+        ix = self.lut1d1index%(len(LUT1D)+1)
         if ix == 0:
             self.setting_lut1d1 = None
         else:
-            self.setting_lut1d1 = LUTS1D[ix-1]
+            self.setting_lut1d1 = LUT1D[ix-1][0]
         self.raw.setMeta("lut1d1_v1",self.setting_lut1d1)
         self.refresh()
 
     def changeLut1D2(self,change):
         self.lut1d2index += change
 
-        ix = self.lut1d2index%(len(LUTS1D)+1)
+        ix = self.lut1d2index%(len(LUT1D)+1)
         if ix == 0:
             self.setting_lut1d2 = None
         else:
-            self.setting_lut1d2 = LUTS1D[ix-1]
+            self.setting_lut1d2 = LUT1D[ix-1][0]
         self.raw.setMeta("lut1d2_v1",self.setting_lut1d2)
         self.refresh()
 
