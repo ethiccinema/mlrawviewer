@@ -73,7 +73,7 @@ State icons along the left are as follows:
 - Colour curve (sRGB, 709, linear, hdr or log)
 - Demosaic quality
 - Stripe removing (vertical and horizontal)
-- Export type & export state
+- Export type
 - Playing/paused
 
 They can be clicked to change the current state.
@@ -86,6 +86,14 @@ Above that are 6 icons:
 - Redo brightness/balance change (after undoing)
 - Store current brightness/balance to memory
 - Restore brightness/balance from memory (can be in another clip)
+
+As a more powerful alternative to the fixed colour curves, 1D and 3D LUTs can be used.
+Up to 3 LUTs can be used - a 1D LUT, followed by a 3D LUT, followed by second 1D LUT.
+A few standard 1D LUTs are supplied, replicating the standard curves.
+Additional 1D and 3D LUTs can be imported from .CUBE files by pressing Shift-L and selecting the files.
+To select the first 1D LUT, use Shift-LEFT/RIGHT keys.
+To select the 3D LUT, use Shift-UP/DOWN keys.
+To select the second 1D LUT, use Shift-Z/X keys.
 
 Keys
 ----
@@ -147,3 +155,11 @@ H/G - Save/load current colour balance & brightness (for matching multiple takes
 0 - Toggle stripe/hot-pixel removing preprocess pass
 
 Shift-F - FPS override
+
+Shift-L - Choose LUTs from .CUBE files to import. LUTs only need to be imported once.
+
+Shift-LEFT/RIGHT - Select 1D LUT 1 from the available (imported) 1D LUTs
+
+Shift-UP/DOWN - Select 3D LUT from the available (imported) 3D LUTs
+
+Shift-Z/X - Select 1D LUT 2 from the available (imported) 1D LUTs
