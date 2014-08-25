@@ -35,7 +35,7 @@ from multiprocessing import Process
 from Config import Config
 
 
-config = Config(version=(1,2,2))
+config = Config(version=(1,2,3))
 programpath = os.path.abspath(os.path.split(sys.argv[0])[0])
 if getattr(sys,'frozen',False):
     programpath = sys._MEIPASS
@@ -518,10 +518,16 @@ class DisplayScene(ui.Scene):
         self.clearhover = self.clearTooltip
 
     def clearTooltip(self):
-        self.tooltip.text = ""
+        if self.tooltip.text != "":
+            self.tooltip.text = ""
+            if self.frames.paused:
+                self.frames.refresh()
 
     def updateTooltip(self,button,tiptext):
-        self.tooltip.text = tiptext
+        if tiptext != self.tooltip.text:
+            self.tooltip.text = tiptext
+            if self.frames.paused:
+                self.frames.refresh()
 
     def isDirty(self):
         dirty = False
