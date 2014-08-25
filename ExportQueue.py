@@ -88,6 +88,10 @@ class ExportQueue(threading.Thread):
         self.shaderPreprocess = None
         self.luttex = None
         self.currentLut = None
+        self.luttex1d1 = None
+        self.currentLut1d1 = None
+        self.luttex1d2 = None
+        self.currentLut1d2 = None
         self.rgbImage = None
         self.svbo = None
         self.pauseState = True
@@ -523,11 +527,17 @@ class ExportQueue(threading.Thread):
                 time.sleep(0.1)
         fps,fpsnum,fpsden = self.fpsParts(r)
         rgbl,tm = self.rgblOverride(r,rgbl,tm)
+        lut1d1 = r.getMeta("lut1d1_v1")
+        if lut1d1 != None:
+            print "Exporting using 1D LUT1",lut1d1.name()
         lut = r.getMeta("lut3d_v1")
         if type(lut)==tuple:
             lut = None
-        else:
+        if lut != None:
             print "Exporting using 3D LUT",lut.name()
+        lut1d2 = r.getMeta("lut1d2_v1")
+        if lut1d2 != None:
+            print "Exporting using 1D LUT2",lut1d2.name()
         wavfile = self.wavOverride(r,wavfile)
         if os.path.exists(wavfile):
             tempwavname = movfile[:-4] + ".WAV"
@@ -609,6 +619,8 @@ class ExportQueue(threading.Thread):
             self.processCommands(block=False)
             f = r.frame(startFrame+i)
             f.lut = lut
+            f.lut1d1 = lut1d1
+            f.lut1d2 = lut1d2
             if ((startFrame+i+1)<r.frames()):
                 r.preloadFrame(startFrame+i+1)
             # Queue job
@@ -778,11 +790,22 @@ class ExportQueue(threading.Thread):
                 rgbl = (1.0,1.0,1.0,rgbl[3])
             else:
                 recover = 1.0
+            if frame.lut1d1 != None and self.currentLut1d1 != frame.lut1d1:
+                l = frame.lut1d1
+                self.luttex1d1 = GLCompute.Texture1D(l.len(),l.lut().tostring())
+                self.luttex1d1.context = self.context
+                self.currentLut1d1 = frame.lut1d1
             if frame.lut != None and self.currentLut != frame.lut:
                 l = frame.lut
                 self.luttex = GLCompute.Texture3D(l.len(),l.lut().tostring())
+                self.luttex.context = self.context
                 self.currentLut = frame.lut
-            self.shaderQuality.demosaicPass(self.rgbUploadTex,self.luttex,frame.black,balance=rgbl,white=frame.white,tonemap=tm,colourMatrix=matrix,recover=recover)
+            if frame.lut1d2 != None and self.currentLut1d2 != frame.lut1d2:
+                l = frame.lut1d2
+                self.luttex1d2 = GLCompute.Texture1D(l.len(),l.lut().tostring())
+                self.luttex1d2.context = self.context
+                self.currentLut1d2 = frame.lut1d2
+            self.shaderQuality.demosaicPass(self.rgbUploadTex,self.luttex,frame.black,balance=rgbl,white=frame.white,tonemap=tm,colourMatrix=matrix,recover=recover,lut1d1=self.luttex1d1,lut1d2=self.luttex1d2)
             rgb = glReadPixels(area[0],h-(area[1]+area[3]),area[2],area[3],GL_RGB,GL_UNSIGNED_SHORT)
             return (index,rgb)
         elif jobtype==1:            # Predemosaic processing

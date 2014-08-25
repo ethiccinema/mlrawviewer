@@ -138,6 +138,7 @@ class Demosaicer(ui.Drawable):
         self.lut = None
         self.luttex = None
         self.lut1d1 = None
+        self.lut1d2 = None
         self.lut1d1tex = None
         self.lut1d2tex = None
 
@@ -165,6 +166,17 @@ class Demosaicer(ui.Drawable):
             l = self.lut1d1
             if l != None:
                 self.lut1d1tex = GLCompute.Texture1D(l.len(),l.lut().tostring())
+        lut1d2 = self.frames.currentLut1D2()
+        if lut1d2 != self.lut1d2:
+            self.lut1d2 = lut1d2
+            lutchanged = True
+            if self.lut1d2tex != None:
+                self.lut1d2tex.free()
+                self.lut1d2tex = None
+        if self.lut1d2tex == None:
+            l = self.lut1d2
+            if l != None:
+                self.lut1d2tex = GLCompute.Texture1D(l.len(),l.lut().tostring())
         #if self.lut1d1tex == None:
         #    l = LUT.LOG_1D_LUT
         #    self.lut1d1tex = GLCompute.Texture1D(l.len(),l.lut().tostring())
@@ -199,7 +211,7 @@ class Demosaicer(ui.Drawable):
                         self.rgbUploadTex.update(frameData.rgbimage)
                         PLOG(PLOG_GPU,"RGB texture upload returned for frame %d"%frameNumber)
                         self.rgbFrameUploaded = frameNumber
-                    self.shaderQuality.demosaicPass(self.rgbUploadTex,self.luttex,frameData.black,balance=balance,white=frameData.white,tonemap=tone,colourMatrix=self.settings.setting_colourMatrix,lut1d1=self.lut1d1tex)
+                    self.shaderQuality.demosaicPass(self.rgbUploadTex,self.luttex,frameData.black,balance=balance,white=frameData.white,tonemap=tone,colourMatrix=self.settings.setting_colourMatrix,lut1d1=self.lut1d1tex,lut1d2=self.lut1d2tex)
                     #mydump = glReadPixels(0,0,scene.size[0],scene.size[1],GL_RGB,GL_UNSIGNED_SHORT)
                     #print frameNumber
                     #for i in range(10):
@@ -248,7 +260,7 @@ class Demosaicer(ui.Drawable):
                         PLOG(PLOG_GPU,"RGB texture upload returned for frame %d"%frameNumber)
                         self.rgbFrameUploaded = frameNumber
                     newrgb = (rgb[0]/frameData.rawwbal[0],1.0,rgb[2]/frameData.rawwbal[2])
-                    self.shaderQuality.demosaicPass(self.rgbUploadTex,self.luttex,frameData.black,balance=(newrgb[0],newrgb[1],newrgb[2],balance[3]),white=frameData.white,tonemap=tone,colourMatrix=self.settings.setting_colourMatrix,recover=0.0,lut1d1=self.lut1d1tex)
+                    self.shaderQuality.demosaicPass(self.rgbUploadTex,self.luttex,frameData.black,balance=(newrgb[0],newrgb[1],newrgb[2],balance[3]),white=frameData.white,tonemap=tone,colourMatrix=self.settings.setting_colourMatrix,recover=0.0,lut1d1=self.lut1d1tex,lut1d2=self.lut1d2tex)
             else:
                 # Fast decode for full speed viewing
                 if frameData != self.lastFrameData:
@@ -278,9 +290,9 @@ class Demosaicer(ui.Drawable):
                     #debug = glReadPixels(0,0,16,16,GL_RGBA,GL_FLOAT)
                     #print debug
                     self.rgbImage.bindfbo()
-                    self.shaderNormal.demosaicPass(self.lastPP,self.luttex,frameData.black,balance=(1.0,1.0,1.0,balance[3]),white=frameData.white,tonemap=self.settings.tonemap(),colourMatrix=self.settings.setting_colourMatrix,recover=0.0,lut1d1=self.lut1d1tex)
+                    self.shaderNormal.demosaicPass(self.lastPP,self.luttex,frameData.black,balance=(1.0,1.0,1.0,balance[3]),white=frameData.white,tonemap=self.settings.tonemap(),colourMatrix=self.settings.setting_colourMatrix,recover=0.0,lut1d1=self.lut1d1tex,lut1d2=self.lut1d2tex)
                 else:
-                    self.shaderNormal.demosaicPass(self.rawUploadTex,self.luttex,frameData.black,balance=balance,white=frameData.white,tonemap=self.settings.tonemap(),colourMatrix=self.settings.setting_colourMatrix,lut1d1=self.lut1d1tex)
+                    self.shaderNormal.demosaicPass(self.rawUploadTex,self.luttex,frameData.black,balance=balance,white=frameData.white,tonemap=self.settings.tonemap(),colourMatrix=self.settings.setting_colourMatrix,lut1d1=self.lut1d1tex,lut1d2=self.lut1d2tex)
                 PLOG(PLOG_GPU,"Demosaic shader draw done for frame %d"%frameNumber)
         self.lastFrameData = frameData
         self.lastFrameNumber = frameNumber
@@ -625,7 +637,9 @@ class DisplayScene(ui.Scene):
         if self.frames.setting_lut1d1 != None:
             s += "\n1D LUT1:%s"%self.frames.setting_lut1d1.name()
         if self.frames.setting_lut3d != None:
-            s += "\n3D LUT:%s"%self.frames.setting_lut3d.name()
+            s += "\n3D LUT :%s"%self.frames.setting_lut3d.name()
+        if self.frames.setting_lut1d2 != None:
+            s += "\n1D LUT2:%s"%self.frames.setting_lut1d2.name()
         return s
         #make = self.frames.raw.
         #self.frames.playFrame.
@@ -1237,18 +1251,23 @@ class Viewer(GLCompute.GLCompute):
             self.askOutput()
 
         elif k==self.KEY_Z:
-            self.exporter.cancelAllJobs()
-            self.refresh()
+            if m==0:
+                self.exporter.cancelAllJobs()
+                self.refresh()
+            elif m==1:
+                self.changeLut1D2(-1)
         elif k==self.KEY_X:
-            if self.exporter.currentjob != -1:
-                self.exporter.cancelJob(self.exporter.currentjob)
-            else:
-                nextjobs = self.exporter.jobs.keys()
-                if len(nextjobs)>0:
-                    nextjobs.sort()
-                    self.exporter.cancelJob(nextjobs[0])
-            self.refresh()
-
+            if m==0:
+                if self.exporter.currentjob != -1:
+                    self.exporter.cancelJob(self.exporter.currentjob)
+                else:
+                    nextjobs = self.exporter.jobs.keys()
+                    if len(nextjobs)>0:
+                        nextjobs.sort()
+                        self.exporter.cancelJob(nextjobs[0])
+                self.refresh()
+            elif m==1:
+                self.changeLut1D2(1)
         elif k==self.KEY_LEFT: # Left cursor
             if m==0:
                 self.jump(-self.fps) # Go back 1 second (will wrap)
@@ -1301,6 +1320,7 @@ class Viewer(GLCompute.GLCompute):
             self.setting_lut1d1 = None
         else:
             self.setting_lut1d1 = LUTS1D[ix-1]
+        self.raw.setMeta("lut1d1_v1",self.setting_lut1d1)
         self.refresh()
 
     def changeLut1D2(self,change):
@@ -1311,6 +1331,7 @@ class Viewer(GLCompute.GLCompute):
             self.setting_lut1d2 = None
         else:
             self.setting_lut1d2 = LUTS1D[ix-1]
+        self.raw.setMeta("lut1d2_v1",self.setting_lut1d2)
         self.refresh()
 
     def userIdleTime(self):
@@ -2076,8 +2097,14 @@ class Viewer(GLCompute.GLCompute):
         if self.setting_lut3d != None:
             if self.setting_lut3d.len()==0 or len(self.setting_lut3d.lut())==0:
                 self.setting_lut3d = None
-        self.setting_lut1d1 = None
-        self.setting_lut1d2 = None
+        self.setting_lut1d1 = self.raw.getMeta("lut1d1_v1")
+        if self.setting_lut1d1 != None:
+            if self.setting_lut1d1.len()==0 or len(self.setting_lut1d1.lut())==0:
+                self.setting_lut1d1 = None
+        self.setting_lut1d2 = self.raw.getMeta("lut1d2_v1")
+        if self.setting_lut1d2 != None:
+            if self.setting_lut1d2.len()==0 or len(self.setting_lut1d2.lut())==0:
+                self.setting_lut1d2 = None
     def onBgDraw(self,w,h):
         self.exporter.onBgDraw(w,h)
 
