@@ -36,6 +36,7 @@ where the intensity changes rapidly by orders of magnitude.
 """
 class ShaderDemosaic(GLCompute.Shader):
     size_minus_one = True
+    linear_lut = False
     def __init__(self,**kwds):
         myclass = self.__class__
         super(ShaderDemosaic,self).__init__(myclass.vertex_src,myclass.fragment_src,["time","rawtex","rawres","black","colourBalance","tonemap","colourMatrix","lut3d","lutcontrol","lut1d1","lut1d2"],**kwds)
@@ -61,11 +62,11 @@ class ShaderDemosaic(GLCompute.Shader):
         glEnableVertexAttribArray(self.vertex)
         texture.bindtex(False,0)
         if lut3d!=None:
-            lut3d.bindtex(texnum=1)
+            lut3d.bindtex(texnum=1,linear=self.__class__.linear_lut)
         if lut1d1!=None:
-            lut1d1.bindtex(texnum=2)
+            lut1d1.bindtex(texnum=2,linear=self.__class__.linear_lut)
         if lut1d2!=None:
-            lut1d2.bindtex(texnum=3)
+            lut1d2.bindtex(texnum=3,linear=self.__class__.linear_lut)
         glUniform1f(self.uniforms["tonemap"], float(tonemap))
         glUniform1i(self.uniforms["rawtex"], 0)
         glUniform1i(self.uniforms["lut3d"], 1)

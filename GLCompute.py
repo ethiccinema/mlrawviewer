@@ -125,11 +125,17 @@ class Texture1D:
         glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE)
         glTexImage1D(GL_TEXTURE_1D, 0, GL_RGB32F, size, 0, GL_RGB, GL_FLOAT, data)
         self.size = size
-    def bindtex(self,texnum=0):
+    def bindtex(self,texnum=0,linear=False):
         if self.context.current_texture == (self,True):
             return
         glActiveTexture(GL_TEXTURE0+texnum)
         glBindTexture(GL_TEXTURE_1D, self.id)
+        if not linear:
+            glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MIN_FILTER, GL_NEAREST)
+            glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MAG_FILTER, GL_NEAREST)
+        else:
+            glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+            glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
         self.context.current_texture = (self,True)
     def free(self):
         glDeleteTextures(self.id)
@@ -148,11 +154,17 @@ class Texture3D:
         glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE)
         glTexImage3D(GL_TEXTURE_3D, 0, GL_RGB32F, size, size, size, 0, GL_RGB, GL_FLOAT, data)
         self.size = size
-    def bindtex(self,texnum=0):
+    def bindtex(self,texnum=0,linear=False):
         if self.context.current_texture == (self,True):
             return
         glActiveTexture(GL_TEXTURE0+texnum)
         glBindTexture(GL_TEXTURE_3D, self.id)
+        if not linear:
+            glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_NEAREST)
+            glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_NEAREST)
+        else:
+            glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+            glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
         self.context.current_texture = (self,True)
     def free(self):
         glDeleteTextures(self.id)
