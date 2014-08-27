@@ -91,6 +91,7 @@ class LutCube(LutBase):
     def save(self,filename):
         l = list()
         l.append("TITLE \"%s\"\n\n"%self.name())
+        l.append("# Created by MlRawViewer (https://bitbucket.org/baldand/mlrawviewer)\n\n")
         if self.dim()==1:
             l.append("LUT_1D_SIZE %d\n\n"%self.len())
         elif self.dim==3:
