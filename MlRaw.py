@@ -1075,9 +1075,13 @@ class CDNG(ImageSequence):
         FrameRate = self.tag(fd,DNG.Tag.FrameRate)
         if FrameRate != None:
             FrameRate = FrameRate[3][0]
-            self.fps = float(FrameRate[0])/float(FrameRate[1])
-            self.fpsnum = FrameRate[0]
-            self.fpsden = FrameRate[1]
+            print FrameRate
+            if FrameRate[1]>0 and FrameRate[0]>0:
+                self.fps = float(FrameRate[0])/float(FrameRate[1])
+                self.fpsnum = FrameRate[0]
+                self.fpsden = FrameRate[1]
+            else:
+                print "Bad FrameRate in DNG files",FrameRate[0],FrameRate[1]
             print "FPS:",self.fps,FrameRate
         else:
             print "No internal frame rate. Defaulting to",self.fps

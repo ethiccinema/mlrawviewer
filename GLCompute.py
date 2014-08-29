@@ -66,8 +66,10 @@ def mrvCompileProgramPreValidate(*shaders, **named):
     return program
 
 def mrvCompileProgramPostValidate(program, *shaders, **named):
-    program.check_validate()
-    program.check_linked()
+    if hasattr(program,"check_validate"):
+        program.check_validate()
+    if hasattr(program,"check_linked"):
+        program.check_linked()
     for shader in shaders:
         glDeleteShader(shader)
     return program
