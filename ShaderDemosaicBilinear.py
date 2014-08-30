@@ -127,13 +127,13 @@ and mix explicitly.
 */
 vec3 lut3drgb(vec3 crgb) {
     float lutn = lutcontrol.x;
-    vec3 crd = crgb*(lutn-1.0)*(1.0/lutn);
+    vec3 crd = crgb*(lutn-1.0)*(1.0/lutn)+(0.5/lutn);
     vec3 result = texture3D(lut3d,crd).rgb;
     vec3 postlut = clamp(result,0.0,1.0);
     return postlut;
 }
 vec3 lut1drgb(sampler1D lut,float lutn,vec3 crgb) {
-    vec3 crd = crgb*(lutn-1.0)*(1.0/lutn);
+    vec3 crd = crgb*(lutn-1.0)*(1.0/lutn)+(0.5/lutn);
     float r = texture1D(lut,crd.r).r;
     float g = texture1D(lut,crd.g).g;
     float b = texture1D(lut,crd.b).b;
