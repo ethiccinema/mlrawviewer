@@ -62,6 +62,23 @@ vec3 r709gamma(vec3 linear) {
     return mix(4.5*linear,(1.0+0.099)*pow(linear,vec3(0.45))-0.099,step(vec3(0.018),linear));
 }
 
+vec3 SLoggamma(vec3 linear) {
+    //379.044*LOG(x/5088 + 0.037584, 10) + 630
+    return (379.0 * (log2(linear * 16384.0 / 5088.0 + 0.037584)/log2(10.0)) + 630.0) / 1024.0 ;
+}
+
+vec3 SLog2gamma(vec3 linear) {
+    //379.044*LOG(x/7200 + 0.037584, 10) + 630
+    return (379.0 * (log2(linear * 16384.0 / 7200.0 + 0.037584)/log2(10.0)) + 630.0) / 1024.0 ;
+}
+
+vec3 LogCgamma(vec3 linear) {
+    //IF(x < 88, 1.25*x, 272.LOG(x/950, 10) + 391)
+    return mix(20480.0*linear,
+        272.0 * (log2(linear * 16384.0 / 950.0)/log2(10.0)) + 391.0,
+        step(vec3(88.0/16384.0),linear)) / 1024.0 ;
+}
+
 /* Native trilinear interpolation cannot be trusted not to
 introduce quantising. Instead we must sample 8 nearest points
 and mix explicitly.
@@ -133,6 +150,12 @@ void main() {
         toneMapped = sRGBgamma(clamp(colour,0.0,1.0));
     } else if (tonemap==4.0) {
         toneMapped = r709gamma(clamp(colour,0.0,1.0));
+    } else if (tonemap==5.0) {
+        toneMapped = SLoggamma(colour);
+    } else if (tonemap==6.0) {
+        toneMapped = SLog2gamma(colour);
+    } else if (tonemap==7.0) {
+        toneMapped = LogCgamma(colour);
     }
     vec3 crgb = mix(colour,toneMapped,step(0.5,tonemap));
     if (lutcontrol.y>0.0)

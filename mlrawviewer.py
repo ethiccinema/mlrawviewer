@@ -124,14 +124,20 @@ if LUT1D == None:
 
 def generateDefaultLuts():
     global LUT1D
-    if len(LUT1D)==0:
-        print "Creating default 1D LUTs"
-        for n in [5,6,7,8,9,10,12,14,16]:
+    userluts = [(lut,luttype) for lut,luttype in LUT1D if luttype==LUT_USER]
+    standardluts = [(lut,luttype) for lut,luttype in LUT1D if luttype==LUT_STANDARD]
+    if len(standardluts)<22:
+        print "Updating standard 1D LUTs"
+        for n in [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16]:
             l = LUT.LogLut(2**12,n)
             LUT1D.append((l,LUT_STANDARD))
         LUT1D.append((LUT.sRGBLut(2**12),LUT_STANDARD))
         LUT1D.append((LUT.Rec709Lut(2**12),LUT_STANDARD))
         LUT1D.append((LUT.ReinhardHDRLut(2**12),LUT_STANDARD))
+        LUT1D.append((LUT.SlogLut(2**12),LUT_STANDARD))
+        LUT1D.append((LUT.Slog2Lut(2**12),LUT_STANDARD))
+        LUT1D.append((LUT.LogCLut(2**12),LUT_STANDARD))
+        LUT1D.extend(userluts)
         config.setState("lut1d",LUT1D)
 
 generateDefaultLuts()
@@ -433,13 +439,13 @@ class DisplayScene(ui.Scene):
         self.fullscreen = self.newIcon(0,60,128,128,9,self.fullscreenClick,"Toggle Fullscreen view (Key:TAB)")
         self.fullscreen.colour = (0.5,0.5,0.5,0.5) # Quite transparent white
         self.fullscreen.setScale(0.25)
-        self.mapping = self.newIcon(0,90,128,128,11,self.mappingClick,"Tone mapping - sRGB,R709,Linear,LOG,HDR (Key:T)")
+        self.mapping = self.newIcon(0,90,128,128,11,self.mappingClick,"Curve: sRGB,R709,Linear,LOG,HDR,S-Log,S-Log2,Log-C (Key:T)")
         self.mapping.colour = (0.5,0.5,0.5,0.5) # Quite transparent white
         self.mapping.setScale(0.25)
-        self.update = self.newIcon(0,0,128,128,16,self.updateClick,"New version of MlRawViewer is available. Click to download")
+        self.update = self.newIcon(0,0,128,128,30,self.updateClick,"New version of MlRawViewer is available. Click to download")
         self.update.colour = (0.5,0.1,0.0,0.5)
         self.update.setScale(0.5)
-        self.loop = self.newIcon(0,0,128,128,17,self.loopClick,"Loop clip or play once (Key:L)")
+        self.loop = self.newIcon(0,0,128,128,31,self.loopClick,"Loop clip or play once (Key:L)")
         self.loop.colour = (0.5,0.5,0.5,0.5)
         self.loop.setScale(0.5)
         self.outformat = self.newIcon(0,0,128,128,19,self.outfmtClick,"Export format - MOV or DNG (Key:D)")
@@ -670,6 +676,22 @@ class DisplayScene(ui.Scene):
         if f.rtc != None:
             se,mi,ho,da,mo,ye = f.rtc[1:7]
             s += ", %02d:%02d:%02d %02d:%02d:%04d"%(ho,mi,se,da,mo+1,ye+1900)
+        if self.frames.setting_tonemap==0:
+            s += "\nCurve: Linear"
+        elif self.frames.setting_tonemap==1:
+            s += "\nCurve: HDR global tone map"
+        elif self.frames.setting_tonemap==2:
+            s += "\nCurve: Log 10"
+        elif self.frames.setting_tonemap==3:
+            s += "\nCurve: sRGB"
+        elif self.frames.setting_tonemap==4:
+            s += "\nCurve: Rec.709"
+        elif self.frames.setting_tonemap==5:
+            s += "\nCurve: S-Log"
+        elif self.frames.setting_tonemap==6:
+            s += "\nCurve: S-Log2"
+        elif self.frames.setting_tonemap==7:
+            s += "\nCurve: Log-C"
         if self.frames.setting_lut1d1 != None:
             s += "\n1D LUT1:%s"%self.frames.setting_lut1d1.name()
         if self.frames.setting_lut3d != None:
@@ -935,7 +957,7 @@ class Viewer(GLCompute.GLCompute):
         self.setting_rgb = (2.0, 1.0, 1.5)
         self.setting_highQuality = False
         self.setting_encoding = False
-        self.setting_tonemap = 3 # 0 = Linear, 1 = Global tone map, 2 = Log, 3 = sRGB Gamma, 4 = Rec.709 Gamma
+        self.setting_tonemap = 3 # 0 = Linear, 1 = Global tone map, 2 = Log, 3 = sRGB Gamma, 4 = Rec.709 Gamma, 5 = SLoggmma, 6 = SLog2gamma, 7 = LogCgamma
         self.setting_dropframes = True # Real time playback by default
         self.setting_loop = config.getState("loopPlayback")
         self.setting_colourMatrix = np.matrix(np.eye(3))
@@ -1487,7 +1509,7 @@ class Viewer(GLCompute.GLCompute):
         self.anamorLens = (self.anamorLens + 1)%5
         self.refresh()
     def toggleToneMapping(self):
-        self.setting_tonemap = (self.setting_tonemap + 1)%5
+        self.setting_tonemap = (self.setting_tonemap + 1)%8
         self.raw.setMeta("tonemap_v1",self.setting_tonemap)
         self.refresh()
     def toggleLooping(self):

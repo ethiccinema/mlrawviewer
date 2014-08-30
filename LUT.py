@@ -209,6 +209,60 @@ def ReinhardHDRLut(n):
         l.a.extend((v,v,v))
     return l
 
+"""
+Generate Linear-to-S-Log LUT
+"""
+def SlogLut(n):
+    l = LutCube()
+    l.d = 1
+    l.n = n
+    l.t = "Linear to S-Log"
+    scale = (2**14.0)/float(l.n-1.0)
+    for i in range(l.n):
+        f = float(i)*scale
+        v = (379.0*math.log(f/5088.0 + 0.037584, 10.0) + 630.0)/1024.0
+        #print i,f,v
+        l.a.extend((v,v,v))
+    return l
+
+"""
+Generate Linear-to-S-Log2 LUT
+"""
+def Slog2Lut(n):
+    l = LutCube()
+    l.d = 1
+    l.n = n
+    l.t = "Linear to S-Log2"
+    scale = (2**14.0)/float(l.n-1.0)
+    for i in range(l.n):
+        f = float(i)*scale
+        v = (379.0*math.log(f/7200.0 + 0.037584, 10.0) + 630.0)/1024.0
+        #print i,f,v
+        l.a.extend((v,v,v))
+    return l
+
+
+"""
+Generate Linear-to-LogC LUT
+"""
+def LogCLut(n):
+    l = LutCube()
+    l.d = 1
+    l.n = n
+    l.t = "Linear to Log-C"
+    scale = (2**14.0)/float(l.n-1.0)
+    for i in range(l.n):
+        f = float(i)*scale
+        if f>(88.0/16384.0):
+            v = (272.0*math.log(f/950.0, 10.0) + 391.0)/1024.0
+        else:
+            v = 20480.0*f/1024.0
+        #print i,f,v
+        l.a.extend((v,v,v))
+    return l
+
+
+
 if __name__ == '__main__':
     lut = loadLut(sys.argv[1])
     print "Dimensions:",lut.dim()
