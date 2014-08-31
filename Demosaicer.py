@@ -35,6 +35,7 @@ from ShaderDemosaicBilinear import *
 from ShaderDemosaicCPU import *
 from ShaderPreprocess import *
 from ShaderPatternNoise import *
+from ShaderHistogram import *
  
 class Demosaicer(ui.Drawable):
     def __init__(self,settings,encoder,frames,**kwds):
@@ -43,6 +44,7 @@ class Demosaicer(ui.Drawable):
         self.shaderPreprocess = ShaderPreprocess()
         self.shaderNormal = ShaderDemosaicBilinear()
         self.shaderQuality = ShaderDemosaicCPU()
+        self.shaderHistogram = ShaderHistogram()
         self.settings = settings
         self.encoder = encoder
         self.lastFrameData = None
@@ -54,7 +56,7 @@ class Demosaicer(ui.Drawable):
         self.rgbFrameUploaded = None
         self.lastPP = None
 
-    def setTextures(self,rgbImage,horizontalPattern,verticalPattern,preprocessTex1,preprocessTex2,rawUploadTex,rgbUploadTex):
+    def setTextures(self,rgbImage,horizontalPattern,verticalPattern,preprocessTex1,preprocessTex2,rawUploadTex,rgbUploadTex,histogramTex):
         self.rgbImage = rgbImage
         self.horizontalPattern = horizontalPattern
         self.verticalPattern = verticalPattern
@@ -62,6 +64,7 @@ class Demosaicer(ui.Drawable):
         self.preprocessTex2 = preprocessTex2
         self.rawUploadTex = rawUploadTex
         self.rgbUploadTex = rgbUploadTex
+        self.histogramTex = histogramTex
         self.lastPP = self.preprocessTex2
         self.lut = None
         self.luttex = None
@@ -222,6 +225,11 @@ class Demosaicer(ui.Drawable):
                 else:
                     self.shaderNormal.demosaicPass(self.rawUploadTex,self.luttex,frameData.black,balance=balance,white=frameData.white,tonemap=self.settings.tonemap(),colourMatrix=self.settings.setting_colourMatrix,lut1d1=self.lut1d1tex,lut1d2=self.lut1d2tex)
                 PLOG(PLOG_GPU,"Demosaic shader draw done for frame %d"%frameNumber)
+        # Calculate histogram
+        #self.histogramTex.bindfbo()
+        #self.shaderHistogram.draw(scene.size[0],scene.size[1],self.rgbImage)
+        #histogram = glReadPixels(0,0,4096,1,GL_RED,GL_UNSIGNED_SHORT)
+
         self.lastFrameData = frameData
         self.lastFrameNumber = frameNumber
         self.lastBrightness = brightness
@@ -248,7 +256,8 @@ class DemosaicScene(ui.Scene):
         self.rgbUploadTex = GLCompute.Texture((raw.width(),raw.height()),None,hasalpha=False,mono=False,sixteen=True)
         try: self.rgbImage = GLCompute.Texture((raw.width(),raw.height()),None,hasalpha=False,mono=False,fp=True)
         except GLError: self.rgbImage = GLCompute.Texture((raw.width(),raw.height()),None,hasalpha=False,sixteen=True)
-        self.demosaicer.setTextures(self.rgbImage,self.horizontalPattern,self.verticalPattern,self.preprocessTex1,self.preprocessTex2,self.rawUploadTex,self.rgbUploadTex)
+        self.histogramTex = GLCompute.Texture((2**12,1),None,hasalpha=False,mono=False,sixteen=True)
+        self.demosaicer.setTextures(self.rgbImage,self.horizontalPattern,self.verticalPattern,self.preprocessTex1,self.preprocessTex2,self.rawUploadTex,self.rgbUploadTex,self.histogramTex)
         #print "Using",self.demosaicer.shaderNormal.demosaic_type,"demosaic algorithm"
     def setTarget(self):
         self.rgbImage.bindfbo()
@@ -260,6 +269,7 @@ class DemosaicScene(ui.Scene):
         self.rawUploadTex.free()
         self.rgbUploadTex.free()
         self.rgbImage.free()
+        self.histogramTex.free()
         if self.demosaicer.luttex != None:
             self.demosaicer.luttex.free()
     def prepareToRender(self):
@@ -267,3 +277,4 @@ class DemosaicScene(ui.Scene):
         self.demosaicer.shaderQuality.prepare(self.frames.svbo)
         self.demosaicer.shaderPreprocess.prepare(self.frames.svbo)
         self.demosaicer.shaderPatternNoise.prepare(self.frames.svbo)
+        self.demosaicer.shaderHistogram.prepare(self.frames.svbo,width=256,height=256)

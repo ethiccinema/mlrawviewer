@@ -61,7 +61,7 @@ PLOG_GPU = PerformanceLog.PLOG_TYPE(3,"GPU")
 shaders = {}
 
 class SharedVbo(object):
-    def __init__(self,size=1024*1024,**kwds):
+    def __init__(self,size=1024*1024*16,**kwds):
         super(SharedVbo,self).__init__(**kwds)
         self.data = np.zeros(shape=(size,),dtype=np.float32)
         self.vbo = vbo.VBO(self.data)
