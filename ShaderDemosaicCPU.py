@@ -151,11 +151,11 @@ void main() {
     } else if (tonemap==4.0) {
         toneMapped = r709gamma(clamp(colour,0.0,1.0));
     } else if (tonemap==5.0) {
-        toneMapped = SLoggamma(colour);
+        toneMapped = clamp(SLoggamma(colour),0.0,1.0);
     } else if (tonemap==6.0) {
-        toneMapped = SLog2gamma(colour);
+        toneMapped = clamp(SLog2gamma(colour),0.0,1.0);
     } else if (tonemap==7.0) {
-        toneMapped = LogCgamma(colour);
+        toneMapped = clamp(LogCgamma(colour),0.0,1.0);
     }
     vec3 crgb = mix(colour,toneMapped,step(0.5,tonemap));
     if (lutcontrol.y>0.0)
