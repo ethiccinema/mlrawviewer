@@ -250,6 +250,7 @@ class Viewer(GLCompute.GLCompute):
         if self.display == None:
             self.display = DisplayScene(self,size=(0,0))
         self.display.setRgbImage(self.demosaic.rgbImage)
+        self.display.setHistogram(self.demosaic.histogramTex)
         self.scenes.append(self.display)
         self.rgbImage = self.demosaic.rgbImage
         self.initWav()

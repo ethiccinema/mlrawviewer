@@ -20,6 +20,9 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
+
+import time
+
 import PerformanceLog
 from PerformanceLog import PLOG
 PerformanceLog.PLOG_CONTROL(False)
@@ -226,9 +229,12 @@ class Demosaicer(ui.Drawable):
                     self.shaderNormal.demosaicPass(self.rawUploadTex,self.luttex,frameData.black,balance=balance,white=frameData.white,tonemap=self.settings.tonemap(),colourMatrix=self.settings.setting_colourMatrix,lut1d1=self.lut1d1tex,lut1d2=self.lut1d2tex)
                 PLOG(PLOG_GPU,"Demosaic shader draw done for frame %d"%frameNumber)
         # Calculate histogram
-        #self.histogramTex.bindfbo()
-        #self.shaderHistogram.draw(scene.size[0],scene.size[1],self.rgbImage)
-        #histogram = glReadPixels(0,0,4096,1,GL_RED,GL_UNSIGNED_SHORT)
+        self.histogramTex.bindfbo()
+        self.shaderHistogram.draw(scene.size[0],scene.size[1],self.rgbImage)
+        #histogram = glReadPixels(0,0,128,1,GL_RED,GL_UNSIGNED_SHORT)
+        #for i in range(128):
+        #    print histogram[i,0],
+        #print
 
         self.lastFrameData = frameData
         self.lastFrameNumber = frameNumber
@@ -256,7 +262,7 @@ class DemosaicScene(ui.Scene):
         self.rgbUploadTex = GLCompute.Texture((raw.width(),raw.height()),None,hasalpha=False,mono=False,sixteen=True)
         try: self.rgbImage = GLCompute.Texture((raw.width(),raw.height()),None,hasalpha=False,mono=False,fp=True)
         except GLError: self.rgbImage = GLCompute.Texture((raw.width(),raw.height()),None,hasalpha=False,sixteen=True)
-        self.histogramTex = GLCompute.Texture((2**12,1),None,hasalpha=False,mono=False,sixteen=True)
+        self.histogramTex = GLCompute.Texture((2**8,1),None,hasalpha=False,mono=False,sixteen=True)
         self.demosaicer.setTextures(self.rgbImage,self.horizontalPattern,self.verticalPattern,self.preprocessTex1,self.preprocessTex2,self.rawUploadTex,self.rgbUploadTex,self.histogramTex)
         #print "Using",self.demosaicer.shaderNormal.demosaic_type,"demosaic algorithm"
     def setTarget(self):
@@ -277,4 +283,4 @@ class DemosaicScene(ui.Scene):
         self.demosaicer.shaderQuality.prepare(self.frames.svbo)
         self.demosaicer.shaderPreprocess.prepare(self.frames.svbo)
         self.demosaicer.shaderPatternNoise.prepare(self.frames.svbo)
-        self.demosaicer.shaderHistogram.prepare(self.frames.svbo,width=256,height=256)
+        self.demosaicer.shaderHistogram.prepare(self.frames.svbo,width=64,height=64)

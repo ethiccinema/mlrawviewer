@@ -1,5 +1,5 @@
 """
-ShaderHistogram.py
+ShaderGraph.py
 (c) Andrew Baldwin 2014
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
@@ -20,8 +20,8 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-Sample the image at all supplied vertices (points) in vertex shader,
-and transform coordinates to the right bin n a small horizontal accumulation texture
+Draw a graph or plot from a table supplied in a texture
+Can be used either for histograms, or 1DLUT curves 
 """
 
 import GLCompute
@@ -29,62 +29,60 @@ from OpenGL.GL import *
 import numpy as np
 import array
 
-class ShaderHistogram(GLCompute.Shader):
+class ShaderGraph(GLCompute.Shader):
     vertex_src = """
-attribute vec2 vertex;
+attribute vec4 vertex;
+varying vec2 texcoord;
+uniform mat4 matrix;
 uniform vec4 rawres;
-uniform sampler2D rawtex;
 void main() {
-    vec3 rgb = texture2D(rawtex,vertex.xy).rgb;
-    vec2 pos = vec2(rgb.r*2.0-1.,0.5);
-    gl_Position = vec4(pos.xy,0.0,1.0);
+    vec4 coordinate = vec4(vertex.xy,0.0,1.0);
+    vec4 position = matrix * coordinate;
+    gl_Position = position;
+    texcoord = vertex.zw;
 }
 """
     fragment_src = """
+uniform sampler2D tex;
 uniform vec4 rawres;
+varying vec2 texcoord;
+uniform float opacity;
 
 void main() {
-    gl_FragColor = vec4(1.0/65535.0);
+    float v = texture2D(tex,texcoord).r;
+    float b = step(1.0-texcoord.y,v*256.);
+    float z = (0.25+0.75*b)*opacity;
+    gl_FragColor = vec4(vec3(b)*z,z);
 }
 """
-
     def __init__(self,**kwds):
         myclass = self.__class__
-        super(ShaderHistogram,self).__init__(myclass.vertex_src,myclass.fragment_src,["rawtex","rawres"],**kwds)
+        super(ShaderGraph,self).__init__(myclass.vertex_src,myclass.fragment_src,["rawtex","rawres","matrix","tex","opacity"],**kwds)
         self.svbo = None
         self.samples = 0
     def prepare(self,svbo,width,height):
         if self.svbo==None:
             self.svbo = svbo
-            self.svbobase = svbo.allocate(width*height)
-            yinc = 1.0/float(height)
-            xinc = 1.0/float(width)
-            vertices = array.array('f')
-            cy = yinc/2.0
-            for y in range(height):
-                cx = xinc/2.0
-                for x in range(width):
-                    vertices.extend((cx,cy))
-                    cx += xinc
-                cy += yinc
-            self.svbo.update(np.array(vertices,dtype=np.float32),self.svbobase)
-            self.samples = width*height
+            self.svbobase = svbo.allocate(4*16)
+            vertices = np.array((0,0,0,0,
+                                 width,0,1,0,
+                                 0,height,0,1,
+                                 width,height,1,1),dtype=np.float32)
+            self.svbo.update(vertices,self.svbobase)
 
-    def draw(self,width,height,texture):
+    def draw(self,matrix,width,height,texture,opacity):
         self.use()
-        self.blend(False)
-        glVertexAttribPointer(self.vertex,2,GL_FLOAT,GL_FALSE,0,self.svbo.vboOffset(self.svbobase))
+        self.blend(True)
+        glVertexAttribPointer(self.vertex,4,GL_FLOAT,GL_FALSE,0,self.svbo.vboOffset(self.svbobase))
         glEnableVertexAttribArray(self.vertex)
         texture.bindtex(False)
         glUniform1i(self.uniforms["rawtex"], 0)
+        glUniformMatrix4fv(self.uniforms["matrix"], 1, 0, matrix.m.tolist())
+        glUniform1i(self.uniforms["tex"], 0)
+        glUniform1f(self.uniforms["opacity"], opacity)
         w = width
         h = height
         if w>0 and h>0:
             glUniform4f(self.uniforms["rawres"], w, h, 1.0/float(w),1.0/float(h))
-        glClear(GL_COLOR_BUFFER_BIT)
-        glEnable(GL_BLEND)
-        glBlendFunc(GL_ONE,GL_ONE)
-        glDrawArrays(GL_POINTS, 0, self.samples)
-        glDisable(GL_BLEND)
-
+        glDrawArrays(GL_TRIANGLE_STRIP, 0, 4)
 

@@ -36,6 +36,7 @@ PLOG_GPU = PerformanceLog.PLOG_TYPE(3,"GPU")
 import GLCompute
 import GLComputeUI as ui
 import ExportQueue
+from ShaderGraph import *
 from ShaderDisplaySimple import *
 from ShaderText import *
 
@@ -72,6 +73,34 @@ class Display(ui.Drawable):
         # 1 to 1
         #self.displayShader.draw(self.rgbImage.width,self.rgbImage.height,self.rgbImage)
 
+class Graph(ui.XYGraph):
+    def __init__(self,**kwds):
+        super(Graph,self).__init__(**kwds)
+        self.shader = ShaderGraph()
+    def render(self,scene,matrix,opacity):
+        PLOG(PLOG_CPU,"Geometry render %d,%d"%self.pos)
+        self.updateMatrix()
+        m = self.matrix.copy()
+        m.mult(matrix);
+        finalopacity = self.opacity * opacity
+        if finalopacity>0.0:
+            PLOG(PLOG_CPU,"Geometry render draw %d,%d"%self.pos)
+            if self.clip:
+                glEnable(GL_STENCIL_TEST)
+                glStencilFunc(GL_ALWAYS, 1, 0xFF);
+                glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);
+                glStencilMask(0xFF);
+            self.shader.draw(m,128,128,self.texture,finalopacity)
+            PLOG(PLOG_CPU,"Geometry render children %d,%d"%self.pos)
+        if self.clip:
+            glStencilFunc(GL_EQUAL, 1, 0xFF)
+            glStencilMask(0x00);
+        for c in self.children:
+            c.render(scene,m,finalopacity) # Relative to parent
+        if self.clip:
+            glDisable(GL_STENCIL_TEST)
+            glStencilMask(0xFF);
+        PLOG(PLOG_CPU,"Geometry render done %d,%d"%self.pos)
 class DisplayScene(ui.Scene):
     def __init__(self,frames,**kwds):
         super(DisplayScene,self).__init__(**kwds)
@@ -177,8 +206,9 @@ class DisplayScene(ui.Scene):
         self.exportqlist.setScale(0.25)
         self.exportq.children.append(self.exportqlist)
         self.timestamp = ui.Geometry(svbo=frames.svbo)
+        self.histogram = Graph(width=128,height=128,onclick=None,svbo=self.frames.svbo)
         self.iconItems = [self.fullscreen,self.mapping,self.drop,self.quality,self.stripes,self.loop,self.outformat,self.addencode,self.play]
-        self.overlay = [self.iconBackground,self.progressBackground,self.progress,self.timestamp,self.update,self.balance,self.balanceHandle,self.brightness,self.brightnessHandle,self.mark,self.mdbg,self.metadata,self.exportq,self.coldata,self.ttbg,self.tooltip]
+        self.overlay = [self.iconBackground,self.progressBackground,self.progress,self.timestamp,self.update,self.balance,self.balanceHandle,self.brightness,self.brightnessHandle,self.mark,self.mdbg,self.metadata,self.exportq,self.coldata,self.ttbg,self.tooltip,self.histogram]
         self.overlay.extend(self.iconItems)
         self.overlay.extend(self.ciItems)
         self.overlay.append(self.whitePicker) # So it is on the bottom
@@ -208,6 +238,8 @@ class DisplayScene(ui.Scene):
 
     def setRgbImage(self,rgbImage):
         self.display.setRgbImage(rgbImage)
+    def setHistogram(self,histogram):
+        self.histogram.texture = histogram
 
     def whiteClick(self,x,y,down):
         if self.dropperActive:
@@ -373,6 +405,7 @@ class DisplayScene(ui.Scene):
         frameNumber = int(f % self.raw.frames())
         """
         self.display.displayShader.prepare(self.frames.svbo)
+        self.histogram.shader.prepare(self.frames.svbo,self.histogram.size[0],self.histogram.size[1])
         self.timeline.setNow(time.time())
         idle = self.frames.userIdleTime()
         if idle>5.0 and self.fadeAnimation.targval == 1.0 and not self.frames.encoding():
@@ -410,6 +443,7 @@ class DisplayScene(ui.Scene):
         rgb = self.frames.rgb()
         r = ((4.0-rgb[0])/4.0)*128.0
         b = (rgb[2]/4.0)*128.0
+        self.histogram.setPos(btl,10.)
         self.balanceHandle.setPos(btl+b-4.0,btr+r-4.0)
         self.whitePicker.setPos(0,0)
         self.whitePicker.size = self.size
