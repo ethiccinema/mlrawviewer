@@ -37,14 +37,11 @@ def importLuts():
     mlFT1 = ('*.cube', '*.CUBE')
     mlFileTypes = [('CUBE', mlFT1), ('All', '*.*')]
     afiles = tkFileDialog.askopenfilename(title='Choose LUT files to import...', filetypes=mlFileTypes, multiple=1)
-    if type(afiles)!=list:
+    if type(afiles)!=tuple:
         # Workaround for windows bug... result is tk string.
         # If a filename had spaces, it has { } around it, else it doesn't
-        print "broken",afiles
         sep = re.findall("{.*?}|\S+",afiles)
 	afiles = [re.sub("^{|}$","",i) for i in sep]
-        print "fixed",afiles
-    print afiles
     return afiles
 
 if __name__ == '__main__':

@@ -41,10 +41,14 @@ from Matrix import *
 from Demosaicer import *
 from Display import *
 from Audio import *
+import LUT
 
 ENCODE_TYPE_MOV = 0
 ENCODE_TYPE_DNG = 1
 ENCODE_TYPE_MAX = 2
+
+LUT1D = LUT.LUT1D
+LUT3D = LUT.LUT3D
 
 class Viewer(GLCompute.GLCompute):
     def __init__(self,raw,outfilename,wavfilename=None,**kwds):
