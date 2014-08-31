@@ -41,11 +41,19 @@ class Audio(object):
                 bufSize = 1024 * frameSize
                 left = len(dataBuffer)-bufferOffset
                 if left<bufSize:
-                    stream.write(dataBuffer[bufferOffset:])
+                    try:
+                        stream.write(dataBuffer[bufferOffset:],exception_on_underflow=True)
+                    except:
+                        print "Audio underflow"
+                        stream = None
                     dataBuffer = None
                 else:
                     newoffset = bufferOffset+bufSize
-                    stream.write(dataBuffer[bufferOffset:newoffset])
+                    try:
+                        stream.write(dataBuffer[bufferOffset:newoffset],exception_on_underflow=True)
+                    except:
+                        print "Audio underflow"
+                        stream = None
                     bufferOffset = newoffset
             else:
                 command = self.commands.get()
