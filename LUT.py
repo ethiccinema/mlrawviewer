@@ -25,6 +25,8 @@ Utilities and support code for reading,writing and generating different 1D/3D LU
 
 import sys,array,os,math
 
+from Config import config
+
 class LutBase(object):
     def __init__(self,**kwds):
         super(LutBase,self).__init__(**kwds)
@@ -261,7 +263,40 @@ def LogCLut(n):
         l.a.extend((v,v,v))
     return l
 
+"""
+LUT default configuration
+"""
 
+LUT3D = config.getState("lut3d")
+LUT1D = config.getState("lut1d")
+
+LUT_STANDARD = 1 # Not deletable
+LUT_USER = 2 # Deletable
+
+if LUT3D == None:
+    LUT3D = list()
+if LUT1D == None:
+    LUT1D = list()
+
+def generateDefaultLuts():
+    global LUT1D
+    userluts = [(lut,luttype) for lut,luttype in LUT1D if luttype==LUT_USER]
+    standardluts = [(lut,luttype) for lut,luttype in LUT1D if luttype==LUT_STANDARD]
+    if len(standardluts)<22:
+        print "Updating standard 1D LUTs"
+        for n in [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16]:
+            l = LUT.LogLut(2**12,n)
+            LUT1D.append((l,LUT_STANDARD))
+        LUT1D.append((LUT.sRGBLut(2**12),LUT_STANDARD))
+        LUT1D.append((LUT.Rec709Lut(2**12),LUT_STANDARD))
+        LUT1D.append((LUT.ReinhardHDRLut(2**12),LUT_STANDARD))
+        LUT1D.append((LUT.SlogLut(2**12),LUT_STANDARD))
+        LUT1D.append((LUT.Slog2Lut(2**12),LUT_STANDARD))
+        LUT1D.append((LUT.LogCLut(2**12),LUT_STANDARD))
+        LUT1D.extend(userluts)
+        config.setState("lut1d",LUT1D)
+
+generateDefaultLuts()
 
 if __name__ == '__main__':
     lut = loadLut(sys.argv[1])

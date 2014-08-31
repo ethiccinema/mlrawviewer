@@ -190,3 +190,5 @@ class Config(object):
         return self.platform == PLAT_MAC
     def isWin(self):
         return self.platform == PLAT_WIN
+
+config = Config(version=(1,2,3))
