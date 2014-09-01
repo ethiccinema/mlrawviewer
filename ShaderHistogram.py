@@ -72,18 +72,13 @@ void main() {
         if self.svbo==None:
             self.svbo = svbo
             self.svbobase = svbo.allocate(width*height)
+            vertexarray = np.meshgrid(np.arange(width,dtype=np.float32),np.arange(height,dtype=np.float32),np.arange(3.0),np.arange(3.0))
             yinc = 1.0/float(height)
             xinc = 1.0/float(width)
-            vertices = array.array('f')
-            cy = yinc/2.0
-            for y in range(height):
-                cx = xinc/2.0
-                for x in range(width):
-                    for col in range(3):
-                        vertices.extend((cx,cy,col))
-                    cx += xinc
-                cy += yinc
-            self.svbo.update(np.array(vertices,dtype=np.float32),self.svbobase)
+            v = vertexarray[2]
+            v[:,:,:,0] = vertexarray[0][:,:,:,0]*xinc+xinc*0.5
+            v[:,:,:,1] = vertexarray[1][:,:,:,0]*yinc+yinc*0.5
+            self.svbo.update(v.flatten(),self.svbobase)
             self.samples = width*height
 
     def draw(self,width,height,texture):

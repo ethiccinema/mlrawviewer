@@ -443,7 +443,7 @@ class DisplayScene(ui.Scene):
         rgb = self.frames.rgb()
         r = ((4.0-rgb[0])/4.0)*128.0
         b = (rgb[2]/4.0)*128.0
-        self.histogram.setPos(btl,10.)
+        self.histogram.setPos(btl,btr-160.)
         self.balanceHandle.setPos(btl+b-4.0,btr+r-4.0)
         self.whitePicker.setPos(0,0)
         self.whitePicker.size = self.size
