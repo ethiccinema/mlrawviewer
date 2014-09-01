@@ -31,20 +31,35 @@ import array
 
 class ShaderHistogram(GLCompute.Shader):
     vertex_src = """
-attribute vec2 vertex;
+attribute vec3 vertex;
 uniform vec4 rawres;
 uniform sampler2D rawtex;
+varying vec3 col;
 void main() {
     vec3 rgb = texture2D(rawtex,vertex.xy).rgb;
-    vec2 pos = vec2(rgb.r*2.0-1.,0.5);
+    vec2 posr = vec2(rgb.r*2.0-1.,0.5);
+    vec2 posg = vec2(rgb.g*2.0-1.,0.5);
+    vec2 posb = vec2(rgb.b*2.0-1.,0.5);
+    vec2 pos;
+    if (vertex.b==0.0) {
+        pos = posr;
+        col = vec3(1.0/65535.0,0.0,0.0);
+    } else if (vertex.b==1.0) {
+        pos = posg;
+        col = vec3(0.0,1.0/65535.,0.0);
+    } else {
+        pos = posb;
+        col = vec3(0.0,0.0,1.0/65535.);
+    }
     gl_Position = vec4(pos.xy,0.0,1.0);
 }
 """
     fragment_src = """
 uniform vec4 rawres;
+varying vec3 col;
 
 void main() {
-    gl_FragColor = vec4(1.0/65535.0);
+    gl_FragColor = vec4(col,0.0);
 }
 """
 
@@ -64,7 +79,8 @@ void main() {
             for y in range(height):
                 cx = xinc/2.0
                 for x in range(width):
-                    vertices.extend((cx,cy))
+                    for col in range(3):
+                        vertices.extend((cx,cy,col))
                     cx += xinc
                 cy += yinc
             self.svbo.update(np.array(vertices,dtype=np.float32),self.svbobase)
@@ -73,7 +89,7 @@ void main() {
     def draw(self,width,height,texture):
         self.use()
         self.blend(False)
-        glVertexAttribPointer(self.vertex,2,GL_FLOAT,GL_FALSE,0,self.svbo.vboOffset(self.svbobase))
+        glVertexAttribPointer(self.vertex,3,GL_FLOAT,GL_FALSE,0,self.svbo.vboOffset(self.svbobase))
         glEnableVertexAttribArray(self.vertex)
         texture.bindtex(False)
         glUniform1i(self.uniforms["rawtex"], 0)

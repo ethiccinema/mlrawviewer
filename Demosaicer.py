@@ -39,7 +39,7 @@ from ShaderDemosaicCPU import *
 from ShaderPreprocess import *
 from ShaderPatternNoise import *
 from ShaderHistogram import *
- 
+
 class Demosaicer(ui.Drawable):
     def __init__(self,settings,encoder,frames,**kwds):
         super(Demosaicer,self).__init__(**kwds)
@@ -228,13 +228,18 @@ class Demosaicer(ui.Drawable):
                 else:
                     self.shaderNormal.demosaicPass(self.rawUploadTex,self.luttex,frameData.black,balance=balance,white=frameData.white,tonemap=self.settings.tonemap(),colourMatrix=self.settings.setting_colourMatrix,lut1d1=self.lut1d1tex,lut1d2=self.lut1d2tex)
                 PLOG(PLOG_GPU,"Demosaic shader draw done for frame %d"%frameNumber)
+        #redframe = glReadPixels(0,0,scene.size[0],scene.size[1],GL_RED,GL_UNSIGNED_SHORT)
+        #histogram = np.histogram(redframe,bins=256)
         # Calculate histogram
         self.histogramTex.bindfbo()
         self.shaderHistogram.draw(scene.size[0],scene.size[1],self.rgbImage)
-        #histogram = glReadPixels(0,0,128,1,GL_RED,GL_UNSIGNED_SHORT)
-        #for i in range(128):
-        #    print histogram[i,0],
+        """
+        histogram = glReadPixels(0,0,256,1,GL_RGB,GL_UNSIGNED_SHORT)
+        print histogram
+        for i in range(256):
+            print histogram[i],
         #print
+        """
 
         self.lastFrameData = frameData
         self.lastFrameNumber = frameNumber
@@ -283,4 +288,4 @@ class DemosaicScene(ui.Scene):
         self.demosaicer.shaderQuality.prepare(self.frames.svbo)
         self.demosaicer.shaderPreprocess.prepare(self.frames.svbo)
         self.demosaicer.shaderPatternNoise.prepare(self.frames.svbo)
-        self.demosaicer.shaderHistogram.prepare(self.frames.svbo,width=64,height=64)
+        self.demosaicer.shaderHistogram.prepare(self.frames.svbo,width=self.frames.raw.width(),height=self.frames.raw.height())

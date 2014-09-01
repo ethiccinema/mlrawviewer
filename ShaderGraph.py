@@ -21,7 +21,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 Draw a graph or plot from a table supplied in a texture
-Can be used either for histograms, or 1DLUT curves 
+Can be used either for histograms, or 1DLUT curves
 """
 
 import GLCompute
@@ -49,9 +49,9 @@ varying vec2 texcoord;
 uniform float opacity;
 
 void main() {
-    float v = texture2D(tex,texcoord).r;
-    float b = step(1.0-texcoord.y,v*256.);
-    float z = (0.25+0.75*b)*opacity;
+    vec3 v = texture2D(tex,texcoord).rgb;
+    vec3 b = step(1.0-texcoord.y,v*6.);
+    float z = (0.25+0.75*0.333*(b.r+b.g+b.b))*opacity;
     gl_FragColor = vec4(vec3(b)*z,z);
 }
 """
