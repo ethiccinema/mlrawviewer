@@ -285,14 +285,14 @@ def generateDefaultLuts():
     if len(standardluts)<22:
         print "Updating standard 1D LUTs"
         for n in [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16]:
-            l = LUT.LogLut(2**12,n)
+            l = LogLut(2**12,n)
             LUT1D.append((l,LUT_STANDARD))
-        LUT1D.append((LUT.sRGBLut(2**12),LUT_STANDARD))
-        LUT1D.append((LUT.Rec709Lut(2**12),LUT_STANDARD))
-        LUT1D.append((LUT.ReinhardHDRLut(2**12),LUT_STANDARD))
-        LUT1D.append((LUT.SlogLut(2**12),LUT_STANDARD))
-        LUT1D.append((LUT.Slog2Lut(2**12),LUT_STANDARD))
-        LUT1D.append((LUT.LogCLut(2**12),LUT_STANDARD))
+        LUT1D.append((sRGBLut(2**12),LUT_STANDARD))
+        LUT1D.append((Rec709Lut(2**12),LUT_STANDARD))
+        LUT1D.append((ReinhardHDRLut(2**12),LUT_STANDARD))
+        LUT1D.append((SlogLut(2**12),LUT_STANDARD))
+        LUT1D.append((Slog2Lut(2**12),LUT_STANDARD))
+        LUT1D.append((LogCLut(2**12),LUT_STANDARD))
         LUT1D.extend(userluts)
         config.setState("lut1d",LUT1D)
 
