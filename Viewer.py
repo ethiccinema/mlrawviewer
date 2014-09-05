@@ -108,6 +108,8 @@ class Viewer(GLCompute.GLCompute):
         if self.setting_loop == None: self.setting_loop = True
         self.setting_encodeType = config.getState("encodeType")
         if self.setting_encodeType == None: self.setting_encodeType = (ENCODE_TYPE_MOV,)
+        self.setting_histogram = config.getState("histogramType")
+        if self.setting_histogram == None: self.setting_histogram = 0
         self.svbo = None
         self.fpsMeasure = None
         self.fpsCount = 0
@@ -420,7 +422,10 @@ class Viewer(GLCompute.GLCompute):
         elif k==self.KEY_G:
             self.loadBalance()
         elif k==self.KEY_H:
-            self.saveBalance()
+            if m==0:
+                self.saveBalance()
+            else:
+                self.changeHistogram()
 
         # Mark management
         elif k==self.KEY_R:
@@ -493,6 +498,10 @@ class Viewer(GLCompute.GLCompute):
 
         else:
             super(Viewer,self).key(k,m) # Inherit standard behaviour
+
+    def changeHistogram(self):
+        self.setting_histogram = (self.setting_histogram + 1)%2
+        config.setState("histogramType",self.setting_histogram)
 
     def currentLut3D(self):
         return self.setting_lut3d

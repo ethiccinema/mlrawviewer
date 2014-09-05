@@ -47,19 +47,25 @@ uniform sampler2D tex;
 uniform vec4 rawres;
 varying vec2 texcoord;
 uniform float opacity;
+uniform float type;
 
 void main() {
-    vec3 v = texture2D(tex,texcoord).rgb;
-    vec3 b = step(1.0-texcoord.y,v*6.);
-    float z = (0.25+0.75*0.333*(b.r+b.g+b.b))*opacity;
-    gl_FragColor = vec4(vec3(b)*z,z);
+    vec3 b = vec3(0.0);
+    float z = 0.25*opacity;
+    if (type==1.0) {
+        vec3 v = texture2D(tex,vec2(texcoord.x,.5/127.)).rgb;
+        b = step(vec3(1.0-texcoord.y),v*3.);
+        z = (0.25+0.75*min(b.r+b.g+b.b,1.0))*opacity;
+    }
+    gl_FragColor = vec4(b*z,z);
 }
 """
     def __init__(self,**kwds):
         myclass = self.__class__
-        super(ShaderGraph,self).__init__(myclass.vertex_src,myclass.fragment_src,["rawtex","rawres","matrix","tex","opacity"],**kwds)
+        super(ShaderGraph,self).__init__(myclass.vertex_src,myclass.fragment_src,["rawtex","rawres","matrix","tex","opacity","type"],**kwds)
         self.svbo = None
         self.samples = 0
+        self.type = 1
     def prepare(self,svbo,width,height):
         if self.svbo==None:
             self.svbo = svbo
@@ -80,6 +86,7 @@ void main() {
         glUniformMatrix4fv(self.uniforms["matrix"], 1, 0, matrix.m.tolist())
         glUniform1i(self.uniforms["tex"], 0)
         glUniform1f(self.uniforms["opacity"], opacity)
+        glUniform1f(self.uniforms["type"], self.type)
         w = width
         h = height
         if w>0 and h>0:

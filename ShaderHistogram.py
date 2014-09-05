@@ -36,10 +36,10 @@ uniform vec4 rawres;
 uniform sampler2D rawtex;
 varying vec3 col;
 void main() {
-    vec3 rgb = texture2D(rawtex,vertex.xy).rgb;
-    vec2 posr = vec2(rgb.r*2.0-1.,0.5);
-    vec2 posg = vec2(rgb.g*2.0-1.,0.5);
-    vec2 posb = vec2(rgb.b*2.0-1.,0.5);
+    vec3 rgb = clamp(texture2D(rawtex,vertex.xy).rgb,0.0,1.0);
+    vec2 posr = vec2((rgb.r*2.0-1.),-127./128.);
+    vec2 posg = vec2((rgb.g*2.0-1.),-127./128.);
+    vec2 posb = vec2((rgb.b*2.0-1.),-127./128.);
     vec2 pos;
     if (vertex.b==0.0) {
         pos = posr;

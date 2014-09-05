@@ -228,18 +228,19 @@ class Demosaicer(ui.Drawable):
                 else:
                     self.shaderNormal.demosaicPass(self.rawUploadTex,self.luttex,frameData.black,balance=balance,white=frameData.white,tonemap=self.settings.tonemap(),colourMatrix=self.settings.setting_colourMatrix,lut1d1=self.lut1d1tex,lut1d2=self.lut1d2tex)
                 PLOG(PLOG_GPU,"Demosaic shader draw done for frame %d"%frameNumber)
-        #redframe = glReadPixels(0,0,scene.size[0],scene.size[1],GL_RED,GL_UNSIGNED_SHORT)
+        #redframe = glReadPixels(0,10,scene.size[0],1,GL_RGB,GL_FLOAT)
         #histogram = np.histogram(redframe,bins=256)
         # Calculate histogram
-        self.histogramTex.bindfbo()
-        self.shaderHistogram.draw(scene.size[0],scene.size[1],self.rgbImage)
-        """
-        histogram = glReadPixels(0,0,256,1,GL_RGB,GL_UNSIGNED_SHORT)
-        print histogram
-        for i in range(256):
-            print histogram[i],
-        #print
-        """
+        if self.frames.setting_histogram != 0:
+            self.histogramTex.bindfbo()
+            self.shaderHistogram.draw(scene.size[0],scene.size[1],self.rgbImage)
+            """
+            histogram = glReadPixels(0,0,256,1,GL_RGB,GL_UNSIGNED_SHORT)
+            print histogram
+            for i in range(256):
+                print histogram[i],
+            #print
+            """
 
         self.lastFrameData = frameData
         self.lastFrameNumber = frameNumber
@@ -267,7 +268,7 @@ class DemosaicScene(ui.Scene):
         self.rgbUploadTex = GLCompute.Texture((raw.width(),raw.height()),None,hasalpha=False,mono=False,sixteen=True)
         try: self.rgbImage = GLCompute.Texture((raw.width(),raw.height()),None,hasalpha=False,mono=False,fp=True)
         except GLError: self.rgbImage = GLCompute.Texture((raw.width(),raw.height()),None,hasalpha=False,sixteen=True)
-        self.histogramTex = GLCompute.Texture((2**8,1),None,hasalpha=False,mono=False,sixteen=True)
+        self.histogramTex = GLCompute.Texture((2**7,2**3),None,hasalpha=False,mono=False,sixteen=True)
         self.demosaicer.setTextures(self.rgbImage,self.horizontalPattern,self.verticalPattern,self.preprocessTex1,self.preprocessTex2,self.rawUploadTex,self.rgbUploadTex,self.histogramTex)
         #print "Using",self.demosaicer.shaderNormal.demosaic_type,"demosaic algorithm"
     def setTarget(self):

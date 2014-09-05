@@ -73,7 +73,7 @@ class Display(ui.Drawable):
         # 1 to 1
         #self.displayShader.draw(self.rgbImage.width,self.rgbImage.height,self.rgbImage)
 
-class Graph(ui.XYGraph):
+class Graph(ui.Button):
     def __init__(self,**kwds):
         super(Graph,self).__init__(**kwds)
         self.shader = ShaderGraph()
@@ -206,7 +206,7 @@ class DisplayScene(ui.Scene):
         self.exportqlist.setScale(0.25)
         self.exportq.children.append(self.exportqlist)
         self.timestamp = ui.Geometry(svbo=frames.svbo)
-        self.histogram = Graph(width=128,height=128,onclick=None,svbo=self.frames.svbo)
+        self.histogram = Graph(width=128,height=128,onclick=self.histogramClick,svbo=self.frames.svbo)
         self.iconItems = [self.fullscreen,self.mapping,self.drop,self.quality,self.stripes,self.loop,self.outformat,self.addencode,self.play]
         self.overlay = [self.iconBackground,self.progressBackground,self.progress,self.timestamp,self.update,self.balance,self.balanceHandle,self.brightness,self.brightnessHandle,self.mark,self.mdbg,self.metadata,self.exportq,self.coldata,self.ttbg,self.tooltip,self.histogram]
         self.overlay.extend(self.iconItems)
@@ -240,6 +240,9 @@ class DisplayScene(ui.Scene):
         self.display.setRgbImage(rgbImage)
     def setHistogram(self,histogram):
         self.histogram.texture = histogram
+
+    def histogramClick(self,x,y):
+        self.frames.changeHistogram()
 
     def whiteClick(self,x,y,down):
         if self.dropperActive:
@@ -443,6 +446,7 @@ class DisplayScene(ui.Scene):
         rgb = self.frames.rgb()
         r = ((4.0-rgb[0])/4.0)*128.0
         b = (rgb[2]/4.0)*128.0
+        self.histogram.shader.type = self.frames.setting_histogram
         self.histogram.setPos(btl,btr-160.)
         self.balanceHandle.setPos(btl+b-4.0,btr+r-4.0)
         self.whitePicker.setPos(0,0)
