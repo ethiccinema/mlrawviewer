@@ -412,8 +412,7 @@ class ImageSequence(object):
                 cPickle.dump(self._userMetadata,userMetadataFile,protocol=cPickle.HIGHEST_PROTOCOL)
                 userMetadataFile.close()
         except:
-            import traceback
-            traceback.print_exc()
+            pass
         #print "User metadata written"
     @staticmethod
     def userMetadataNameFromOriginal(original):
@@ -1096,11 +1095,13 @@ class CDNG(ImageSequence):
         baselineExposure = 0.0 # EV
         if DNG.Tag.BaselineExposure[0] in fd.FULL_IFD.tags:
             n,d = fd.FULL_IFD.tags[DNG.Tag.BaselineExposure[0]][3][0]
-            baselineExposure = float(n)/float(d)
+            if n!=0 and d!=0:
+                baselineExposure = float(n)/float(d)
         if DNG.Tag.BaselineExposureOffset[0] in fd.FULL_IFD.tags:
             n,d = fd.FULL_IFD.tags[DNG.Tag.BaselineExposureOffset[0]][3][0]
-            baselineExposureOffset = float(n)/float(d)
-            baselineExposure += baselineExposureOffset
+            if n!=0 and d!=0:
+                baselineExposureOffset = float(n)/float(d)
+                baselineExposure += baselineExposureOffset
         self.brightness = math.pow(2.0,baselineExposure)
         print "brightness",self.brightness
 
