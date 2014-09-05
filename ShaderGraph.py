@@ -55,7 +55,7 @@ void main() {
     if (type==1.0) {
         vec3 v = texture2D(tex,vec2(texcoord.x,.5/127.)).rgb;
         b = step(vec3(1.0-texcoord.y),v*3.);
-        z = (0.25+0.75*min(b.r+b.g+b.b,1.0))*opacity;
+        z = (0.25+0.50*min(b.r+b.g+b.b,1.0))*opacity;
     }
     gl_FragColor = vec4(b*z,z);
 }

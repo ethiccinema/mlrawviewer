@@ -247,7 +247,7 @@ bitunpack_demosaicer(PyObject* self, PyObject *args)
         return NULL;
 
     int elements = width*height;
-    
+
     demosaicer* dem = (demosaicer*)calloc(1,sizeof(demosaicer));
     dem->width = width;
     dem->height = height; 
@@ -274,6 +274,67 @@ bitunpack_demosaicer(PyObject* self, PyObject *args)
     }
 
     return PyCapsule_New(dem,DEMOSAICER_NAME,bitunpack_freedemosaicer);
+}
+
+static PyObject*
+bitunpack_predemosaic12(PyObject* self, PyObject *args)
+{
+    unsigned const char* input = 0;
+    int length = 0;
+    int width = 0;
+    int height = 0;
+    int black = 2000;
+    int byteSwap = 0;
+    PyObject* demosaicerobj;
+    if (!PyArg_ParseTuple(args, "Ot#iiii", &demosaicerobj, &input, &length, &width, &height, &black, &byteSwap))
+        return NULL;
+    demosaicer* dem = (demosaicer*)PyCapsule_GetPointer(demosaicerobj,DEMOSAICER_NAME);
+    if (dem == NULL)
+        return NULL;
+    if (dem->width != width || dem->height != height)
+        return NULL;
+
+    int elements = (width*height*3)/2;
+    int i = 0;
+    unsigned int out = 0;
+    unsigned char* read = (unsigned char*)input;
+    float* write = dem->raw;
+
+    Py_BEGIN_ALLOW_THREADS;
+    while (i<elements) {
+        unsigned int r1 = *read++;
+        unsigned int r2 = *read++;
+        unsigned int r3 = *read++;
+        out = (r1<<4)|(r2>>4);
+        if (out==0) { // Dead pixel masking
+            float old = *(write-2);
+            *write++ = old;
+        } else {
+            int ival = out-black;
+            // To avoid artifacts from demosaicing at low levels
+            ival += 15.0;
+            if (ival<15) ival=15; // Don't want log2(0)
+
+            float val = (float)ival;//64.0*log2((float)ival);
+            *write++ = val;
+        }
+        out = ((r2&0xF)<<8)|r3;
+        if (out==0) { // Dead pixel masking
+            float old = *(write-2);
+            *write++ = old;
+        } else {
+            int ival = out-black;
+            // To avoid artifacts from demosaicing at low levels
+            ival += 15.0;
+            if (ival<15) ival=15; // Don't want log2(0)
+
+            float val = (float)ival;//64.0*log2((float)ival);
+            *write++ = val;
+        }
+        i+=3;
+    }
+    Py_END_ALLOW_THREADS;
+    Py_RETURN_NONE;
 }
 
 static PyObject*
@@ -435,6 +496,45 @@ bitunpack_postdemosaic(PyObject* self, PyObject *args)
 }
 
 static PyObject*
+bitunpack_unpack12to16(PyObject* self, PyObject *args)
+{
+    unsigned const char* input = 0;
+    int length = 0;
+    int byteSwap = 0;
+    if (!PyArg_ParseTuple(args, "t#i", &input, &length, &byteSwap))
+        return NULL;
+    PyObject* ba = PyByteArray_FromStringAndSize("",0);
+    int elements = length;
+    PyByteArray_Resize(ba,(elements*4)/3);
+    unsigned char* baptr = (unsigned char*)PyByteArray_AS_STRING(ba);
+    int i = 0;
+    int sparebits = 0;
+    unsigned int out = 0;
+    unsigned char* read = (unsigned char*)input;
+    short unsigned int* write = (short unsigned int*)baptr;
+    Py_BEGIN_ALLOW_THREADS;
+    while (i<elements) {
+        unsigned char r1 = *read++;
+        unsigned char r2 = *read++;
+        unsigned char r3 = *read++;
+        out = (r1<<4)|(r2>>4);
+        unsigned int out1 = out;
+        if (out==0) out = *(write-2); // Dead pixel masking
+        *write++ = out;
+        out = ((r2&0xF)<<8)|r3;
+        if (out==0) out = *(write-2); // Dead pixel masking
+        *write++ = out;
+        i+=3;
+    }
+    Py_END_ALLOW_THREADS;
+    PyObject *stat = Py_BuildValue("II",0,0);
+    PyObject *rslt = PyTuple_New(2);
+    PyTuple_SetItem(rslt, 0, ba);
+    PyTuple_SetItem(rslt, 1, stat);
+    return rslt;
+}
+
+static PyObject*
 bitunpack_unpack14to16(PyObject* self, PyObject *args)
 {
     unsigned const char* input = 0;
@@ -484,9 +584,11 @@ bitunpack_unpack14to16(PyObject* self, PyObject *args)
 
 static PyMethodDef methods[] = {
     { "unpack14to16", bitunpack_unpack14to16, METH_VARARGS, "Unpack a string of 14bit values to 16bit values" },
+    { "unpack12to16", bitunpack_unpack12to16, METH_VARARGS, "Unpack a string of 12bit values to 16bit values" },
     { "demosaic14", bitunpack_demosaic14, METH_VARARGS, "Demosaic a 14bit RAW image into RGB float" },
     { "demosaic16", bitunpack_demosaic16, METH_VARARGS, "Demosaic a 16bit RAW image into RGB float" },
     { "demosaicer", bitunpack_demosaicer, METH_VARARGS, "Create a demosaicer object" },
+    { "predemosaic12", bitunpack_predemosaic12, METH_VARARGS, "Prepare to demosaic a 12bit RAW image into RGB float" },
     { "predemosaic14", bitunpack_predemosaic14, METH_VARARGS, "Prepare to demosaic a 14bit RAW image into RGB float" },
     { "predemosaic16", bitunpack_predemosaic16, METH_VARARGS, "Prepare to demosaic a 16bit RAW image into RGB float" },
     { "demosaic", bitunpack_demosaic, METH_VARARGS, "Do a unit of demosaicing work (can be from any thread." },
@@ -503,6 +605,6 @@ initbitunpack(void)
     m = Py_InitModule("bitunpack", methods);
     if (m == NULL)
         return;
-    PyModule_AddStringConstant(m,"__version__","2.0");
+    PyModule_AddStringConstant(m,"__version__","2.1");
 }
 

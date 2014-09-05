@@ -231,7 +231,7 @@ class Demosaicer(ui.Drawable):
         #redframe = glReadPixels(0,10,scene.size[0],1,GL_RGB,GL_FLOAT)
         #histogram = np.histogram(redframe,bins=256)
         # Calculate histogram
-        if self.frames.setting_histogram != 0:
+        if self.frames.setting_histogram == 1:
             self.histogramTex.bindfbo()
             self.shaderHistogram.draw(scene.size[0],scene.size[1],self.rgbImage)
             """
@@ -289,4 +289,14 @@ class DemosaicScene(ui.Scene):
         self.demosaicer.shaderQuality.prepare(self.frames.svbo)
         self.demosaicer.shaderPreprocess.prepare(self.frames.svbo)
         self.demosaicer.shaderPatternNoise.prepare(self.frames.svbo)
-        self.demosaicer.shaderHistogram.prepare(self.frames.svbo,width=self.frames.raw.width(),height=self.frames.raw.height())
+        w = self.frames.raw.width()
+        h = self.frames.raw.height()
+        maxcount = w * h
+        while maxcount > 1000000:
+            w = w / 2
+            maxcount = w * h
+            if maxcount > 1000000:
+                h = h / 2
+                maxcount = w * h
+
+        self.demosaicer.shaderHistogram.prepare(self.frames.svbo,width=w,height=h)

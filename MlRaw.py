@@ -46,7 +46,7 @@ try:
     numpy in case it hasn't been compiled
     """
     import bitunpack
-    if ("__version__" not in dir(bitunpack)) or bitunpack.__version__!="2.0":
+    if ("__version__" not in dir(bitunpack)) or bitunpack.__version__!="2.1":
         print """
 
 !!! Wrong version of bitunpack found !!!
@@ -117,6 +117,15 @@ class SerialiseCPUDemosaic(object):
                 self.jobq.put((demosaicer,x*bw,y*bh,aw,ah))
         self.jobq.join()
 
+    def demosaic12(self,rawdata,width,height,black,byteSwap=0):
+        self.serq.put(True) # Let us run
+        demosaicer = self.getdemosaicer(width,height)
+        bitunpack.predemosaic12(demosaicer,rawdata,width,height,black,byteSwap)
+        self.doDemosaic(demosaicer,width,height)
+        result = bitunpack.postdemosaic(demosaicer)
+        self.serq.get() # Let someone else work
+        return np.frombuffer(result,dtype=np.float32)
+
     def demosaic14(self,rawdata,width,height,black,byteSwap=0):
         self.serq.put(True) # Let us run
         demosaicer = self.getdemosaicer(width,height)
@@ -156,10 +165,19 @@ def testdemosaicer():
 #testdemosaicer()
 #print "test demosaicer done"
 
+def unpacks12np16(rawdata,width,height,byteSwap=0):
+    tounpack = (width*height*3)/2
+    unpacked,stats = bitunpack.unpack12to16(rawdata[:tounpack],byteSwap)
+    return np.frombuffer(unpacked,dtype=np.uint16),stats
+
 def unpacks14np16(rawdata,width,height,byteSwap=0):
     tounpack = width*height*14/8
     unpacked,stats = bitunpack.unpack14to16(rawdata[:tounpack],byteSwap)
     return np.frombuffer(unpacked,dtype=np.uint16),stats
+
+def demosaic12(rawdata,width,height,black,byteSwap=0):
+    raw = DemosaicThread.demosaic12(rawdata,width,height,black,byteSwap)
+    return np.frombuffer(raw,dtype=np.float32)
 
 def demosaic14(rawdata,width,height,black,byteSwap=0):
     raw = DemosaicThread.demosaic14(rawdata,width,height,black,byteSwap)
@@ -236,6 +254,8 @@ class Frame:
         if self.rawdata != None:
             if self.bitsPerSample == 14:
                 self.rawimage,self.framestats = unpacks14np16(self.rawdata,self.width,self.height,self.byteSwap)
+            elif self.bitsPerSample == 12:
+                self.rawimage,self.framestats = unpacks12np16(self.rawdata,self.width,self.height,self.byteSwap)
             elif self.bitsPerSample == 16:
                 self.rawimage,self.framestats = np.fromstring(self.rawdata,dtype=np.uint16),(0,0)
         else:
@@ -255,6 +275,8 @@ class Frame:
                 self.rgbimage = demosaic14(self.rawdata,self.width,self.height,self.black,self.byteSwap)
             elif self.bitsPerSample == 16:
                 self.rgbimage = demosaic16(self.rawdata,self.width,self.height,self.black,byteSwap=0) # Hmm...what about byteSwapping?
+            elif self.bitsPerSample == 12:
+                self.rgbimage = demosaic12(self.rawdata,self.width,self.height,self.black,byteSwap=0)
         else:
             self.rgbimage = np.zeros(self.width*self.height*3,dtype=np.uint16).tostring()
     def thumb(self):
@@ -1086,6 +1108,8 @@ class CDNG(ImageSequence):
             print "No internal frame rate. Defaulting to",self.fps
 
         self.black = fd.FULL_IFD.tags[DNG.Tag.BlackLevel[0]][3][0]
+        if type(self.black)==tuple:
+            self.black = self.black[0]/self.black[1]
         self.white = fd.FULL_IFD.tags[DNG.Tag.WhiteLevel[0]][3][0]
         matrix = self.tag(fd,DNG.Tag.ColorMatrix1)
         self.colormatrix = np.eye(3)
@@ -1114,9 +1138,9 @@ class CDNG(ImageSequence):
 
         bps = self.bitsPerSample = fd.FULL_IFD.tags[DNG.Tag.BitsPerSample[0]][3][0]
         print "BitsPerSample:",bps
-        if bps != 14 and bps != 16:
-            print "Unsupported BitsPerSample = ",bps,"(should be 14 or 16)"
-            raise IOError # Only support 14 or 16 bitsPerSample
+        if bps != 14 and bps != 16 and bps != 12:
+            print "Unsupported BitsPerSample = ",bps,"(should be 12 or 14 or 16 )"
+            raise IOError # Only support 12 or 14 or 16 bitsPerSample
 
         neutral = self.tag(fd,DNG.Tag.AsShotNeutral)
         self.whiteBalance = [1.0,1.0,1.0]
