@@ -238,7 +238,7 @@ def Slog2Lut(n):
     scale = (2**14.0)/float(l.n-1.0)
     for i in range(l.n):
         f = float(i)*scale
-        v = (379.0*math.log(f/7200.0 + 0.037584, 10.0) + 630.0)/1024.0
+        v = (114.0*math.log(f/270.0 + 1.0, 2.0) + 90.0)/1024.0
         #print i,f,v
         l.a.extend((v,v,v))
     return l
@@ -264,6 +264,22 @@ def LogCLut(n):
     return l
 
 """
+Generate Linear-to-C-Log LUT
+"""
+def ClogLut(n):
+    l = LutCube()
+    l.d = 1
+    l.n = n
+    l.t = "Linear to C-Log"
+    scale = (2**14.0)/float(l.n-1.0)
+    for i in range(l.n):
+        f = float(i)*scale
+        v = (135.0*math.log(f/320.0 + 1.0, 2.0) + 72.0)/1024.0
+        #print i,f,v
+        l.a.extend((v,v,v))
+    return l
+
+"""
 LUT default configuration
 """
 
@@ -282,9 +298,9 @@ def generateDefaultLuts():
     global LUT1D
     userluts = [(lut,luttype) for lut,luttype in LUT1D if luttype==LUT_USER]
     standardluts = [(lut,luttype) for lut,luttype in LUT1D if luttype==LUT_STANDARD]
-    if len(standardluts)<22:
+    if len(standardluts)!=19:
         print "Updating standard 1D LUTs"
-        for n in [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16]:
+        for n in [1,2,3,4,5,6,7,8,9,10,11,12]:
             l = LogLut(2**12,n)
             LUT1D.append((l,LUT_STANDARD))
         LUT1D.append((sRGBLut(2**12),LUT_STANDARD))
@@ -293,6 +309,7 @@ def generateDefaultLuts():
         LUT1D.append((SlogLut(2**12),LUT_STANDARD))
         LUT1D.append((Slog2Lut(2**12),LUT_STANDARD))
         LUT1D.append((LogCLut(2**12),LUT_STANDARD))
+        LUT1D.append((ClogLut(2**12),LUT_STANDARD))
         LUT1D.extend(userluts)
         config.setState("lut1d",LUT1D)
 

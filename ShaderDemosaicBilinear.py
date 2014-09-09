@@ -127,8 +127,8 @@ vec3 SLoggamma(vec3 linear) {
 }
 
 vec3 SLog2gamma(vec3 linear) {
-    //379.044*LOG(x/7200 + 0.037584, 10) + 630
-    return (379.0 * (log2(linear * 16384.0 / 7200.0 + 0.037584)/log2(10.0)) + 630.0) / 1024.0 ;
+    //114*LOG(x/270 + 1, 2) + 90
+    return (114.0 * log2(linear * 16384.0 / 270.0 + 1.0) + 90.0) / 1024.0 ;
 }
 
 vec3 LogCgamma(vec3 linear) {
@@ -136,6 +136,11 @@ vec3 LogCgamma(vec3 linear) {
     return mix(20480.0*linear,
         272.0 * (log2(linear * 16384.0 / 950.0)/log2(10.0)) + 391.0,
         step(vec3(88.0/16384.0),linear)) / 1024.0;
+}
+
+vec3 CLoggamma(vec3 linear) {
+    //135*LOG(x/320 + 1, 2) + 72
+    return (135.0 * log2(linear * 16384.0 / 320.0 + 1.0) + 72.0) / 1024.0 ;
 }
 
 /* Native trilinear interpolation cannot be trusted not to
@@ -173,19 +178,21 @@ void main() {
         colour *= 6.0; // To make it perceptually similar level to sRGB gamma
         toneMapped = colour/(1.0 + colour);
     } else if (tonemap==2.0) {
-        toneMapped = log2(1.0+1024.0*clamp(colour,0.0,1.0))/10.0;
+        toneMapped = log2(1.0+256.0*colour)/8.0;
     } else if (tonemap==3.0) {
-        toneMapped = sRGBgamma(clamp(colour,0.0,1.0));
+        toneMapped = sRGBgamma(colour);
     } else if (tonemap==4.0) {
-        toneMapped = r709gamma(clamp(colour,0.0,1.0));
+        toneMapped = r709gamma(colour);
     } else if (tonemap==5.0) {
-        toneMapped = clamp(SLoggamma(colour),0.0,1.0);
+        toneMapped = SLoggamma(colour);
     } else if (tonemap==6.0) {
-        toneMapped = clamp(SLog2gamma(colour),0.0,1.0);
+        toneMapped = SLog2gamma(colour);
     } else if (tonemap==7.0) {
-        toneMapped = clamp(LogCgamma(colour),0.0,1.0);
+        toneMapped = LogCgamma(colour);
+    } else if (tonemap==8.0) {
+        toneMapped = CLoggamma(colour);
     }
-    vec3 crgb = mix(colour,toneMapped,step(0.5,tonemap));
+    vec3 crgb = mix(colour,clamp(toneMapped,0.0,1.0),step(0.5,tonemap));
     if (lutcontrol.y>0.0)
         crgb = lut1drgb(lut1d1,lutcontrol.y,crgb);
     if (lutcontrol.x>0.0)

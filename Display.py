@@ -133,7 +133,7 @@ class DisplayScene(ui.Scene):
         self.fullscreen = self.newIcon(0,60,128,128,9,self.fullscreenClick,"Toggle Fullscreen view (Key:TAB)")
         self.fullscreen.colour = (0.5,0.5,0.5,0.5) # Quite transparent white
         self.fullscreen.setScale(0.25)
-        self.mapping = self.newIcon(0,90,128,128,11,self.mappingClick,"Curve: sRGB,R709,Linear,LOG,HDR,S-Log,S-Log2,Log-C (Key:T)")
+        self.mapping = self.newIcon(0,90,128,128,11,self.mappingClick,"Curve: sRGB,R709,Linear,LOG,HDR,S-Log,S-Log2,Log-C,C-Log (Key:T)")
         self.mapping.colour = (0.5,0.5,0.5,0.5) # Quite transparent white
         self.mapping.setScale(0.25)
         self.update = self.newIcon(0,0,128,128,30,self.updateClick,"New version of MlRawViewer is available. Click to download")
@@ -142,10 +142,10 @@ class DisplayScene(ui.Scene):
         self.loop = self.newIcon(0,0,128,128,31,self.loopClick,"Loop clip or play once (Key:L)")
         self.loop.colour = (0.5,0.5,0.5,0.5)
         self.loop.setScale(0.5)
-        self.outformat = self.newIcon(0,0,128,128,19,self.outfmtClick,"Export format - MOV or DNG (Key:D)")
+        self.outformat = self.newIcon(0,0,128,128,20,self.outfmtClick,"Export format - MOV or DNG (Key:D)")
         self.outformat.colour = (0.5,0.5,0.5,0.5)
         self.outformat.setScale(0.5)
-        self.addencode = self.newIcon(0,0,128,128,21,self.addEncodeClick,"Add clip to export queue (Key:E)")
+        self.addencode = self.newIcon(0,0,128,128,33,self.addEncodeClick,"Add clip to export queue (Key:E)")
         self.addencode.colour = (0.5,0.5,0.5,0.5)
         self.addencode.setScale(0.5)
 
@@ -381,7 +381,7 @@ class DisplayScene(ui.Scene):
         elif self.frames.setting_tonemap==1:
             s += "\nCurve: HDR global tone map"
         elif self.frames.setting_tonemap==2:
-            s += "\nCurve: Log 10"
+            s += "\nCurve: Log 8"
         elif self.frames.setting_tonemap==3:
             s += "\nCurve: sRGB"
         elif self.frames.setting_tonemap==4:
@@ -392,6 +392,8 @@ class DisplayScene(ui.Scene):
             s += "\nCurve: S-Log2"
         elif self.frames.setting_tonemap==7:
             s += "\nCurve: Log-C"
+        elif self.frames.setting_tonemap==8:
+            s += "\nCurve: C-Log"
         if self.frames.setting_lut1d1 != None:
             s += "\n1D LUT1:%s"%self.frames.setting_lut1d1.name()
         if self.frames.setting_lut3d != None:
