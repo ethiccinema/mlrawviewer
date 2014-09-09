@@ -634,10 +634,20 @@ def testReadDng(filename):
             full = d.FULL_IFD.stripsCombined()
         elif d.FULL_IFD.hasTiles():
             full = d.FULL_IFD.tiles()
+            # Should check here if it's really lossless JPEG....
             lj = LJ92.lj92()
-            for i,t in enumerate(full):
+            for fi,t in enumerate(full):
                 lj.parse(t)
-                break
+
+                # For debugging/PoC just dump as raw PGM
+                im = lj.image
+                for i in range(len(im)):
+                    im[i] = (im[i]>>8)|((im[i]&0xFF)<<8)
+                dump = file("dump%d.pgm"%fi,'wb')
+                dump.write("P5 %d %d 4096\n"%(lj.x,lj.y))
+                dump.write(im)
+                dump.close()
+
         print "Full:"
         print len(full)
     d.close()
