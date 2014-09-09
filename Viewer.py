@@ -97,7 +97,7 @@ class Viewer(GLCompute.GLCompute):
         self.setting_rgb = (2.0, 1.0, 1.5)
         self.setting_highQuality = False
         self.setting_encoding = False
-        self.setting_tonemap = 3 # 0 = Linear, 1 = Global tone map, 2 = Log, 3 = sRGB Gamma, 4 = Rec.709 Gamma, 5 = SLoggmma, 6 = SLog2gamma, 7 = LogCgamma
+        self.setting_tonemap = 8 # 0 = Linear, 1 = Global tone map, 2 = Log, 3 = sRGB Gamma, 4 = Rec.709 Gamma, 5 = SLoggmma, 6 = SLog2gamma, 7 = LogCgamma, 8 = CLoggamma
         self.setting_dropframes = True # Real time playback by default
         self.setting_loop = config.getState("loopPlayback")
         self.setting_colourMatrix = np.matrix(np.eye(3))
@@ -412,7 +412,10 @@ class Viewer(GLCompute.GLCompute):
             elif m==1:
                 self.toggleFpsOverride()
         elif k==self.KEY_T:
-            self.toggleToneMapping()
+            if m==0:
+                self.toggleToneMapping()
+            elif m==1:
+                self.toggleToneMapping(reverse=True)
         elif k==self.KEY_L:
             if m==0:
                 self.toggleLooping()
@@ -658,8 +661,11 @@ class Viewer(GLCompute.GLCompute):
     def toggleAnamorLens(self):
         self.anamorLens = (self.anamorLens + 1)%5
         self.refresh()
-    def toggleToneMapping(self):
-        self.setting_tonemap = (self.setting_tonemap + 1)%8
+    def toggleToneMapping(self,reverse=False):
+        if not reverse:
+            self.setting_tonemap = (self.setting_tonemap + 1)%9
+        else:
+            self.setting_tonemap = (self.setting_tonemap - 1)%9
         self.raw.setMeta("tonemap_v1",self.setting_tonemap)
         self.refresh()
     def toggleLooping(self):
