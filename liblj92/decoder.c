@@ -167,26 +167,16 @@ inline int nextbit(ljp* self) {
         u8* data = &self->data[self->ix];
         u32 next = *data++;
         b = next;
-        if (next == 0xff)
+        if (next == 0xff) {
             data++;
-        next = *data++;
-        b = b<<8|next;
-        if (next == 0xff)
-            data++;
-        next = *data++;
-        b = b<<8|next;
-        if (next == 0xff)
-            data++;
-        next = *data++;
-        b = b<<8|next;
-        if (next == 0xff)
-            data++;
-        self->ix += 4;
-        self->cnt = 32;
+            self->ix++;
+        }
+        self->ix++;
+        self->cnt = 8;
     }
-    int bit = b >> 31;
+    int bit = b >> 7;
     self->cnt--;
-    self->b = (b << 1)&0xFFFFFFFF;
+    self->b = (b << 1)&0xFF;
     return bit;
 }
 
@@ -222,9 +212,17 @@ inline int extend(ljp* self,int v,int t) {
     return v;
 }
 
+inline int nextdiff(ljp* self) {
+    int t = decode(self);
+    int diff = receive(self,t);
+    diff = extend(self,diff,t);
+    return diff;
+}
+
 void parseScan(ljp* self) {
     int compcount = self->data[self->ix+2];
     int pred = self->data[self->ix+3+2*compcount];
+    printf("Predictor for scan:%d\n",pred);
     self->ix += BEH(self->data[self->ix]);
     self->cnt = 0;
     // Now need to decode huffman coded values
@@ -233,53 +231,47 @@ void parseScan(ljp* self) {
     u16* out = malloc(pixels*sizeof(u16));
 
     // First pixel predicted from base value
-    int t = decode(self);
-    int diff = receive(self,t);
-    diff = extend(self,diff,t);
-    int Px = 1 << (self->bits-1);
-    int left = Px + diff;
-    //printf("%d %d\n",c,left);
-    out[0] = left;
-    c++;
-    // Rest of first row predicted from left pixel (not great for bayer)
-    while (c<self->x) {
-        t = decode(self);
-        diff = receive(self,t);
-        diff = extend(self,diff,t);
-        Px = left;
-        left = Px + diff;
-        //printf("%d %d %d %d\n",c,t,diff,left);
-        out[c] = left;
-        c++;
-    }
-    // Rest predicted based on scan chosen predictor
-    // (Usually using hue change of adjacent colour)
+    int diff;
+    int Px;
+    int col = 0;
+    int row = 0;
+    int left = 0;
     while (c<pixels) {
-        t = decode(self);
-        diff = receive(self,t);
-        diff = extend(self,diff,t);
-        switch (pred) {
-        case 0:
-            Px = 0; break; // No prediction... should not be used
-        case 1:
-            Px = left; break;
-        case 2:
-            Px = out[c-self->x]; break;
-        case 3:
-            Px = out[c-self->x-1];break;
-        case 4:
-            Px = left + out[c-self->x] - out[c-self->x-1];break;
-        case 5:
-            Px = left + (out[c-self->x] - out[c-self->x-1])>>1;break;
-        case 6:
-            Px = out[c-self->x] + ((left - out[c-self->x-1])>>1);break;
-        case 7:
-            Px = (left + out[c-self->x])>>1;break;
+        diff = nextdiff(self);
+        if ((col==0)&&(row==0)) {
+            Px = 1 << (self->bits-1);
+        } else if (row==0) {
+            Px = left;
+        } else if (col==0) {
+            Px = out[c-self->x]; // Use value above for first pixel in row
+        } else {
+            switch (pred) {
+            case 0:
+                Px = 0; break; // No prediction... should not be used
+            case 1:
+                Px = left; break;
+            case 2:
+                Px = out[c-self->x]; break;
+            case 3:
+                Px = out[c-self->x-1];break;
+            case 4:
+                Px = left + out[c-self->x] - out[c-self->x-1];break;
+            case 5:
+                Px = left + (out[c-self->x] - out[c-self->x-1])>>1;break;
+            case 6:
+                Px = out[c-self->x] + ((left - out[c-self->x-1])>>1);break;
+            case 7:
+                Px = (left + out[c-self->x])>>1;break;
+            }
         }
         left = Px + diff;
-        //printf("%d %d\n",c,left);
+        //printf("%d %d %d\n",c,diff,left);
         out[c] = left;
         c++;
+        if (++col==self->x) {
+            col = 0;
+            row++;
+        }
     }
     self->image = out;
 }
