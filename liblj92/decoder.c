@@ -6,6 +6,8 @@ typedef uint8_t u8;
 typedef uint16_t u16;
 typedef uint32_t u32;
 
+#define FAST_HUFF
+
 typedef struct _parser {
     u8* data;
     int datalen;
@@ -13,11 +15,17 @@ typedef struct _parser {
     int x; // Width
     int y; // Height
     int bits; // Bit depth
+
     // Huffman table - only one supported, and probably needed
+#ifndef FAST_HUFF
     int* maxcode;
     int* mincode;
     int* valptr;
     u8* huffval;
+#else
+    u16* hufflut;
+    int huffbits;
+#endif
     // Parse state
     int cnt;
     u32 b;
@@ -43,6 +51,9 @@ void parseHuff(ljp* self) {
     bits[0] = 0; // Because table starts from 1
     int hufflen = BEH(huffhead[0]);
     u8* huffval = calloc(hufflen - 19,sizeof(u8));
+    u8* huffvals = &self->data[self->ix+19];
+    int huffvalslen = hufflen - 19;
+#ifndef FAST_HUFF
     for (int hix=0;hix<(hufflen-19);hix++) {
         huffval[hix] = self->data[self->ix+19+hix];
     }
@@ -148,6 +159,47 @@ void parseHuff(ljp* self) {
     self->huffval = huffval;
     free(huffsize);
     free(huffcode);
+
+#else
+    /* Calculate huffman direct lut */
+    // How many bits in the table - find highest entry
+    int maxbits = 16;
+    while (maxbits>0) {
+        if (bits[maxbits]) break;
+        maxbits--;
+    }
+    /* Now fill the lut */
+    u16* hufflut = malloc((1<<maxbits) * sizeof(u16));
+    int i = 0;
+    int hv = 0;
+    int rv = 0;
+    int vl = 0; // i
+    int hcode;
+    int bitsused = 1;
+    while (i<1<<maxbits) {
+        if (bitsused>maxbits) {
+            break; // Done. Should never get here!
+        }
+        if (vl >= bits[bitsused]) {
+            bitsused++;
+            vl = 0;
+            continue;
+        }
+        if (rv == 1 << (maxbits-bitsused)) {
+            rv = 0;
+            vl++;
+            hv++;
+            continue;
+        }
+        hcode = huffvals[hv];
+        hufflut[i] = hcode<<8 | bitsused;
+        //printf("%d %d %d\n",i,bitsused,hcode);
+        i++;
+        rv++;
+    }
+    self->huffbits = maxbits;
+    self->hufflut = hufflut;
+#endif
 }
 
 void parseSof3(ljp* self) {
@@ -161,7 +213,8 @@ void parseBlock(ljp* self,int marker) {
     self->ix += BEH(self->data[self->ix]);
 }
 
-inline int nextbit(ljp* self) {
+#ifndef FAST_HUFF
+int nextbit(ljp* self) {
     u32 b = self->b;
     if (self->cnt == 0) {
         u8* data = &self->data[self->ix];
@@ -180,7 +233,7 @@ inline int nextbit(ljp* self) {
     return bit;
 }
 
-inline int decode(ljp* self) {
+int decode(ljp* self) {
     int i = 1;
     int code = nextbit(self);
     while (code > self->maxcode[i]) {
@@ -193,7 +246,7 @@ inline int decode(ljp* self) {
     return value;
 }
 
-inline int receive(ljp* self,int ssss) {
+int receive(ljp* self,int ssss) {
     int i = 0;
     int v = 0;
     while (i != ssss) {
@@ -203,7 +256,7 @@ inline int receive(ljp* self,int ssss) {
     return v;
 }
 
-inline int extend(ljp* self,int v,int t) {
+int extend(ljp* self,int v,int t) {
     int vt = 1<<(t-1);
     if (v < vt) {
         vt = (-1 << t) + 1;
@@ -211,20 +264,53 @@ inline int extend(ljp* self,int v,int t) {
     }
     return v;
 }
+#endif
 
-inline int nextdiff(ljp* self) {
+int nextdiff(ljp* self) {
+#ifndef FAST_HUFF
     int t = decode(self);
     int diff = receive(self,t);
     diff = extend(self,diff,t);
+#else
+    while (self->cnt < self->huffbits) {
+        int next = self->data[self->ix++];
+        self->b = (self->b << 8)|next;
+        self->cnt += 8;
+        if (next==0xFF) self->ix++;
+    }
+    int index = self->b >> (self->cnt - self->huffbits);
+    u16 ssssused = self->hufflut[index];
+    int usedbits = ssssused&0xFF;
+    int t = ssssused>>8;
+    int keepbitsmask = (1 << (self->cnt - usedbits))-1;
+    self->b &= keepbitsmask;
+    self->cnt -= usedbits;
+    while (self->cnt < t) {
+        int next = self->data[self->ix++];
+        self->b = (self->b << 8)|next;
+        self->cnt += 8;
+        if (next==0xFF) self->ix++;
+    }
+    int diff = self->b >> (self->cnt - t);
+    keepbitsmask = (1 << (self->cnt - t))-1;
+    self->b &= keepbitsmask;
+    self->cnt -= t;
+    int vt = 1<<(t-1);
+    if (diff < vt) {
+        vt = (-1 << t) + 1;
+        diff += vt;
+    }
+    //printf("%d %d\n",t,diff);
+#endif
     return diff;
 }
 
 void parseScan(ljp* self) {
     int compcount = self->data[self->ix+2];
     int pred = self->data[self->ix+3+2*compcount];
-    printf("Predictor for scan:%d\n",pred);
     self->ix += BEH(self->data[self->ix]);
     self->cnt = 0;
+    self->b = 0;
     // Now need to decode huffman coded values
     int c = 0;
     int pixels = self->y * self->x;
