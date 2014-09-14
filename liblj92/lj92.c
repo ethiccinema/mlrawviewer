@@ -304,17 +304,23 @@ inline static int nextdiff(ljp* self) {
     int diff = receive(self,t);
     diff = extend(self,diff,t);
 #else
-    int b = self->b;
+    u32 b = self->b;
     int cnt = self->cnt;
     int huffbits = self->huffbits;
     int ix = self->ix;
     int next;
     while (cnt < huffbits) {
-        next = self->data[ix];
-        ix++;
-        cnt += 8;
-        b = (b << 8)|next;
-        if (next==0xFF) ix++;
+        next = *(u16*)&self->data[ix];
+        int one = next&0xFF;
+        int two = next>>8;
+        b = (b<<16)|(one<<8)|two;
+        cnt += 16;
+        ix += 2;
+        if (one==0xFF) {
+            //printf("%x %x %x %x %d\n",one,two,b,b>>8,cnt);
+            b >>= 8;
+            cnt -= 8;
+        } else if (two==0xFF) ix++;
     }
     int index = b >> (cnt - huffbits);
     u16 ssssused = self->hufflut[index];
@@ -324,11 +330,16 @@ inline static int nextdiff(ljp* self) {
     int keepbitsmask = (1 << cnt)-1;
     b &= keepbitsmask;
     while (cnt < t) {
-        next = self->data[ix];
-        ix++;
-        cnt += 8;
-        b = (b << 8)|next;
-        if (next==0xFF) ix++;
+        next = *(u16*)&self->data[ix];
+        int one = next&0xFF;
+        int two = next>>8;
+        b = (b<<16)|(one<<8)|two;
+        cnt += 16;
+        ix += 2;
+        if (one==0xFF) {
+            b >>= 8;
+            cnt -= 8;
+        } else if (two==0xFF) ix++;
     }
     cnt -= t;
     int diff = b >> cnt;
