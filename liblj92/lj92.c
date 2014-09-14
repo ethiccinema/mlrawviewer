@@ -2,26 +2,37 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "lj92.h"
+
 typedef uint8_t u8;
 typedef uint16_t u16;
 typedef uint32_t u32;
 
-#define FAST_HUFF
+//#define SLOW_HUFF
 
-typedef struct _parser {
+typedef struct _ljp {
     u8* data;
+    u8* dataend;
     int datalen;
+    int scanstart;
     int ix;
     int x; // Width
     int y; // Height
     int bits; // Bit depth
+    int writelen; // Write rows this long
+    int skiplen; // Skip this many values after each row
+    u16* linearize; // Linearization table
+    int linlen;
+
 
     // Huffman table - only one supported, and probably needed
-#ifndef FAST_HUFF
+#ifdef SLOW_HUFF
     int* maxcode;
     int* mincode;
     int* valptr;
     u8* huffval;
+    int* huffsize;
+    int* huffcode;
 #else
     u16* hufflut;
     int huffbits;
@@ -32,28 +43,33 @@ typedef struct _parser {
     u16* image;
 } ljp;
 
-int find(ljp* self) {
+static int find(ljp* self) {
     int ix = self->ix;
     u8* data = self->data;
     while (data[ix] != 0xFF && ix<(self->datalen-1)) {
         ix += 1;
     }
     ix += 2;
+    if (ix>=self->datalen) return -1;
     self->ix = ix;
     return data[ix-1];
 }
 
 #define BEH(ptr) ((((int)(*&ptr))<<8)|(*(&ptr+1)))
 
-void parseHuff(ljp* self) {
+static int parseHuff(ljp* self) {
+    int ret = LJ92_ERROR_CORRUPT;
     u8* huffhead = &self->data[self->ix]; // xstruct.unpack('>HB16B',self.data[self.ix:self.ix+19])
     u8* bits = &huffhead[2];
     bits[0] = 0; // Because table starts from 1
     int hufflen = BEH(huffhead[0]);
-    u8* huffval = calloc(hufflen - 19,sizeof(u8));
+    if ((self->ix + hufflen) >= self->datalen) return ret;
     u8* huffvals = &self->data[self->ix+19];
     int huffvalslen = hufflen - 19;
-#ifndef FAST_HUFF
+#ifdef SLOW_HUFF
+    u8* huffval = calloc(hufflen - 19,sizeof(u8));
+    if (huffval == NULL) return LJ92_ERROR_NO_MEMORY;
+    self->huffval = huffval;
     for (int hix=0;hix<(hufflen-19);hix++) {
         huffval[hix] = self->data[self->ix+19+hix];
     }
@@ -75,6 +91,8 @@ void parseHuff(ljp* self) {
     }
     // Now allocate and do it
     int* huffsize = calloc(huffsize_needed,sizeof(int));
+    if (huffsize == NULL) return LJ92_ERROR_NO_MEMORY;
+    self->huffsize = huffsize;
     k = 0;
     i = 1;
     j = 1;
@@ -112,6 +130,8 @@ void parseHuff(ljp* self) {
     }
     // Now fill it
     int* huffcode = calloc(huffcode_needed,sizeof(int));
+    if (huffcode == NULL) return LJ92_ERROR_NO_MEMORY;
+    self->huffcode = huffcode;
     int hcix = 0;
     k = 0;
     code = 0;
@@ -134,8 +154,15 @@ void parseHuff(ljp* self) {
     j = 0;
 
     int* maxcode = calloc(17,sizeof(int));
+    if (maxcode == NULL) return LJ92_ERROR_NO_MEMORY;
+    self->maxcode = maxcode;
     int* mincode = calloc(17,sizeof(int));
+    if (mincode == NULL) return LJ92_ERROR_NO_MEMORY;
+    self->mincode = mincode;
     int* valptr = calloc(17,sizeof(int));
+    if (valptr == NULL) return LJ92_ERROR_NO_MEMORY;
+    self->valptr = valptr;
+
     while (1) {
         while (1) {
             i++;
@@ -153,13 +180,11 @@ void parseHuff(ljp* self) {
         maxcode[i] = huffcode[j];
         j++;
     }
-    self->maxcode = maxcode;
-    self->mincode = mincode;
-    self->valptr = valptr;
-    self->huffval = huffval;
     free(huffsize);
+    self->huffsize = NULL;
     free(huffcode);
-
+    self->huffcode = NULL;
+    ret = LJ92_ERROR_NONE;
 #else
     /* Calculate huffman direct lut */
     // How many bits in the table - find highest entry
@@ -168,8 +193,11 @@ void parseHuff(ljp* self) {
         if (bits[maxbits]) break;
         maxbits--;
     }
+    self->huffbits = maxbits;
     /* Now fill the lut */
     u16* hufflut = malloc((1<<maxbits) * sizeof(u16));
+    if (hufflut == NULL) return LJ92_ERROR_NO_MEMORY;
+    self->hufflut = hufflut;
     int i = 0;
     int hv = 0;
     int rv = 0;
@@ -197,24 +225,28 @@ void parseHuff(ljp* self) {
         i++;
         rv++;
     }
-    self->huffbits = maxbits;
-    self->hufflut = hufflut;
+    ret = LJ92_ERROR_NONE;
 #endif
+    return ret;
 }
 
-void parseSof3(ljp* self) {
+static int parseSof3(ljp* self) {
+    if (self->ix+6 >= self->datalen) return LJ92_ERROR_CORRUPT;
     self->y = BEH(self->data[self->ix+3]);
     self->x = BEH(self->data[self->ix+5]);
     self->bits = self->data[self->ix+2];
     self->ix += BEH(self->data[self->ix]);
+    return LJ92_ERROR_NONE;
 }
 
-void parseBlock(ljp* self,int marker) {
+static int parseBlock(ljp* self,int marker) {
     self->ix += BEH(self->data[self->ix]);
+    if (self->ix >= self->datalen) return LJ92_ERROR_CORRUPT;
+    return LJ92_ERROR_NONE;
 }
 
-#ifndef FAST_HUFF
-int nextbit(ljp* self) {
+#ifdef SLOW_HUFF
+static int nextbit(ljp* self) {
     u32 b = self->b;
     if (self->cnt == 0) {
         u8* data = &self->data[self->ix];
@@ -233,7 +265,7 @@ int nextbit(ljp* self) {
     return bit;
 }
 
-int decode(ljp* self) {
+static int decode(ljp* self) {
     int i = 1;
     int code = nextbit(self);
     while (code > self->maxcode[i]) {
@@ -246,7 +278,7 @@ int decode(ljp* self) {
     return value;
 }
 
-int receive(ljp* self,int ssss) {
+static int receive(ljp* self,int ssss) {
     int i = 0;
     int v = 0;
     while (i != ssss) {
@@ -256,7 +288,7 @@ int receive(ljp* self,int ssss) {
     return v;
 }
 
-int extend(ljp* self,int v,int t) {
+static int extend(ljp* self,int v,int t) {
     int vt = 1<<(t-1);
     if (v < vt) {
         vt = (-1 << t) + 1;
@@ -266,55 +298,132 @@ int extend(ljp* self,int v,int t) {
 }
 #endif
 
-int nextdiff(ljp* self) {
-#ifndef FAST_HUFF
+inline static int nextdiff(ljp* self) {
+#ifdef SLOW_HUFF
     int t = decode(self);
     int diff = receive(self,t);
     diff = extend(self,diff,t);
 #else
-    while (self->cnt < self->huffbits) {
-        int next = self->data[self->ix++];
-        self->b = (self->b << 8)|next;
-        self->cnt += 8;
-        if (next==0xFF) self->ix++;
+    int b = self->b;
+    int cnt = self->cnt;
+    int huffbits = self->huffbits;
+    int ix = self->ix;
+    int next;
+    while (cnt < huffbits) {
+        next = self->data[ix];
+        ix++;
+        cnt += 8;
+        b = (b << 8)|next;
+        if (next==0xFF) ix++;
     }
-    int index = self->b >> (self->cnt - self->huffbits);
+    int index = b >> (cnt - huffbits);
     u16 ssssused = self->hufflut[index];
     int usedbits = ssssused&0xFF;
     int t = ssssused>>8;
-    int keepbitsmask = (1 << (self->cnt - usedbits))-1;
-    self->b &= keepbitsmask;
-    self->cnt -= usedbits;
-    while (self->cnt < t) {
-        int next = self->data[self->ix++];
-        self->b = (self->b << 8)|next;
-        self->cnt += 8;
-        if (next==0xFF) self->ix++;
+    cnt -= usedbits;
+    int keepbitsmask = (1 << cnt)-1;
+    b &= keepbitsmask;
+    while (cnt < t) {
+        next = self->data[ix];
+        ix++;
+        cnt += 8;
+        b = (b << 8)|next;
+        if (next==0xFF) ix++;
     }
-    int diff = self->b >> (self->cnt - t);
-    keepbitsmask = (1 << (self->cnt - t))-1;
-    self->b &= keepbitsmask;
-    self->cnt -= t;
+    cnt -= t;
+    int diff = b >> cnt;
     int vt = 1<<(t-1);
     if (diff < vt) {
         vt = (-1 << t) + 1;
         diff += vt;
     }
+    keepbitsmask = (1 << cnt)-1;
+    self->b = b & keepbitsmask;
+    self->cnt = cnt;
+    self->ix = ix;
     //printf("%d %d\n",t,diff);
 #endif
     return diff;
 }
 
-void parseScan(ljp* self) {
+static int parsePred6(ljp* self) {
+    int ret = LJ92_ERROR_CORRUPT;
+    self->ix = self->scanstart;
     int compcount = self->data[self->ix+2];
-    int pred = self->data[self->ix+3+2*compcount];
     self->ix += BEH(self->data[self->ix]);
     self->cnt = 0;
     self->b = 0;
     // Now need to decode huffman coded values
     int c = 0;
     int pixels = self->y * self->x;
-    u16* out = malloc(pixels*sizeof(u16));
+    u16* out = self->image;
+
+    // First pixel predicted from base value
+    int diff;
+    int Px;
+    int col = 0;
+    int row = 0;
+    int left = 0;
+
+    // First pixel
+    diff = nextdiff(self);
+    Px = 1 << (self->bits-1);
+    left = Px + diff;
+    out[c++] = left;
+    if (++col==self->x) {
+        col = 0;
+        row++;
+    }
+    if (self->ix >= self->datalen) return ret;
+
+    int rowcount = self->x-1;
+    while (rowcount--) {
+        diff = nextdiff(self);
+        Px = left;
+        left = Px + diff;
+        out[c++] = left;
+        if (self->ix >= self->datalen) return ret;
+    }
+    col = 0;
+    row++;
+
+    while (c<pixels) {
+        diff = nextdiff(self);
+        Px = out[c-self->x]; // Use value above for first pixel in row
+        left = Px + diff;
+        //printf("%d %d %d\n",c,diff,left);
+        out[c++] = left;
+        if (self->ix >= self->datalen) break;
+        rowcount = self->x-1;
+        u16* outprev = &out[c-self->x];
+        while (rowcount--) {
+            diff = nextdiff(self);
+            Px = outprev[0] + ((left - outprev[-1])>>1);
+            left = Px + diff;
+            //printf("%d %d %d\n",c,diff,left);
+            out[c++] = left;
+            outprev++;
+        }
+        if (self->ix >= self->datalen) break;
+    }
+    if (c >= pixels) ret = LJ92_ERROR_NONE;
+    return ret;
+}
+
+static int parseScan(ljp* self) {
+    int ret = LJ92_ERROR_CORRUPT;
+    self->ix = self->scanstart;
+    int compcount = self->data[self->ix+2];
+    int pred = self->data[self->ix+3+2*compcount];
+    if (pred<0 || pred>7) return ret;
+    if (pred==6) return parsePred6(self); // Fast path
+    self->ix += BEH(self->data[self->ix]);
+    self->cnt = 0;
+    self->b = 0;
+    // Now need to decode huffman coded values
+    int c = 0;
+    int pixels = self->y * self->x;
+    u16* out = self->image;
 
     // First pixel predicted from base value
     int diff;
@@ -358,48 +467,117 @@ void parseScan(ljp* self) {
             col = 0;
             row++;
         }
+        if (self->ix >= self->datalen) break;
     }
-    self->image = out;
+    if (c >= pixels) ret = LJ92_ERROR_NONE;
+    return ret;
 }
 
-int parseImage(ljp* self) {
-    //printf("Parsing image\n");
+static int parseImage(ljp* self) {
+    int ret = LJ92_ERROR_NONE;
     while (1) {
         int nextMarker = find(self);
         if (nextMarker == 0xc4)
-            parseHuff(self);
+            ret = parseHuff(self);
         else if (nextMarker == 0xc3)
-            parseSof3(self);
+            ret = parseSof3(self);
         else if (nextMarker == 0xfe)// Comment
-            parseBlock(self,nextMarker);
+            ret = parseBlock(self,nextMarker);
         else if (nextMarker == 0xd9) // End of image
             break;
         else if (nextMarker == 0xda) {
-            parseScan(self);
+            self->scanstart = self->ix;
+            ret = LJ92_ERROR_NONE;
             break;
-        }
-        else
-            parseBlock(self,nextMarker);
+        } else if (nextMarker == -1) {
+            ret = LJ92_ERROR_CORRUPT;
+            break;
+        } else
+            ret = parseBlock(self,nextMarker);
+        if (ret != LJ92_ERROR_NONE) break;
     }
-    //printf("Parsing image complete\n");
-    return 0;
+    return ret;
 }
 
-int findSoI(ljp* self) {
-    if (find(self)==0xd8) return parseImage(self);
+static int findSoI(ljp* self) {
+    int ret = LJ92_ERROR_CORRUPT;
+    if (find(self)==0xd8)
+        ret = parseImage(self);
+    return ret;
 }
 
-u16* parse(char* data,int datalen,int* width,int* height) {
-    ljp self;
-    self.ix = 0;
-    self.data = (u8*)data;
-    self.datalen = datalen;
-    findSoI(&self);
-    *width = self.x;
-    *height = self.y;
-    return self.image;
+static void free_memory(ljp* self) {
+#ifdef SLOW_HUFF
+    free(self->maxcode);
+    self->maxcode = NULL;
+    free(self->mincode);
+    self->mincode = NULL;
+    free(self->valptr);
+    self->valptr = NULL;
+    free(self->huffval);
+    self->huffval = NULL;
+    free(self->huffsize);
+    self->huffsize = NULL;
+    free(self->huffcode);
+    self->huffcode = NULL;
+#else
+    free(self->hufflut);
+    self->hufflut = NULL;
+#endif
 }
 
+int lj92_open(lj92* lj,
+              char* data, int datalen,
+              int* width,int* height, int* bitdepth) {
+    ljp* self = (ljp*)calloc(sizeof(ljp),1);
+    if (self==NULL) return LJ92_ERROR_NO_MEMORY;
+
+    self->data = (u8*)data;
+    self->dataend = self->data + datalen;
+    self->datalen = datalen;
+#ifdef SLOW_HUFF
+#else
+    u16* hufflut;
+    int huffbits;
+#endif
+
+    int ret = findSoI(self);
+    if (ret != LJ92_ERROR_NONE) { // Failed, clean up
+        *lj = NULL;
+        free_memory(self);
+        free(self);
+    } else {
+        *width = self->x;
+        *height = self->y;
+        *bitdepth = self->bits;
+        *lj = self;
+    }
+    return ret;
+}
+
+int lj92_decode(lj92 lj,
+                uint16_t* target,int writeLength, int skipLength,
+                uint16_t* linearize,int linearizeLength) {
+    int ret = LJ92_ERROR_NONE;
+    ljp* self = lj;
+    if (self == NULL) return LJ92_ERROR_BAD_HANDLE;
+    self->image = target;
+    self->writelen = writeLength;
+    self->skiplen = skipLength;
+    self->linearize = linearize;
+    self->linlen = linearizeLength;
+    ret = parseScan(self);
+    return ret;
+}
+
+void lj92_close(lj92 lj) {
+    ljp* self = lj;
+    if (self != NULL)
+        free_memory(self);
+    free(self);
+}
+
+#ifdef TEST_DECODER
 void main(int argc,char** argv) {
     // Read in filename to memory
     FILE* datafile = fopen(argv[1],"r");
@@ -413,12 +591,20 @@ void main(int argc,char** argv) {
     fclose(datafile);
 
     // Now process the data
-    int width,height;
-    u16* image = NULL;
+    int width,height,bitdepth;
+    lj92 ljp;
+    int ret = lj92_open(&ljp,data,length,&width,&height,&bitdepth);
+    printf("lj92_open returned %d\n",ret);
+    uint16_t* image = (uint16_t*)malloc(width*height*sizeof(uint16_t));
     for (int loop=0;loop<100;loop++) {
-        free(image);
-        image = parse(data,length,&width,&height);
+        ret = lj92_decode(ljp,image,width,0,NULL,0);
+        if (ret != LJ92_ERROR_NONE) {
+            printf("lj92_decode returned %d\n",ret);
+            break;
+        }
     }
+
+    // Convert to big endian 16bit for output as PGM file
     for (int i=0;i<(width*height);i++) {
         image[i] = (image[i]>>8)|((image[i]&0xFF)<<8);
     }
@@ -426,4 +612,9 @@ void main(int argc,char** argv) {
     fprintf(rafile,"P5 %d %d 4096\n",width,height);
     fwrite(image,2,width*height,rafile);
     fclose(rafile);
+    free(image);
+
+    // Finish
+    lj92_close(ljp);
 }
+#endif

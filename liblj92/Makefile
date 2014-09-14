@@ -1,7 +1,7 @@
 all: decoder
 
-decoder: decoder.c
-	gcc -O3 -g -std=c99 decoder.c -o decoder
+decoder: lj92.c
+	gcc -O3 -g -DTEST_DECODER -std=c99 lj92.c -o decoder
 
 clean:
 	rm decoder
