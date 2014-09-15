@@ -366,10 +366,14 @@ static int parsePred6(ljp* self) {
     self->ix += BEH(self->data[self->ix]);
     self->cnt = 0;
     self->b = 0;
+    int write = self->writelen;
     // Now need to decode huffman coded values
     int c = 0;
     int pixels = self->y * self->x;
     u16* out = self->image;
+    u16* temprow;
+    u16* thisrow = self->outrow[0];
+    u16* lastrow = self->outrow[1];
 
     // First pixel predicted from base value
     int diff;
@@ -377,46 +381,80 @@ static int parsePred6(ljp* self) {
     int col = 0;
     int row = 0;
     int left = 0;
+    int linear;
 
     // First pixel
     diff = nextdiff(self);
     Px = 1 << (self->bits-1);
     left = Px + diff;
-    out[c++] = left;
-    if (++col==self->x) {
-        col = 0;
-        row++;
-    }
+    if (self->linearize)
+        linear = self->linearize[left];
+    else
+        linear = left;
+    thisrow[col++] = left;
+    out[c++] = linear;
     if (self->ix >= self->datalen) return ret;
-
+    --write;
     int rowcount = self->x-1;
     while (rowcount--) {
         diff = nextdiff(self);
         Px = left;
         left = Px + diff;
-        out[c++] = left;
+        if (self->linearize)
+            linear = self->linearize[left];
+        else
+            linear = left;
+        thisrow[col++] = left;
+        out[c++] = linear;
+        //printf("%d %d %d %d %x\n",col-1,diff,left,thisrow[col-1],&thisrow[col-1]);
         if (self->ix >= self->datalen) return ret;
+        if (--write==0) {
+            out += self->skiplen;
+            write = self->writelen;
+        }
     }
-    col = 0;
+    temprow = lastrow;
+    lastrow = thisrow;
+    thisrow = temprow;
     row++;
-
+    //printf("%x %x\n",thisrow,lastrow);
     while (c<pixels) {
+        col = 0;
         diff = nextdiff(self);
-        Px = out[c-self->x]; // Use value above for first pixel in row
+        Px = lastrow[col]; // Use value above for first pixel in row
         left = Px + diff;
-        //printf("%d %d %d\n",c,diff,left);
-        out[c++] = left;
+        if (self->linearize)
+            linear = self->linearize[left];
+        else
+            linear = left;
+        thisrow[col++] = left;
+        //printf("%d %d %d %d\n",col,diff,left,lastrow[col]);
+        out[c++] = linear;
         if (self->ix >= self->datalen) break;
         rowcount = self->x-1;
-        u16* outprev = &out[c-self->x];
+        if (--write==0) {
+            out += self->skiplen;
+            write = self->writelen;
+        }
         while (rowcount--) {
             diff = nextdiff(self);
-            Px = outprev[0] + ((left - outprev[-1])>>1);
+            Px = lastrow[col] + ((left - lastrow[col-1])>>1);
             left = Px + diff;
-            //printf("%d %d %d\n",c,diff,left);
-            out[c++] = left;
-            outprev++;
+            //printf("%d %d %d %d %d %x\n",col,diff,left,lastrow[col],lastrow[col-1],&lastrow[col]);
+            if (self->linearize)
+                linear = self->linearize[left];
+            else
+                linear = left;
+            thisrow[col++] = left;
+            out[c++] = linear;
+            if (--write==0) {
+                out += self->skiplen;
+                write = self->writelen;
+            }
         }
+        temprow = lastrow;
+        lastrow = thisrow;
+        thisrow = temprow;
         if (self->ix >= self->datalen) break;
     }
     if (c >= pixels) ret = LJ92_ERROR_NONE;
@@ -429,7 +467,7 @@ static int parseScan(ljp* self) {
     int compcount = self->data[self->ix+2];
     int pred = self->data[self->ix+3+2*compcount];
     if (pred<0 || pred>7) return ret;
-    //if (pred==6) return parsePred6(self); // Fast path
+    if (pred==6) return parsePred6(self); // Fast path
     self->ix += BEH(self->data[self->ix]);
     self->cnt = 0;
     self->b = 0;
@@ -438,7 +476,6 @@ static int parseScan(ljp* self) {
     int c = 0;
     int pixels = self->y * self->x;
     u16* out = self->image;
-    u16* outlast = out - self->x; // Shouldn't use until row 2
     u16* thisrow = self->outrow[0];
     u16* lastrow = self->outrow[1];
 
@@ -478,19 +515,23 @@ static int parseScan(ljp* self) {
         }
         left = Px + diff;
         //printf("%d %d %d\n",c,diff,left);
-        out[c] = left;
-        c++;
+        int linear;
+        if (self->linearize)
+            linear = self->linearize[left];
+        else
+            linear = left;
         thisrow[col] = left;
-        if (--write==0) {
-            out += self->skiplen;
-            write = self->writelen;
-        }
+        out[c++] = linear;
         if (++col==self->x) {
             col = 0;
             row++;
             u16* temprow = lastrow;
             lastrow = thisrow;
             thisrow = temprow;
+        }
+        if (--write==0) {
+            out += self->skiplen;
+            write = self->writelen;
         }
         if (self->ix >= self->datalen+2) break;
     }
@@ -660,15 +701,22 @@ void main(int argc,char** argv) {
         printf("Files do not have identical frame size %dx%d vs %dx%d\n",width,height,width2,height2);
         return;
     }
+
+    // Test linearization table
+    u16* linearize = calloc(4096,sizeof(u16));
+    for (int i=0;i<4096;i++) {
+        linearize[i] = (i*65535)/4095;
+    }
+    //u16* linearize = NULL;
     printf("lj92_open returned %d width=%d, height=%d, bitdepth=%d\n",ret,width2,height2,bitdepth2);
     printf("Creating frame %dx%d\n",width,height*2);
     uint16_t* image = (uint16_t*)calloc(width*height*2,sizeof(uint16_t));
     for (int loop=0;loop<50;loop++) {
-        ret = lj92_decode(ljp,image,width/2,width/2,NULL,0);
+        ret = lj92_decode(ljp,image,width/2,width/2,linearize,4096);
         if (ret != LJ92_ERROR_NONE) {
             printf("lj92_decode returned %d\n",ret);
         }
-        ret = lj92_decode(ljp2,image+width/2,width/2,width/2,NULL,0);
+        ret = lj92_decode(ljp2,image+width/2,width/2,width/2,linearize,4096);
         if (ret != LJ92_ERROR_NONE) {
             printf("lj92_decode returned %d\n",ret);
         }
@@ -679,12 +727,13 @@ void main(int argc,char** argv) {
         image[i] = (image[i]>>8)|((image[i]&0xFF)<<8);
     }
     FILE* rafile = fopen("dump.pgm","w");
-    fprintf(rafile,"P5 %d %d 4096\n",width,height*2);
+    fprintf(rafile,"P5 %d %d 65535\n",width,height*2);
     fwrite(image,2,width*height*2,rafile);
     fclose(rafile);
     free(image);
     free(data);
     free(data2);
+    free(linearize);
 
     // Finish
     lj92_close(ljp);
