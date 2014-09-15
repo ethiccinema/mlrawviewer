@@ -41,6 +41,8 @@ typedef struct _ljp {
     int cnt;
     u32 b;
     u16* image;
+    u16* rowcache;
+    u16* outrow[2];
 } ljp;
 
 static int find(ljp* self) {
@@ -427,14 +429,18 @@ static int parseScan(ljp* self) {
     int compcount = self->data[self->ix+2];
     int pred = self->data[self->ix+3+2*compcount];
     if (pred<0 || pred>7) return ret;
-    if (pred==6) return parsePred6(self); // Fast path
+    //if (pred==6) return parsePred6(self); // Fast path
     self->ix += BEH(self->data[self->ix]);
     self->cnt = 0;
     self->b = 0;
+    int write = self->writelen;
     // Now need to decode huffman coded values
     int c = 0;
     int pixels = self->y * self->x;
     u16* out = self->image;
+    u16* outlast = out - self->x; // Shouldn't use until row 2
+    u16* thisrow = self->outrow[0];
+    u16* lastrow = self->outrow[1];
 
     // First pixel predicted from base value
     int diff;
@@ -449,7 +455,7 @@ static int parseScan(ljp* self) {
         } else if (row==0) {
             Px = left;
         } else if (col==0) {
-            Px = out[c-self->x]; // Use value above for first pixel in row
+            Px = lastrow[col]; // Use value above for first pixel in row
         } else {
             switch (pred) {
             case 0:
@@ -457,28 +463,36 @@ static int parseScan(ljp* self) {
             case 1:
                 Px = left; break;
             case 2:
-                Px = out[c-self->x]; break;
+                Px = lastrow[col]; break;
             case 3:
-                Px = out[c-self->x-1];break;
+                Px = lastrow[col-1];break;
             case 4:
-                Px = left + out[c-self->x] - out[c-self->x-1];break;
+                Px = left + lastrow[col] - lastrow[col-1];break;
             case 5:
-                Px = left + (out[c-self->x] - out[c-self->x-1])>>1;break;
+                Px = left + (lastrow[col] - lastrow[col-1])>>1;break;
             case 6:
-                Px = out[c-self->x] + ((left - out[c-self->x-1])>>1);break;
+                Px = lastrow[col] + ((left - lastrow[col-1])>>1);break;
             case 7:
-                Px = (left + out[c-self->x])>>1;break;
+                Px = (left + lastrow[col])>>1;break;
             }
         }
         left = Px + diff;
         //printf("%d %d %d\n",c,diff,left);
         out[c] = left;
         c++;
+        thisrow[col] = left;
+        if (--write==0) {
+            out += self->skiplen;
+            write = self->writelen;
+        }
         if (++col==self->x) {
             col = 0;
             row++;
+            u16* temprow = lastrow;
+            lastrow = thisrow;
+            thisrow = temprow;
         }
-        if (self->ix >= self->datalen) break;
+        if (self->ix >= self->datalen+2) break;
     }
     if (c >= pixels) ret = LJ92_ERROR_NONE;
     return ret;
@@ -535,6 +549,8 @@ static void free_memory(ljp* self) {
     free(self->hufflut);
     self->hufflut = NULL;
 #endif
+    free(self->rowcache);
+    self->rowcache = NULL;
 }
 
 int lj92_open(lj92* lj,
@@ -553,6 +569,17 @@ int lj92_open(lj92* lj,
 #endif
 
     int ret = findSoI(self);
+
+    if (ret == LJ92_ERROR_NONE) {
+        u16* rowcache = calloc(self->x * 2,sizeof(u16));
+        if (rowcache == NULL) ret = LJ92_ERROR_NO_MEMORY;
+        else {
+            self->rowcache = rowcache;
+            self->outrow[0] = rowcache;
+            self->outrow[1] = &rowcache[self->x];
+        }
+    }
+
     if (ret != LJ92_ERROR_NONE) { // Failed, clean up
         *lj = NULL;
         free_memory(self);
@@ -590,7 +617,17 @@ void lj92_close(lj92 lj) {
 
 #ifdef TEST_DECODER
 void main(int argc,char** argv) {
-    // Read in filename to memory
+    char* first;
+    char* second;
+    if (argc<2) {
+        printf("Please provide 1 (or 2 identical sized) lossless JPEG file(s)\n");
+        return;
+    }
+    if (argc>=2) first = argv[1];
+    if (argc>=3) second = argv[2];
+    else second = first;
+
+    // Read in filenames to memory
     FILE* datafile = fopen(argv[1],"r");
     fseek(datafile,0,SEEK_END);
     long length = ftell(datafile);
@@ -601,31 +638,56 @@ void main(int argc,char** argv) {
     printf("readlen=%d\n",readlen);
     fclose(datafile);
 
+    datafile = fopen(argv[2],"r");
+    fseek(datafile,0,SEEK_END);
+    length = ftell(datafile);
+    fseek(datafile,0,SEEK_SET);
+    printf("Length of file=%lu\n",length);
+    char* data2 = malloc(length);
+    int readlen2 = fread(data2,1,length,datafile);
+    printf("readlen=%d\n",readlen2);
+    fclose(datafile);
+
     // Now process the data
     int width,height,bitdepth;
+    int width2,height2,bitdepth2;
     lj92 ljp;
-    int ret = lj92_open(&ljp,data,length,&width,&height,&bitdepth);
-    printf("lj92_open returned %d\n",ret);
-    uint16_t* image = (uint16_t*)malloc(width*height*sizeof(uint16_t));
-    for (int loop=0;loop<100;loop++) {
-        ret = lj92_decode(ljp,image,width,0,NULL,0);
+    lj92 ljp2;
+    int ret = lj92_open(&ljp,data,readlen,&width,&height,&bitdepth);
+    printf("lj92_open returned %d width=%d, height=%d, bitdepth=%d\n",ret,width,height,bitdepth);
+    ret = lj92_open(&ljp2,data2,readlen2,&width2,&height2,&bitdepth2);
+    if ((width!=width2) && (height!=height2)) {
+        printf("Files do not have identical frame size %dx%d vs %dx%d\n",width,height,width2,height2);
+        return;
+    }
+    printf("lj92_open returned %d width=%d, height=%d, bitdepth=%d\n",ret,width2,height2,bitdepth2);
+    printf("Creating frame %dx%d\n",width,height*2);
+    uint16_t* image = (uint16_t*)calloc(width*height*2,sizeof(uint16_t));
+    for (int loop=0;loop<50;loop++) {
+        ret = lj92_decode(ljp,image,width/2,width/2,NULL,0);
         if (ret != LJ92_ERROR_NONE) {
             printf("lj92_decode returned %d\n",ret);
-            break;
+        }
+        ret = lj92_decode(ljp2,image+width/2,width/2,width/2,NULL,0);
+        if (ret != LJ92_ERROR_NONE) {
+            printf("lj92_decode returned %d\n",ret);
         }
     }
 
     // Convert to big endian 16bit for output as PGM file
-    for (int i=0;i<(width*height);i++) {
+    for (int i=0;i<(width*height*2);i++) {
         image[i] = (image[i]>>8)|((image[i]&0xFF)<<8);
     }
     FILE* rafile = fopen("dump.pgm","w");
-    fprintf(rafile,"P5 %d %d 4096\n",width,height);
-    fwrite(image,2,width*height,rafile);
+    fprintf(rafile,"P5 %d %d 4096\n",width,height*2);
+    fwrite(image,2,width*height*2,rafile);
     fclose(rafile);
     free(image);
+    free(data);
+    free(data2);
 
     // Finish
     lj92_close(ljp);
+    lj92_close(ljp2);
 }
 #endif
