@@ -1158,7 +1158,7 @@ class CDNG(ImageSequence):
                 raise IOError
 
         self.linearization = None
-        if DNG.Tag.LinearizationTable[0]:
+        if DNG.Tag.LinearizationTable[0] in fd.FULL_IFD.tags:
             self.linearization = np.array(fd.FULL_IFD.tags[DNG.Tag.LinearizationTable[0]][3],dtype=np.uint16)
             print "linearization",self.linearization
 
