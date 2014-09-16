@@ -61,11 +61,13 @@
 
 /* assume RGGB */
 /* see RT rawimage.h */
+
+static int filter = 0x0;
 static inline int FC(int row, int col)
 {
-    if ((row%2) == 0 && (col%2) == 0)
+    if ((row%2) == filter && (col%2) == 0)
         return 0;  /* red */
-    else if ((row%2) == 1 && (col%2) == 1)
+    else if ((row%2) != filter && (col%2) == 1)
         return 2;  /* blue */
     else
         return 1;  /* green */
@@ -124,9 +126,11 @@ demosaic(
     float** green,      /* the interpolated green plane */
     float** blue,       /* the interpolated blue plane */
     int winx, int winy, /* crop window for demosaicing */
-    int winw, int winh
+    int winw, int winh,
+    int cfa
 )
 {
+    filter = cfa;
 //clock_t	t1,t2;
 //t1 = clock();
 

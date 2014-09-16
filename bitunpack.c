@@ -8,7 +8,8 @@ void demosaic(
     float** green,      /* the interpolated green plane */
     float** blue,       /* the interpolated blue plane */
     int winx, int winy, /* crop window for demosaicing */
-    int winw, int winh
+    int winw, int winh,
+    int cfa 
 );
 
 static PyObject*
@@ -90,7 +91,7 @@ bitunpack_demosaic14(PyObject* self, PyObject *args)
         bluerows[rr] = blue + rr*width;
     }
 
-    demosaic(rrows,redrows,greenrows,bluerows,0,0,width,height);
+    demosaic(rrows,redrows,greenrows,bluerows,0,0,width,height,0);
 
     // Now interleave into final RGB float array
     float* outptr = (float*)PyByteArray_AS_STRING(ba);
@@ -182,7 +183,7 @@ bitunpack_demosaic16(PyObject* self, PyObject *args)
     }
 
     Py_BEGIN_ALLOW_THREADS;
-    demosaic(rrows,redrows,greenrows,bluerows,0,0,width,height);
+    demosaic(rrows,redrows,greenrows,bluerows,0,0,width,height,0);
     Py_END_ALLOW_THREADS;
 
     // Now interleave into final RGB float array
@@ -456,14 +457,15 @@ bitunpack_demosaic(PyObject* self, PyObject *args)
     int y;
     int width;
     int height;
-    if (!PyArg_ParseTuple(args, "Oiiii", &demosaicerobj, &x, &y, &width, &height))
+    int cfa = 0;
+    if (!PyArg_ParseTuple(args, "Oiiiii", &demosaicerobj, &x, &y, &width, &height, &cfa))
         return NULL;
     demosaicer* dem = (demosaicer*)PyCapsule_GetPointer(demosaicerobj,DEMOSAICER_NAME);
     if (dem == NULL)
         return NULL;
 
     Py_BEGIN_ALLOW_THREADS;
-    demosaic(dem->rrows,dem->redrows,dem->greenrows,dem->bluerows,x,y,width,height);
+    demosaic(dem->rrows,dem->redrows,dem->greenrows,dem->bluerows,x,y,width,height,cfa);
     Py_END_ALLOW_THREADS;
     Py_RETURN_NONE;
 }

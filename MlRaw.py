@@ -97,7 +97,7 @@ class SerialiseCPUDemosaic(object):
         self.dh = height
         return self.demosaicer
 
-    def doDemosaic(self,demosaicer,width,height):
+    def doDemosaic(self,demosaicer,width,height,cfa):
         # Submit 16 jobs to be spread amongst available threads
         bw = (width/4)
         bw = bw + (4-bw%4) # Round up
@@ -114,32 +114,32 @@ class SerialiseCPUDemosaic(object):
                 if be>=height:
                     ah -= (be-height)
                 #print x*bw,y*bh,x*bw+aw,y*bh+ah,width,height,aw,ah,re,be
-                self.jobq.put((demosaicer,x*bw,y*bh,aw,ah))
+                self.jobq.put((demosaicer,x*bw,y*bh,aw,ah,cfa))
         self.jobq.join()
 
-    def demosaic12(self,rawdata,width,height,black,byteSwap=0):
+    def demosaic12(self,rawdata,width,height,black,byteSwap=0,cfa=0):
         self.serq.put(True) # Let us run
         demosaicer = self.getdemosaicer(width,height)
         bitunpack.predemosaic12(demosaicer,rawdata,width,height,black,byteSwap)
-        self.doDemosaic(demosaicer,width,height)
+        self.doDemosaic(demosaicer,width,height,cfa)
         result = bitunpack.postdemosaic(demosaicer)
         self.serq.get() # Let someone else work
         return np.frombuffer(result,dtype=np.float32)
 
-    def demosaic14(self,rawdata,width,height,black,byteSwap=0):
+    def demosaic14(self,rawdata,width,height,black,byteSwap=0,cfa=0):
         self.serq.put(True) # Let us run
         demosaicer = self.getdemosaicer(width,height)
         bitunpack.predemosaic14(demosaicer,rawdata,width,height,black,byteSwap)
-        self.doDemosaic(demosaicer,width,height)
+        self.doDemosaic(demosaicer,width,height,cfa)
         result = bitunpack.postdemosaic(demosaicer)
         self.serq.get() # Let someone else work
         return np.frombuffer(result,dtype=np.float32)
 
-    def demosaic16(self,rawdata,width,height,black,byteSwap=0):
+    def demosaic16(self,rawdata,width,height,black,byteSwap=0,cfa=0):
         self.serq.put(True) # Let us run
         demosaicer = self.getdemosaicer(width,height)
         bitunpack.predemosaic16(demosaicer,rawdata,width,height,black,byteSwap)
-        self.doDemosaic(demosaicer,width,height)
+        self.doDemosaic(demosaicer,width,height,cfa)
         result = bitunpack.postdemosaic(demosaicer)
         self.serq.get() # Let someone else work
         return np.frombuffer(result,dtype=np.float32)
@@ -175,16 +175,16 @@ def unpacks14np16(rawdata,width,height,byteSwap=0):
     unpacked,stats = bitunpack.unpack14to16(rawdata[:tounpack],byteSwap)
     return np.frombuffer(unpacked,dtype=np.uint16),stats
 
-def demosaic12(rawdata,width,height,black,byteSwap=0):
-    raw = DemosaicThread.demosaic12(rawdata,width,height,black,byteSwap)
+def demosaic12(rawdata,width,height,black,byteSwap=0,cfa=0):
+    raw = DemosaicThread.demosaic12(rawdata,width,height,black,byteSwap,cfa)
     return np.frombuffer(raw,dtype=np.float32)
 
-def demosaic14(rawdata,width,height,black,byteSwap=0):
-    raw = DemosaicThread.demosaic14(rawdata,width,height,black,byteSwap)
+def demosaic14(rawdata,width,height,black,byteSwap=0,cfa=0):
+    raw = DemosaicThread.demosaic14(rawdata,width,height,black,byteSwap,cfa)
     return np.frombuffer(raw,dtype=np.float32)
 
-def demosaic16(rawdata,width,height,black,byteSwap=0):
-    raw = DemosaicThread.demosaic16(rawdata,width,height,black,byteSwap)
+def demosaic16(rawdata,width,height,black,byteSwap=0,cfa=0):
+    raw = DemosaicThread.demosaic16(rawdata,width,height,black,byteSwap,cfa)
     return np.frombuffer(raw,dtype=np.float32)
 
 class FrameConverter(threading.Thread):
@@ -208,7 +208,7 @@ class FrameConverter(threading.Thread):
 FrameConverterThread = FrameConverter()
 
 class Frame:
-    def __init__(self,rawfile,rawdata,width,height,black,white,byteSwap=0,bitsPerSample=14,bayer=True,rgb=False,convert=True,rtc=None,lens=None,expo=None,wbal=None,ljpeg=False,linearization=None):
+    def __init__(self,rawfile,rawdata,width,height,black,white,byteSwap=0,bitsPerSample=14,bayer=True,rgb=False,convert=True,rtc=None,lens=None,expo=None,wbal=None,ljpeg=False,linearization=None,cfa=0):
         #print "opening frame",len(rawdata),width,height
         #print width*height
         self.rawfile = rawfile
@@ -231,6 +231,7 @@ class Frame:
         self.wbal = wbal
         self.rawwbal = (1.0,1.0,1.0)
         self.convertQ = Queue.Queue(1)
+        self.cfa = cfa
         if bayer==False and rgb==True:
             self.rgbimage = rawdata
         else:
@@ -277,14 +278,14 @@ class Frame:
             return # Done already
         elif self.rawimage != None:
             # Already converted 14bit to 16bit, or preprocessed
-            self.rgbimage = demosaic16(self.rawimage,self.width,self.height,self.black,byteSwap=0)
+            self.rgbimage = demosaic16(self.rawimage,self.width,self.height,self.black,byteSwap=0,cfa=self.cfa)
         elif self.rawdata != None:
             if self.bitsPerSample == 14:
-                self.rgbimage = demosaic14(self.rawdata,self.width,self.height,self.black,self.byteSwap)
+                self.rgbimage = demosaic14(self.rawdata,self.width,self.height,self.black,self.byteSwap,cfa=self.cfa)
             elif self.bitsPerSample == 16:
-                self.rgbimage = demosaic16(self.rawdata,self.width,self.height,self.black,byteSwap=0) # Hmm...what about byteSwapping?
+                self.rgbimage = demosaic16(self.rawdata,self.width,self.height,self.black,byteSwap=0,cfa=self.cfa) # Hmm...what about byteSwapping?
             elif self.bitsPerSample == 12:
-                self.rgbimage = demosaic12(self.rawdata,self.width,self.height,self.black,byteSwap=0)
+                self.rgbimage = demosaic12(self.rawdata,self.width,self.height,self.black,byteSwap=0,cfa=self.cfa)
         else:
             self.rgbimage = np.zeros(self.width*self.height*3,dtype=np.uint16).tostring()
     def thumb(self):
@@ -1162,8 +1163,13 @@ class CDNG(ImageSequence):
             self.linearization = np.array(fd.FULL_IFD.tags[DNG.Tag.LinearizationTable[0]][3],dtype=np.uint16)
             print "linearization",self.linearization
 
+        self.cfa = 0
         if DNG.Tag.CFAPattern[0] in fd.FULL_IFD.tags:
-            print "CFAPattern",fd.FULL_IFD.tags[DNG.Tag.CFAPattern[0]]
+            pattern = fd.FULL_IFD.tags[DNG.Tag.CFAPattern[0]][3]
+            print pattern
+            if pattern==(1,2,0,1):
+                print "!"
+                self.cfa = 1 # GBRG instead of RGGB
 
         neutral = self.tag(fd,DNG.Tag.AsShotNeutral)
         self.whiteBalance = [1.0,1.0,1.0]
@@ -1274,7 +1280,7 @@ class CDNG(ImageSequence):
                 tiles = dng.FULL_IFD.tiles()
                 tw,tl = dng.FULL_IFD.TileWidth,dng.FULL_IFD.TileLength
                 dng.close()
-                return Frame(self,(tw,tl,tiles),self.width(),self.height(),self.black,self.white,byteSwap=1,bitsPerSample=self.bitsPerSample,convert=convert,ljpeg=True,linearization=self.linearization)
+                return Frame(self,(tw,tl,tiles),self.width(),self.height(),self.black,self.white,byteSwap=1,bitsPerSample=self.bitsPerSample,convert=convert,ljpeg=True,linearization=self.linearization,cfa=self.cfa)
         return ""
 
 class TIFFSEQ(ImageSequence):
