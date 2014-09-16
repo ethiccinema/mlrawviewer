@@ -90,7 +90,6 @@ static int parseHuff(ljp* self) {
     int hufflen = BEH(huffhead[0]);
     if ((self->ix + hufflen) >= self->datalen) return ret;
     u8* huffvals = &self->data[self->ix+19];
-    int huffvalslen = hufflen - 19;
 #ifdef SLOW_HUFF
     u8* huffval = calloc(hufflen - 19,sizeof(u8));
     if (huffval == NULL) return LJ92_ERROR_NO_MEMORY;
@@ -385,7 +384,7 @@ inline static int nextdiff(ljp* self) {
 static int parsePred6(ljp* self) {
     int ret = LJ92_ERROR_CORRUPT;
     self->ix = self->scanstart;
-    int compcount = self->data[self->ix+2];
+    //int compcount = self->data[self->ix+2];
     self->ix += BEH(self->data[self->ix]);
     self->cnt = 0;
     self->b = 0;
@@ -529,7 +528,7 @@ static int parseScan(ljp* self) {
             case 4:
                 Px = left + lastrow[col] - lastrow[col-1];break;
             case 5:
-                Px = left + (lastrow[col] - lastrow[col-1])>>1;break;
+                Px = left + ((lastrow[col] - lastrow[col-1])>>1);break;
             case 6:
                 Px = lastrow[col] + ((left - lastrow[col-1])>>1);break;
             case 7:
@@ -626,11 +625,6 @@ int lj92_open(lj92* lj,
     self->data = (u8*)data;
     self->dataend = self->data + datalen;
     self->datalen = datalen;
-#ifdef SLOW_HUFF
-#else
-    u16* hufflut;
-    int huffbits;
-#endif
 
     int ret = findSoI(self);
 
@@ -734,7 +728,7 @@ void main(int argc,char** argv) {
     printf("lj92_open returned %d width=%d, height=%d, bitdepth=%d\n",ret,width2,height2,bitdepth2);
     printf("Creating frame %dx%d\n",width,height*2);
     uint16_t* image = (uint16_t*)calloc(width*height*2,sizeof(uint16_t));
-    for (int loop=0;loop<50;loop++) {
+    for (int loop=0;loop<500;loop++) {
         ret = lj92_decode(ljp,image,width/2,width/2,linearize,4096);
         if (ret != LJ92_ERROR_NONE) {
             printf("lj92_decode returned %d\n",ret);

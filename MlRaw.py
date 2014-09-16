@@ -1,6 +1,6 @@
 """
 MlRaw.py
-(c) Andrew Baldwin 2013
+(c) Andrew Baldwin 2013-2014
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
 this software and associated documentation files (the "Software"), to deal in
@@ -46,7 +46,7 @@ try:
     numpy in case it hasn't been compiled
     """
     import bitunpack
-    if ("__version__" not in dir(bitunpack)) or bitunpack.__version__!="2.1":
+    if ("__version__" not in dir(bitunpack)) or bitunpack.__version__!="3.0":
         print """
 
 !!! Wrong version of bitunpack found !!!

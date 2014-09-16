@@ -1,5 +1,7 @@
 #include <Python.h>
 
+#include "liblj92/lj92.h"
+
 void demosaic(
     float** rawData,    /* holds preprocessed pixel values, rawData[i][j] corresponds to the ith row and jth column */
     float** red,        /* the interpolated red plane */
@@ -44,7 +46,7 @@ bitunpack_demosaic14(PyObject* self, PyObject *args)
     while (i<elements) {
         if (sparebits<14) {
             short unsigned int r = *read++;
-            if (byteSwap) 
+            if (byteSwap)
                 r = (r&0xFF00)>>8 | ((r&0x00FF)<<8);
             acc |= r;
             sparebits += 2;
@@ -144,7 +146,7 @@ bitunpack_demosaic16(PyObject* self, PyObject *args)
 
     while (i<elements) {
         short unsigned int r = *read++;
-        if (byteSwap) 
+        if (byteSwap)
             r = (r&0xFF00)>>8 | ((r&0x00FF)<<8);
         out = r;
         if (out==0) { // Dead pixel masking
@@ -250,7 +252,7 @@ bitunpack_demosaicer(PyObject* self, PyObject *args)
 
     demosaicer* dem = (demosaicer*)calloc(1,sizeof(demosaicer));
     dem->width = width;
-    dem->height = height; 
+    dem->height = height;
     dem->raw = (float*)malloc(elements*sizeof(float));
     dem->rrows = (float**)malloc(dem->height*sizeof(float*));
     int rr = 0;
@@ -425,7 +427,7 @@ bitunpack_predemosaic16(PyObject* self, PyObject *args)
     Py_BEGIN_ALLOW_THREADS;
     while (i<elements) {
         short unsigned int r = *read++;
-        if (byteSwap) 
+        if (byteSwap)
             r = (r&0xFF00)>>8 | ((r&0x00FF)<<8);
         out = r;
         if (out==0) { // Dead pixel masking
@@ -508,7 +510,6 @@ bitunpack_unpack12to16(PyObject* self, PyObject *args)
     PyByteArray_Resize(ba,(elements*4)/3);
     unsigned char* baptr = (unsigned char*)PyByteArray_AS_STRING(ba);
     int i = 0;
-    int sparebits = 0;
     unsigned int out = 0;
     unsigned char* read = (unsigned char*)input;
     short unsigned int* write = (short unsigned int*)baptr;
@@ -518,7 +519,6 @@ bitunpack_unpack12to16(PyObject* self, PyObject *args)
         unsigned char r2 = *read++;
         unsigned char r3 = *read++;
         out = (r1<<4)|(r2>>4);
-        unsigned int out1 = out;
         if (out==0) out = *(write-2); // Dead pixel masking
         *write++ = out;
         out = ((r2&0xF)<<8)|r3;
@@ -582,9 +582,44 @@ bitunpack_unpack14to16(PyObject* self, PyObject *args)
     return rslt;
 }
 
+static PyObject*
+bitunpack_unpackljto16(PyObject* self, PyObject *args)
+{
+    unsigned const char* input = 0;
+    int inlen = 0;
+    char* output;
+    int outlen = 0;
+    int outindex = 0;
+    int outwrite = 0;
+    int outskip = 0;
+    unsigned const char* lin = 0;
+    int linlen = 0;
+
+    if (!PyArg_ParseTuple(args, "t#w#iiit#", &input, &inlen, &output, &outlen,
+        &outindex, &outwrite, &outskip, &lin, &linlen))
+        return NULL;
+    //printf("ljpeg decode inlen=%d,outlen=%d,outindex=%d,outwrite=%d,outskip=%d,linlen=%d\n",inlen,outlen,outindex,outwrite,outskip,linlen);
+    int ret = 0;
+    lj92 ljp;
+    int iw,ih,ib;
+    ret = lj92_open(&ljp,(char*)input,inlen,&iw,&ih,&ib);
+    //printf("JPEG w:%d,h:%d,bits:%d\n",iw,ih,ib);
+    if (ret==LJ92_ERROR_NONE) {
+        if (linlen>0) {
+            lj92_decode(ljp,(uint16_t*)(output+outindex),outwrite,outskip,(uint16_t*)lin,linlen);
+        } else {
+            lj92_decode(ljp,(uint16_t*)(output+outindex),outwrite,outskip,NULL,0);
+        }
+        //printf("Decoding complete\n");   
+    } 
+    PyObject *stat = Py_BuildValue("I",ret);
+    return stat;
+}
+
 static PyMethodDef methods[] = {
     { "unpack14to16", bitunpack_unpack14to16, METH_VARARGS, "Unpack a string of 14bit values to 16bit values" },
     { "unpack12to16", bitunpack_unpack12to16, METH_VARARGS, "Unpack a string of 12bit values to 16bit values" },
+    { "unpackljto16", bitunpack_unpackljto16, METH_VARARGS, "Unpack a string of LJPEG values to 16bit values" },
     { "demosaic14", bitunpack_demosaic14, METH_VARARGS, "Demosaic a 14bit RAW image into RGB float" },
     { "demosaic16", bitunpack_demosaic16, METH_VARARGS, "Demosaic a 16bit RAW image into RGB float" },
     { "demosaicer", bitunpack_demosaicer, METH_VARARGS, "Create a demosaicer object" },
@@ -605,6 +640,6 @@ initbitunpack(void)
     m = Py_InitModule("bitunpack", methods);
     if (m == NULL)
         return;
-    PyModule_AddStringConstant(m,"__version__","2.1");
+    PyModule_AddStringConstant(m,"__version__","3.0");
 }
 
