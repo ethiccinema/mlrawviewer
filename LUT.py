@@ -300,6 +300,7 @@ def generateDefaultLuts():
     standardluts = [(lut,luttype) for lut,luttype in LUT1D if luttype==LUT_STANDARD]
     if len(standardluts)!=19:
         print "Updating standard 1D LUTs"
+        LUT1D = list()
         for n in [1,2,3,4,5,6,7,8,9,10,11,12]:
             l = LogLut(2**12,n)
             LUT1D.append((l,LUT_STANDARD))

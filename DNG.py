@@ -376,11 +376,10 @@ class DNG(object):
             return self.subFileType&1==1
         def hasStrips(self):
             if self.RowsPerStrip: return True
-            else: return False 
+            else: return False
         def hasTiles(self):
-            print self.TileWidth
             if self.TileWidth: return True
-            else: return False 
+            else: return False
         def strips(self):
             if not self.hasStrips(): return None
             if self._strips: return self._strips
@@ -410,7 +409,7 @@ class DNG(object):
             TilesAcross = (ImageWidth + self.TileWidth - 1) / self.TileWidth
             TilesDown = (ImageLength + TileLength - 1) / TileLength
             TilesPerImage = TilesAcross * TilesDown
-            print TileLength,ImageWidth,ImageLength,TileByteCounts,TileOffsets,self.TileWidth*TilesAcross,TileLength*TilesDown
+            #print TileLength,ImageWidth,ImageLength,TileByteCounts,TileOffsets,self.TileWidth*TilesAcross,TileLength*TilesDown
             self._tiles = []
             for byteCount,offset in zip(TileByteCounts,TileOffsets):
                 tile = self.dng.readFrom(offset,byteCount)
@@ -587,6 +586,8 @@ class DNG(object):
             ifd.BitsPerSample = values
         elif itag==Tag.TileWidth[0]:
             ifd.TileWidth = ival
+        elif itag==Tag.TileLength[0]:
+            ifd.TileLength = ival
 
         ifdEntry = (itag,itype,icount,values)
         if self.log: print IfdName,ifdEntry

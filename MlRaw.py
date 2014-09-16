@@ -208,7 +208,7 @@ class FrameConverter(threading.Thread):
 FrameConverterThread = FrameConverter()
 
 class Frame:
-    def __init__(self,rawfile,rawdata,width,height,black,white,byteSwap=0,bitsPerSample=14,bayer=True,rgb=False,convert=True,rtc=None,lens=None,expo=None,wbal=None):
+    def __init__(self,rawfile,rawdata,width,height,black,white,byteSwap=0,bitsPerSample=14,bayer=True,rgb=False,convert=True,rtc=None,lens=None,expo=None,wbal=None,ljpeg=False,linearization=None):
         #print "opening frame",len(rawdata),width,height
         #print width*height
         self.rawfile = rawfile
@@ -223,11 +223,13 @@ class Frame:
         self.bitsPerSample = bitsPerSample
         self.conversionResult = None
         self.convertQueued = False
+        self.ljpeg = ljpeg
+        self.linearization = linearization
         self.rtc = rtc
         self.lens = lens
         self.expo = expo
         self.wbal = wbal
-	self.rawwbal = (1.0,1.0,1.0)
+        self.rawwbal = (1.0,1.0,1.0)
         self.convertQ = Queue.Queue(1)
         if bayer==False and rgb==True:
             self.rgbimage = rawdata
@@ -252,7 +254,13 @@ class Frame:
         if self.rawimage != None:
             return True # Done already
         if self.rawdata != None:
-            if self.bitsPerSample == 14:
+            if self.ljpeg:
+                # rawdata contains multiple LJPEG tiles
+                self.rawimage = np.empty((self.width*self.height),dtype=np.uint16)
+                tw,tl = self.rawdata[:2]
+                for i,t in enumerate(self.rawdata[2]):
+                    bitunpack.unpackljto16(t,self.rawimage,i*tw*2,tw,self.width-tw,self.linearization)
+            elif self.bitsPerSample == 14:
                 self.rawimage,self.framestats = unpacks14np16(self.rawdata,self.width,self.height,self.byteSwap)
             elif self.bitsPerSample == 12:
                 self.rawimage,self.framestats = unpacks12np16(self.rawdata,self.width,self.height,self.byteSwap)
@@ -1142,6 +1150,21 @@ class CDNG(ImageSequence):
             print "Unsupported BitsPerSample = ",bps,"(should be 12 or 14 or 16 )"
             raise IOError # Only support 12 or 14 or 16 bitsPerSample
 
+        if DNG.Tag.Compression[0] in fd.FULL_IFD.tags:
+            self.compression = fd.FULL_IFD.tags[DNG.Tag.Compression[0]][3][0]
+            print "Compression:",self.compression
+            if self.compression != 1 and self.compression != 7:
+                print "Unsupported Compression = ",self.compression
+                raise IOError
+
+        self.linearization = None
+        if DNG.Tag.LinearizationTable[0]:
+            self.linearization = np.array(fd.FULL_IFD.tags[DNG.Tag.LinearizationTable[0]][3],dtype=np.uint16)
+            print "linearization",self.linearization
+
+        if DNG.Tag.CFAPattern[0] in fd.FULL_IFD.tags:
+            print "CFAPattern",fd.FULL_IFD.tags[DNG.Tag.CFAPattern[0]]
+
         neutral = self.tag(fd,DNG.Tag.AsShotNeutral)
         self.whiteBalance = [1.0,1.0,1.0]
         if neutral:
@@ -1242,9 +1265,16 @@ class CDNG(ImageSequence):
             filename = self.dngs[index]
             dng = DNG.DNG()
             dng.readFileIn(os.path.join(self.cdngpath,filename))
-            rawdata = dng.FULL_IFD.stripsCombined()
-            dng.close()
-            return Frame(self,rawdata,self.width(),self.height(),self.black,self.white,byteSwap=1,bitsPerSample=self.bitsPerSample,convert=convert)
+            if dng.FULL_IFD.hasStrips():
+                rawdata = dng.FULL_IFD.stripsCombined()
+                dng.close()
+                return Frame(self,rawdata,self.width(),self.height(),self.black,self.white,byteSwap=1,bitsPerSample=self.bitsPerSample,convert=convert)
+            elif self.compression==7 and dng.FULL_IFD.hasTiles():
+                # Lossless JPEG tiles
+                tiles = dng.FULL_IFD.tiles()
+                tw,tl = dng.FULL_IFD.TileWidth,dng.FULL_IFD.TileLength
+                dng.close()
+                return Frame(self,(tw,tl,tiles),self.width(),self.height(),self.black,self.white,byteSwap=1,bitsPerSample=self.bitsPerSample,convert=convert,ljpeg=True,linearization=self.linearization)
         return ""
 
 class TIFFSEQ(ImageSequence):
