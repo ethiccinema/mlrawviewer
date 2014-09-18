@@ -51,43 +51,48 @@ uniform sampler2D hortex;
 uniform sampler2D vertex;
 uniform vec4 stripescaleh;
 uniform vec4 stripescalev;
-uniform vec2 blackwhite;
+uniform vec4 blackwhite;
 uniform vec4 colourBalance;
 uniform vec4 control; // Switch on/off different parts r=noise,g=stripes,b=highlight recovery,a=bad pixels
 
 void main() {
     // Calculate median and range of same-colour neighbours
-    vec2 pixel = texcoord.xy*rawres.xy;
-    vec2 pixelgrid = floor(mod(pixel,2.0));
-    float rgb = pixelgrid.x+pixelgrid.y*2.0; 
+    vec2 pixelgrid = step(0.5,fract((texcoord.xy-rawres.zw*0.5)*rawres.xy*0.5+0.25));
+    float rgb = pixelgrid.y*2.0+pixelgrid.x; // Bayer pixel number at coord
     // 0=red (green l/r/u/d)
     // 1=green1 (red l/r, blue u/d)
     // 2=green2 (blue l/r, red u/d)
     // 3=blue (green l/r/u/d)
-    float thisbalance = colourBalance.r;
-    float upbalance = colourBalance.g;
-    float leftbalance = colourBalance.g;
-    float diagbalance = colourBalance.b;
-    float diagother = 1.0;
-    if (rgb==1.0) {
+    float thisbalance;
+    float upbalance;
+    float leftbalance;
+    float diagbalance;
+    float diagother;
+    if (rgb==blackwhite.w*2.0) {
+        thisbalance = colourBalance.r;
+        upbalance = colourBalance.g;
+        leftbalance = colourBalance.g;
+        diagbalance = colourBalance.b;
+        diagother = 1.0;
+    } else if (rgb==blackwhite.w*2.0+1.0) {
         thisbalance = colourBalance.g;
-        upbalance = colourBalance.b; 
-        leftbalance = colourBalance.r; 
+        upbalance = colourBalance.b;
+        leftbalance = colourBalance.r;
         diagbalance = colourBalance.g;
         diagother = 0.0;
-    } else if (rgb==2.0) {
+    } else if (rgb==2.0-blackwhite.w*2.0) {
         thisbalance = colourBalance.g;
-        upbalance = colourBalance.r; 
-        leftbalance = colourBalance.b; 
+        upbalance = colourBalance.r;
+        leftbalance = colourBalance.b;
         diagbalance = colourBalance.g;
         diagother = 0.0;
-    } else if (rgb==3.0) {
+    } else if (rgb==3.0-blackwhite.w*2.0) {
         thisbalance = colourBalance.b;
-        upbalance = colourBalance.g; 
-        leftbalance = colourBalance.g; 
+        upbalance = colourBalance.g;
+        leftbalance = colourBalance.g;
         diagbalance = colourBalance.r;
         diagother = 1.0;
-    } 
+    }
     // Read nearest pixels, e.g. for highlight recovery
     float rawup1 = (texture2D(rawtex,texcoord+vec2(0.0,-rawres.w)).r-blackwhite.r);
     float rawdown1 = (texture2D(rawtex,texcoord+vec2(0.0,rawres.w)).r-blackwhite.r);
@@ -132,16 +137,16 @@ void main() {
     float rawped = raw-blackwhite.r;
     float maxnei = max(max(ll,rl),rawped);
     float minnei = min(min(lh,rh),rawped);
-    
+
     vec4 last = texture2D(lastex,texcoord);
     float correlation = last.g;
-   
+
     float thiscor = step(0.0,rawped - maxnei); // Higher
     thiscor += step(0.0,minnei - rawped); // Lower
     //float different = step(max(mednei*0.01,0.0001),abs(mednei-last.b+blackwhite.r)); // For pink dots training
     float different = step(max(mednei*0.3,0.001),abs(mednei-last.b+blackwhite.r)); // For normal hot/dead pixels
     thiscor = thiscor*different;
-    correlation += step(abs(correlation),0.5)*(-0.01*step(0.5,thiscor)+0.005); // -0.01 for outside, +0.01 for inside if abs(correlation)<0.5 
+    correlation += step(abs(correlation),0.5)*(-0.01*step(0.5,thiscor)+0.005); // -0.01 for outside, +0.01 for inside if abs(correlation)<0.5
     float hide = control.a*step(correlation,-0.15); // If correlation less than -0.15, hide the pixel
     float detail = step(2.2,(abs(rawped-rawup2)+abs(rawped-rawdown2)+abs(rawped-rawleft2)+abs(rawped-rawright2))/rawped+abs(rawup1-rawdown1)/rawup1+abs(rawleft1-rawright1)/rawleft1+abs(rawul1+rawdr1)/rawul1+abs(rawur1-rawdl1)/rawur1);
     //hide = thiscor*(1.0-detail);
@@ -179,16 +184,16 @@ void main() {
     def prepare(self,svbo):
         if self.svbo==None:
             self.svbo = svbo
-            self.svbobase = svbo.allocate(4*12) 
+            self.svbobase = svbo.allocate(4*12)
             vertices = np.array((-1,-1,0,1,-1,0,-1,1,0,1,1,0),dtype=np.float32)
             self.svbo.update(vertices,self.svbobase)
 
-    def draw(self,width,height,rawtex,lastex,hortex,vertex,stripescaleh,stripescalev,black,white,balance,control=(0.0,1.0,0.0,1.0)):
+    def draw(self,width,height,rawtex,lastex,hortex,vertex,stripescaleh,stripescalev,black,white,balance,control=(0.0,1.0,0.0,1.0),cfa=0):
         self.use()
         self.blend(False)
         glVertexAttribPointer(self.vertex,3,GL_FLOAT,GL_FALSE,0,self.svbo.vboOffset(self.svbobase))
         glEnableVertexAttribArray(self.vertex)
-        rawtex.bindtex(False) 
+        rawtex.bindtex(False)
         lastex.bindtex(False,texnum=1)
         hortex.bindtex(False,texnum=2)
         vertex.bindtex(False,texnum=3)
@@ -199,7 +204,7 @@ void main() {
         glUniform4f(self.uniforms["stripescaleh"], stripescaleh[0],stripescaleh[1],stripescaleh[2],stripescaleh[3])
         glUniform4f(self.uniforms["stripescalev"], stripescalev[0],stripescalev[1],stripescalev[2],stripescalev[3])
         glUniform4f(self.uniforms["colourBalance"], balance[0],balance[1],balance[2],balance[3])
-        glUniform2f(self.uniforms["blackwhite"], black,white)
+        glUniform4f(self.uniforms["blackwhite"], black,white,0.0,cfa)
         glUniform4f(self.uniforms["control"], control[0],control[1],control[2],control[3]) # Noise, Stripes, Highlight, Bad pixels
         w = width
         h = height

@@ -824,11 +824,11 @@ class ExportQueue(threading.Thread):
             ssv = self.shaderPatternNoise.calcStripescaleV(w,h)
             if self.lastPP == self.preprocessTex2:
                 self.preprocessTex1.bindfbo()
-                self.shaderPreprocess.draw(w,h,self.rawUploadTex,self.preprocessTex2,self.horizontalPattern,self.verticalPattern,ssh,ssv,frame.black/65536.0,frame.white/65536.0,rgbl)
+                self.shaderPreprocess.draw(w,h,self.rawUploadTex,self.preprocessTex2,self.horizontalPattern,self.verticalPattern,ssh,ssv,frame.black/65536.0,frame.white/65536.0,rgbl,cfa=frame.cfa)
                 self.lastPP = self.preprocessTex1
             else:
                 self.preprocessTex2.bindfbo()
-                self.shaderPreprocess.draw(w,h,self.rawUploadTex,self.preprocessTex1,self.horizontalPattern,self.verticalPattern,ssh,ssv,frame.black/65536.0,frame.white/65536.0,rgbl)
+                self.shaderPreprocess.draw(w,h,self.rawUploadTex,self.preprocessTex1,self.horizontalPattern,self.verticalPattern,ssh,ssv,frame.black/65536.0,frame.white/65536.0,rgbl,cfa=frame.cfa)
                 self.lastPP = self.preprocessTex2
             # Now, read out the results as a 16bit raw image and feed to cpu demosaicer
             rawpreprocessed = glReadPixels(0,0,w,h,GL_RED,GL_UNSIGNED_SHORT)
@@ -851,11 +851,11 @@ class ExportQueue(threading.Thread):
             ssv = self.shaderPatternNoise.calcStripescaleV(w,h)
             if self.lastPP == self.preprocessTex2:
                 self.preprocessTex1.bindfbo()
-                self.shaderPreprocess.draw(w,h,self.rawUploadTex,self.preprocessTex2,self.horizontalPattern,self.verticalPattern,ssh,ssv,frame.black/65536.0,frame.white/65536.0,(1.0,1.0,1.0,1.0),control=(0.0,1.0,1.0,1.0))
+                self.shaderPreprocess.draw(w,h,self.rawUploadTex,self.preprocessTex2,self.horizontalPattern,self.verticalPattern,ssh,ssv,frame.black/65536.0,frame.white/65536.0,(1.0,1.0,1.0,1.0),control=(0.0,1.0,1.0,1.0),cfa=frame.cfa)
                 self.lastPP = self.preprocessTex1
             else:
                 self.preprocessTex2.bindfbo()
-                self.shaderPreprocess.draw(w,h,self.rawUploadTex,self.preprocessTex1,self.horizontalPattern,self.verticalPattern,ssh,ssv,frame.black/65536.0,frame.white/65536.0,(1.0,1.0,1.0,1.0),control=(0.0,1.0,1.0,1.0))
+                self.shaderPreprocess.draw(w,h,self.rawUploadTex,self.preprocessTex1,self.horizontalPattern,self.verticalPattern,ssh,ssv,frame.black/65536.0,frame.white/65536.0,(1.0,1.0,1.0,1.0),control=(0.0,1.0,1.0,1.0),cfa=frame.cfa)
                 self.lastPP = self.preprocessTex2
             rawpreprocessed = glReadPixels(0,0,w,h,GL_RED,GL_UNSIGNED_SHORT)
             #print rawpreprocessed.min(),rawpreprocessed.max(),rawpreprocessed.mean()

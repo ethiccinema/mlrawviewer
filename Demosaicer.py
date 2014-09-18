@@ -171,11 +171,11 @@ class Demosaicer(ui.Drawable):
                         ssv = self.shaderPatternNoise.calcStripescaleV(scene.size[0],scene.size[1])
                         if self.lastPP == self.preprocessTex2:
                             self.preprocessTex1.bindfbo()
-                            self.shaderPreprocess.draw(scene.size[0],scene.size[1],self.rawUploadTex,self.preprocessTex2,self.horizontalPattern,self.verticalPattern,ssh,ssv,frameData.black/65536.0,frameData.white/65536.0,balance)
+                            self.shaderPreprocess.draw(scene.size[0],scene.size[1],self.rawUploadTex,self.preprocessTex2,self.horizontalPattern,self.verticalPattern,ssh,ssv,frameData.black/65536.0,frameData.white/65536.0,balance,cfa=frameData.cfa)
                             self.lastPP = self.preprocessTex1
                         else:
                             self.preprocessTex2.bindfbo()
-                            self.shaderPreprocess.draw(scene.size[0],scene.size[1],self.rawUploadTex,self.preprocessTex1,self.horizontalPattern,self.verticalPattern,ssh,ssv,frameData.black/65536.0,frameData.white/65536.0,balance)
+                            self.shaderPreprocess.draw(scene.size[0],scene.size[1],self.rawUploadTex,self.preprocessTex1,self.horizontalPattern,self.verticalPattern,ssh,ssv,frameData.black/65536.0,frameData.white/65536.0,balance,cfa=frameData.cfa)
                             self.lastPP = self.preprocessTex2
                         # Now, read out the results as a 16bit raw image and feed to cpu demosaicer
                         rawpreprocessed = glReadPixels(0,0,scene.size[0],scene.size[1],GL_RED,GL_UNSIGNED_SHORT)
@@ -215,11 +215,11 @@ class Demosaicer(ui.Drawable):
                     # Swap preprocess buffer - feed previous one to new call
                     if self.lastPP == self.preprocessTex2:
                         self.preprocessTex1.bindfbo()
-                        self.shaderPreprocess.draw(scene.size[0],scene.size[1],self.rawUploadTex,self.preprocessTex2,self.horizontalPattern,self.verticalPattern,ssh,ssv,frameData.black/65536.0,frameData.white/65536.0,balance)
+                        self.shaderPreprocess.draw(scene.size[0],scene.size[1],self.rawUploadTex,self.preprocessTex2,self.horizontalPattern,self.verticalPattern,ssh,ssv,frameData.black/65536.0,frameData.white/65536.0,balance,cfa=frameData.cfa)
                         self.lastPP = self.preprocessTex1
                     else:
                         self.preprocessTex2.bindfbo()
-                        self.shaderPreprocess.draw(scene.size[0],scene.size[1],self.rawUploadTex,self.preprocessTex1,self.horizontalPattern,self.verticalPattern,ssh,ssv,frameData.black/65536.0,frameData.white/65536.0,balance)
+                        self.shaderPreprocess.draw(scene.size[0],scene.size[1],self.rawUploadTex,self.preprocessTex1,self.horizontalPattern,self.verticalPattern,ssh,ssv,frameData.black/65536.0,frameData.white/65536.0,balance,cfa=frameData.cfa)
                         self.lastPP = self.preprocessTex2
                     self.rgbImage.bindfbo()
                     self.shaderNormal.demosaicPass(self.lastPP,self.luttex,frameData.black,balance=(1.0,1.0,1.0,balance[3]),white=frameData.white,tonemap=self.settings.tonemap(),colourMatrix=self.settings.setting_colourMatrix,recover=0.0,lut1d1=self.lut1d1tex,lut1d2=self.lut1d2tex,cfa=frameData.cfa)
