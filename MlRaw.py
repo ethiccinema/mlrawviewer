@@ -1464,7 +1464,6 @@ class RAWSEQ(ImageSequence):
     def close(self):
         self.preloaderArgs.put(None) # So that preloader thread exits
         self.preloader.join() # Wait for it to finish
-        self.firstTiff.close()
     def indexingStatus(self):
         return 1.0
     def width(self):
