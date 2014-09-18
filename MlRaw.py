@@ -1274,7 +1274,7 @@ class CDNG(ImageSequence):
             if dng.FULL_IFD.hasStrips():
                 rawdata = dng.FULL_IFD.stripsCombined()
                 dng.close()
-                return Frame(self,rawdata,self.width(),self.height(),self.black,self.white,byteSwap=1,bitsPerSample=self.bitsPerSample,convert=convert)
+                return Frame(self,rawdata,self.width(),self.height(),self.black,self.white,byteSwap=1,bitsPerSample=self.bitsPerSample,convert=convert,cfa=self.cfa)
             elif self.compression==7 and dng.FULL_IFD.hasTiles():
                 # Lossless JPEG tiles
                 tiles = dng.FULL_IFD.tiles()
