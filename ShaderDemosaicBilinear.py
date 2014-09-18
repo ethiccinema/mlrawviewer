@@ -31,6 +31,7 @@ import ShaderDemosaic
 class ShaderDemosaicBilinear(ShaderDemosaic.ShaderDemosaic):
     demosaic_type = "Bilinear"
     linear_lut = True
+    size_minus_one = False
     vertex_src = """
 attribute vec4 vertex;
 varying vec2 texcoord;
@@ -47,7 +48,7 @@ varying vec2 texcoord;
 uniform vec4 colourBalance;
 uniform float time;
 uniform float tonemap;
-uniform vec4 black; //black,white,recover,unused
+uniform vec4 black; //black,white,recover,cfa
 uniform vec4 rawres;
 uniform sampler2D rawtex;
 uniform sampler3D lut3d;
@@ -56,61 +57,77 @@ uniform sampler1D lut1d2;
 uniform mat3 colourMatrix;
 uniform vec4 lutcontrol;
 
-float get(vec2 bayerpixel) {
-    // Ensure we only sample within texture and from same colour as requested
-    // Means edges don't get funny colours
-    vec2 clampedpixel = clamp(bayerpixel,vec2(0.0),rawres.xy-1.0);
-    vec2 diff = bayerpixel - clampedpixel;
-    vec2 clampedcoord = (bayerpixel-diff*2.0)*rawres.zw;
-    float raw = texture2D(rawtex,clampedcoord).r-black.x;
-    return log2(clamp(raw,0.00001,1.0));
-}
-
-float red(vec2 coord) {
-    // Return bilinear filtered red
-    vec2 gridpos = coord*rawres.xy*0.5-0.25; // 0.25 = Top left corner of a 2x2 bayer block
-    vec2 set = floor(gridpos)*2.0;
-    vec2 offset = fract(gridpos);
-    float tl = get(set);
-    float tr = get(set+vec2(2.0,0.0));
-    float bl = get(set+vec2(0.0,2.0));
-    float br = get(set+vec2(2.0,2.0));
-    float sample = exp2(mix(mix(tl,tr,offset.x),mix(bl,br,offset.x),offset.y));
-    return sample;
-}
-float green(vec2 coord) {
-    // Return bilinear filtered green
-    vec2 gridpos = coord*rawres.xy*0.5-vec2(0.25);
-    vec2 offset = fract(gridpos);
-    vec2 set = floor(gridpos)*2.0;
-    vec2 frommid = abs(offset - vec2(0.5));
-    float shift = step(0.5,frommid.x + frommid.y);
-    vec2 mid = step(0.5,offset)*2.0-1.0;
-    set += shift*mid;
-    offset = fract(offset+shift*mid*0.5);
-    vec2 ic = vec2(offset.x + offset.y - 0.5, offset.y - offset.x + 0.5); // Rotate coordinates for mixing by 45 degrees
-    float tl = get(set+vec2(1.0,0.0));
-    float tr = get(set+vec2(2.0,1.0));
-    float bl = get(set+vec2(0.0,1.0));
-    float br = get(set+vec2(1.0,2.0));
-    float sample = exp2(mix(mix(tl,tr,ic.x),mix(bl,br,ic.x),ic.y));
-    return sample;
-}
-float blue(vec2 coord) {
-    // Return bilinear filtered blue
-    vec2 gridpos = coord*rawres.xy*0.5-0.75;
-    vec2 set = floor(gridpos)*2.0;
-    vec2 offset = fract(gridpos);
-    float tl = get(set+vec2(1.0,1.0));
-    float tr = get(set+vec2(3.0,1.0));
-    float bl = get(set+vec2(1.0,3.0));
-    float br = get(set+vec2(3.0,3.0));
-    float sample = exp2(mix(mix(tl,tr,offset.x),mix(bl,br,offset.x),offset.y));
-    return sample;
-}
-
 vec3 getColour(vec2 coord) {
-    return vec3(red(coord),green(coord),blue(coord));
+    vec2 pixcoord = step(0.5,fract((coord-rawres.zw*0.5)*rawres.xy*0.5+0.25));
+    float pixel = pixcoord.y*2.0+pixcoord.x; // Bayer pixel number at coord
+    float c = (max(0.000001,texture2D(rawtex,coord).r-black.x));
+    float u = (max(0.000001,texture2D(rawtex,coord-vec2(0.0,rawres.w)).r-black.x));
+    float d = (max(0.000001,texture2D(rawtex,coord+vec2(0.0,rawres.w)).r-black.x));
+    float l = (max(0.000001,texture2D(rawtex,coord-vec2(rawres.z,0.0)).r-black.x));
+    float r = (max(0.000001,texture2D(rawtex,coord+vec2(rawres.z,0.0)).r-black.x));
+    float u2 = (max(0.000001,texture2D(rawtex,coord-vec2(0.0,2.*rawres.w)).r-black.x));
+    float d2 = (max(0.000001,texture2D(rawtex,coord+vec2(0.0,2.*rawres.w)).r-black.x));
+    float l2 = (max(0.000001,texture2D(rawtex,coord-vec2(2.*rawres.z,0.0)).r-black.x));
+    float r2 = (max(0.000001,texture2D(rawtex,coord+vec2(2.*rawres.z,0.0)).r-black.x));
+    float ul = (max(0.000001,texture2D(rawtex,coord-rawres.zw).r-black.x));
+    float ur = (max(0.000001,texture2D(rawtex,coord+vec2(rawres.z,-rawres.w)).r-black.x));
+    float dl = (max(0.000001,texture2D(rawtex,coord-vec2(rawres.z,-rawres.w)).r-black.x));
+    float dr = (max(0.000001,texture2D(rawtex,coord+rawres.zw).r-black.x));
+    float red,green,blue;
+    if (black.w==1.0) { // GBRG, e.g. BMPCC
+        if (pixel==0.0) {
+            red=(d+u)*0.5;
+            green=c;
+            blue=(l+r)*0.5;
+        } else if (pixel==1.0) {
+            red=(dl+ul+ur+dr)*0.25;
+            green=(u+d+l+r)*0.25;
+            blue=c;
+        } else if (pixel==2.0) {
+            red=c;
+            green=(u+d+l+r)*0.25;
+            blue=(ul+dl+ur+dr)*0.25;
+        } else if (pixel==3.0) {
+            red=(l+r)*0.5;
+            green=c;
+            blue=(u+d)*0.5;
+        }
+    } else { // RGGB e.g. Canon
+        if (pixel==2.0) {
+            green=c;
+            red=(d+u)*0.5;
+            blue=(l+r)*0.5;
+        } else if (pixel==3.0) {
+            /*float gbu = u - (u2+c)*0.5;
+            float gbd = d - (d2+c)*0.5;
+            float gbl = l - (l2+c)*0.5;
+            float gbr = r - (r2+c)*0.5;
+            float hch = gbr - gbl;
+            float hcv = gbd - gbu;
+            float gb = mix(step(abs(hch),abs(hcv)),gbu+hcv*0.5,gbl+hch*0.5);
+            green = c+gb; */
+            green=(u+d+l+r)*0.25;
+            red=(dl+ul+ur+dr)*0.25;
+            blue=c;
+        } else if (pixel==0.0) {
+            /*float gru = u - (u2+c)*0.5;
+            float grd = d - (d2+c)*0.5;
+            float grl = l - (l2+c)*0.5;
+            float grr = r - (r2+c)*0.5;
+            float hch = grr - grl;
+            float hcv = grd - gru;
+            float gr = mix(step(abs(hch),abs(hcv)),gru+hcv*0.5,grl+hch*0.5);
+            green= c+gr;*/
+            green=(u+d+l+r)*0.25;
+            red=c;
+            blue=(ul+dl+ur+dr)*0.25;
+        } else if (pixel==1.0) {
+            red=(l+r)*0.5;
+            green=c;
+            blue=(u+d)*0.5;
+        }
+    }
+    return (vec3(red,green,blue));
 }
 
 vec3 sRGBgamma(vec3 linear) {

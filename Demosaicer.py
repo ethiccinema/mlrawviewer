@@ -221,12 +221,14 @@ class Demosaicer(ui.Drawable):
                         self.preprocessTex2.bindfbo()
                         self.shaderPreprocess.draw(scene.size[0],scene.size[1],self.rawUploadTex,self.preprocessTex1,self.horizontalPattern,self.verticalPattern,ssh,ssv,frameData.black/65536.0,frameData.white/65536.0,balance)
                         self.lastPP = self.preprocessTex2
-                    #debug = glReadPixels(0,0,16,16,GL_RGBA,GL_FLOAT)
-                    #print debug
                     self.rgbImage.bindfbo()
-                    self.shaderNormal.demosaicPass(self.lastPP,self.luttex,frameData.black,balance=(1.0,1.0,1.0,balance[3]),white=frameData.white,tonemap=self.settings.tonemap(),colourMatrix=self.settings.setting_colourMatrix,recover=0.0,lut1d1=self.lut1d1tex,lut1d2=self.lut1d2tex)
+                    self.shaderNormal.demosaicPass(self.lastPP,self.luttex,frameData.black,balance=(1.0,1.0,1.0,balance[3]),white=frameData.white,tonemap=self.settings.tonemap(),colourMatrix=self.settings.setting_colourMatrix,recover=0.0,lut1d1=self.lut1d1tex,lut1d2=self.lut1d2tex,cfa=frameData.cfa)
+                    #debug = glReadPixels(0,scene.size[1]-2,4,1,GL_RGBA,GL_FLOAT)
+                    #print debug,scene.size
                 else:
-                    self.shaderNormal.demosaicPass(self.rawUploadTex,self.luttex,frameData.black,balance=balance,white=frameData.white,tonemap=self.settings.tonemap(),colourMatrix=self.settings.setting_colourMatrix,lut1d1=self.lut1d1tex,lut1d2=self.lut1d2tex)
+                    self.shaderNormal.demosaicPass(self.rawUploadTex,self.luttex,frameData.black,balance=balance,white=frameData.white,tonemap=self.settings.tonemap(),colourMatrix=self.settings.setting_colourMatrix,lut1d1=self.lut1d1tex,lut1d2=self.lut1d2tex,cfa=frameData.cfa)
+                    #debug = glReadPixels(0,scene.size[1]-2,4,1,GL_RGBA,GL_FLOAT)
+                    #print debug,scene.size
                 PLOG(PLOG_GPU,"Demosaic shader draw done for frame %d"%frameNumber)
         #redframe = glReadPixels(0,10,scene.size[0],1,GL_RGB,GL_FLOAT)
         #histogram = np.histogram(redframe,bins=256)

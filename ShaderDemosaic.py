@@ -55,7 +55,7 @@ class ShaderDemosaic(GLCompute.Shader):
             vertices = np.array((-1,-1,0,1,-1,0,-1,1,0,1,1,0),dtype=np.float32)
             self.svbo.update(vertices,self.svbobase)
 
-    def demosaicPass(self,texture,lut3d,black,time=0,balance=(1.0,1.0,1.0,1.0),white=(2**14-1),tonemap=1,colourMatrix=np.matrix(np.eye(3)),recover=1.0,lut1d1=None,lut1d2=None):
+    def demosaicPass(self,texture,lut3d,black,time=0,balance=(1.0,1.0,1.0,1.0),white=(2**14-1),tonemap=1,colourMatrix=np.matrix(np.eye(3)),recover=1.0,lut1d1=None,lut1d2=None,cfa=0):
         self.use()
         self.blend(False)
         glVertexAttribPointer(self.vertex,3,GL_FLOAT,GL_FALSE,0,self.svbo.vboOffset(self.svbobase))
@@ -73,7 +73,7 @@ class ShaderDemosaic(GLCompute.Shader):
         glUniform1i(self.uniforms["lut1d1"], 2)
         glUniform1i(self.uniforms["lut1d2"], 3)
         glUniform4f(self.uniforms["colourBalance"], balance[0], balance[1],balance[2],balance[3])
-        glUniform4f(self.uniforms["black"], float(black)/(2**16-1),float(white)/(2**16-1),recover,0.0)
+        glUniform4f(self.uniforms["black"], float(black)/(2**16-1),float(white)/(2**16-1),recover,cfa)
 
         l3s = 0.0
         l11s = 0.0
