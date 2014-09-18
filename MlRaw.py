@@ -1392,6 +1392,128 @@ class TIFFSEQ(ImageSequence):
             return Frame(self,rawdata,self.width(),self.height(),self.black,self.white,byteSwap=1,bitsPerSample=self.bitsPerSample,bayer=False,rgb=True,convert=convert)
         return ""
 
+class RAWSEQ(ImageSequence):
+    """
+    Load unformated uncompressed 16bit raw files from a directory
+    Requires a small info file telling the width, height and CFA layout on sequential lines, e.g.:
+    "1920\n
+     1080\n
+     RGGB\n"
+    """
+    def __init__(self,filename,preindex=False,**kwds):
+        print "Opening RAW sequence",filename
+        self.filename = filename
+        self.path = os.path.dirname(filename)
+
+        rawseq = file(filename,'r')
+        params = [line for line in rawseq]
+        rawseq.close()
+        self._width = int(params[0].strip())
+        self._height = int(params[1].strip())
+        cfalayout = params[2].strip()
+        print params
+        if cfalayout=="RGGB":
+            self.cfa = 0
+        elif cfalayout=="GBRG":
+            self.cfa = 1
+        print "Width:",self._width
+        print "Height:",self._height
+        print "CFA:",cfalayout
+        self.raws = [n for n in os.listdir(self.path) if not n.lower().endswith(".rawseq") and not n.lower().endswith(".wav") and not n.lower().endswith(".mrx")]
+        self.raws.sort()
+
+        firstName = os.path.join(self.path,self.raws[0])
+
+        self.fps = 25.0 # Hardcoded to 25
+        self.fpsnum = 25000
+        self.fpsden = 1000
+        print "Assumed FPS:",self.fps
+
+        self.black = 0
+        self.white = 65535
+        self.colorMatrix = np.matrix(np.eye(3))
+        self.whiteBalance = None
+        self.brightness = 1.0
+        print "Black level:", self.black, "White level:", self.white
+
+        self.cropOrigin = (0,0)
+        self.cropSize = (self._width,self._height)
+        self.activeArea = (0,0,self._height,self._width)
+
+        bps = self.bitsPerSample = 16
+        print "BitsPerSample:",bps
+        if bps != 16:
+            print "Unsupported BitsPerSample = ",bps,"(should be 16)"
+            raise IOError # Only support 16 bitsPerSample
+
+        self.firstFrame = self._loadframe(0,convert=False)
+
+        self.preloader = threading.Thread(target=self.preloaderMain)
+        self.preloaderArgs = Queue.Queue(2)
+        self.preloaderResults = Queue.Queue(2)
+        self.preloader.daemon = True
+        self.preloader.start()
+        super(RAWSEQ,self).__init__(userMetadataFilename=ImageSequence.userMetadataNameFromOriginal(firstName),**kwds)
+    def description(self):
+        firstName = self.raws[0]
+        lastName = self.raws[-1]
+        name,ext = os.path.splitext(firstName)
+        lastname,ext = os.path.splitext(lastName)
+        return os.path.join(self.path,"["+name+"-"+lastname+"]"+ext)
+
+    def close(self):
+        self.preloaderArgs.put(None) # So that preloader thread exits
+        self.preloader.join() # Wait for it to finish
+        self.firstTiff.close()
+    def indexingStatus(self):
+        return 1.0
+    def width(self):
+        return self._width
+    def height(self):
+        return self._height
+    def frames(self):
+        return len(self.raws)
+    def audioFrames(self):
+        return 0
+    def preloaderMain(self):
+        while 1:
+            arg = self.preloaderArgs.get() # Will wait for a job
+            if arg==None:
+                break
+            frame = self._loadframe(arg)
+            self.preloaderResults.put((arg,frame))
+    def preloadFrame(self,index):
+        self.preloaderArgs.put(index)
+    def isPreloadedFrameAvailable(self):
+        return not self.preloaderResults.empty()
+    def nextFrame(self):
+        return self.preloaderResults.get()
+    def make(self):
+        return "Unknown"
+    def model(self):
+        return "Unknown"
+    def bodySerialNumber(self):
+        return 0
+    def frame(self,index):
+        preloadedindex = -1
+        frame = None
+        while preloadedindex!=index:
+            preloadedindex,frame = self.preloaderResults.get()
+            if preloadedindex==index:
+                break
+            self.preloadFrame(index)
+        return frame
+    def _loadframe(self,index,convert=True):
+        if index>=0 and index<self.frames():
+            filename = self.raws[index]
+            print filename
+            rawfile = file(os.path.join(self.path,filename))
+            rawdata = rawfile.read(2*self._width*self._height)
+            rawfile.close()
+            return Frame(self,rawdata,self.width(),self.height(),self.black,self.white,byteSwap=1,bitsPerSample=self.bitsPerSample,convert=convert,cfa=self.cfa)
+        return ""
+
+
 def loadRAWorMLV(filename,preindex=True):
     fl = filename.lower()
     if fl.endswith(".raw"):
@@ -1402,6 +1524,8 @@ def loadRAWorMLV(filename,preindex=True):
         return CDNG(os.path.dirname(filename),preindex)
     elif fl.endswith(".tif") or fl.endswith(".tiff"):
         return TIFFSEQ(os.path.dirname(filename),preindex)
+    elif fl.endswith(".rawseq"):
+        return RAWSEQ(filename,preindex)
     elif os.path.isdir(filename):
         filenames = os.listdir(filename)
         dngfiles = [dng for dng in filenames if dng.lower().endswith(".dng")]
