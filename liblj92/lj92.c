@@ -24,6 +24,7 @@ SOFTWARE.
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "lj92.h"
 
@@ -46,7 +47,7 @@ typedef struct _ljp {
     int skiplen; // Skip this many values after each row
     u16* linearize; // Linearization table
     int linlen;
-
+    int sssshist[16];
 
     // Huffman table - only one supported, and probably needed
 #ifdef SLOW_HUFF
@@ -96,6 +97,7 @@ static int parseHuff(ljp* self) {
     self->huffval = huffval;
     for (int hix=0;hix<(hufflen-19);hix++) {
         huffval[hix] = self->data[self->ix+19+hix];
+        printf("huffval[%d]=%d\n",hix,huffval[hix]);
     }
     self->ix += hufflen;
     // Generate huffman table
@@ -228,6 +230,7 @@ static int parseHuff(ljp* self) {
     int vl = 0; // i
     int hcode;
     int bitsused = 1;
+    printf("%04x:%x:%d:%x\n",i,huffvals[hv],bitsused,1<<(maxbits-bitsused));
     while (i<1<<maxbits) {
         if (bitsused>maxbits) {
             break; // Done. Should never get here!
@@ -241,6 +244,7 @@ static int parseHuff(ljp* self) {
             rv = 0;
             vl++;
             hv++;
+            printf("%04x:%x:%d:%x\n",i,huffvals[hv],bitsused,1<<(maxbits-bitsused));
             continue;
         }
         hcode = huffvals[hv];
@@ -350,6 +354,7 @@ inline static int nextdiff(ljp* self) {
     u16 ssssused = self->hufflut[index];
     int usedbits = ssssused&0xFF;
     int t = ssssused>>8;
+    self->sssshist[t]++;
     cnt -= usedbits;
     int keepbitsmask = (1 << cnt)-1;
     b &= keepbitsmask;
@@ -485,11 +490,12 @@ static int parsePred6(ljp* self) {
 
 static int parseScan(ljp* self) {
     int ret = LJ92_ERROR_CORRUPT;
+    memset(self->sssshist,0,sizeof(self->sssshist));
     self->ix = self->scanstart;
     int compcount = self->data[self->ix+2];
     int pred = self->data[self->ix+3+2*compcount];
     if (pred<0 || pred>7) return ret;
-    if (pred==6) return parsePred6(self); // Fast path
+    //if (pred==6) return parsePred6(self); // Fast path
     self->ix += BEH(self->data[self->ix]);
     self->cnt = 0;
     self->b = 0;
@@ -558,6 +564,9 @@ static int parseScan(ljp* self) {
         if (self->ix >= self->datalen+2) break;
     }
     if (c >= pixels) ret = LJ92_ERROR_NONE;
+    for (int h=0;h<17;h++) {
+        printf("ssss:%d=%d (%f)\n",h,self->sssshist[h],(float)self->sssshist[h]/(float)(pixels));
+    }
     return ret;
 }
 
@@ -673,6 +682,314 @@ void lj92_close(lj92 lj) {
     free(self);
 }
 
+/* Encoder implementation */
+
+typedef struct _lje {
+    uint16_t* image;
+    int width;
+    int height;
+    int bitdepth;
+    int readLength;
+    int skipLength;
+    uint16_t* delinearize;
+    int delinearizeLength;
+    char* encoded;
+    int encodedLength;
+    int hist[17]; // SSSS frequency histogram
+    int bits[17];
+    int huffval[17];
+    u16 huffenc[17];
+    u16 huffbits[17];
+    int huffsym[17];
+} lje;
+
+void frequencyScan(lje* self) {
+    // Scan through the tile using the standard type 6 prediction
+    // Need to cache the previous 2 row in target coordinates because of tiling
+    uint16_t* pixel = self->image;
+    int pixcount = self->width*self->height;
+    int scan = self->readLength;
+    uint16_t* rowcache = (uint16_t*)calloc(1,self->width*4);
+    uint16_t* rows[2];
+    rows[0] = rowcache;
+    rows[1] = &rowcache[self->width];
+
+    int col = 0;
+    int row = 0;
+    int Px = 0;
+    int32_t diff = 0;
+    while (pixcount--) {
+        rows[1][col] = *pixel;
+
+        if ((row == 0)&&(col == 0))
+            Px = 1 << (self->bitdepth-1);
+        else if (row == 0)
+            Px = rows[1][col-1];
+        else if (col == 0)
+            Px = rows[0][col];
+        else
+            Px = rows[0][col] + ((rows[1][col-1] - rows[0][col-1])>>1);
+        diff = Px - rows[1][col];
+        int ssss = 32 - __builtin_clz(abs(diff));
+        if (diff==0) ssss=0;
+        self->hist[ssss]++;
+        //printf("%d %d\n",diff,ssss);
+        pixel++;
+        scan--;
+        col++;
+        if (scan==0) { pixel += self->skipLength; scan = self->readLength; }
+        if (col==self->width) {
+            uint16_t* tmprow = rows[1];
+            rows[1] = rows[0];
+            rows[0] = tmprow;
+            col=0;
+            row++;
+        }
+    }
+    int sort[17];
+    for (int h=0;h<17;h++) {
+        sort[h] = h;
+        printf("%d:%d\n",h,self->hist[h]);
+    }
+    free(rowcache);
+}
+
+void createEncodeTable(lje* self) {
+    float freq[18];
+    int codesize[17];
+    int others[17];
+
+    // Calculate frequencies
+    float totalpixels = self->width * self->height;
+    for (int i=0;i<17;i++) {
+        freq[i] = (float)(self->hist[i])/totalpixels;
+        printf("%d:%f\n",i,freq[i]);
+        codesize[i] = 0;
+        others[i] = -1;
+    }
+    freq[17] = 1.0f;
+
+    float v1f,v2f;
+    int v1,v2;
+
+    while (1) {
+        v1f=2.0f;
+        v1=-1;
+        for (int i=0;i<17;i++) {
+            if ((freq[i]<=v1f) && (freq[i]>0.0f)) {
+                v1f = freq[i];
+                v1 = i;
+            }
+        }
+        printf("v1:%d,%f\n",v1,v1f);
+        v2f=2.0f;
+        v2=-1;
+        for (int i=0;i<17;i++) {
+            if (i==v1) continue;
+            if ((freq[i]<v2f) && (freq[i]>0.0f)) {
+                v2f = freq[i];
+                v2 = i;
+            }
+        }
+        if (v2==-1) break; // Done
+
+        freq[v1] += freq[v2];
+        freq[v2] = 0.0f;
+
+        while (1) {
+            codesize[v1]++;
+            if (others[v1]==-1) break;
+            v1 = others[v1];
+        }
+        others[v1] = v2;
+        while (1) {
+            codesize[v2]++;
+            if (others[v2]==-1) break;
+            v2 = others[v2];
+        }
+    }
+    int* bits = self->bits;
+    memset(bits,0,sizeof(self->bits));
+    for (int i=0;i<17;i++) {
+        if (codesize[i]!=0) {
+            bits[codesize[i]]++;
+        }
+    }
+    for (int i=0;i<17;i++) {
+        printf("bits:%d,%d,%d\n",i,bits[i],codesize[i]);
+    }
+    int* huffval = self->huffval;
+    int i=1;
+    int k=0;
+    int j;
+    memset(huffval,0,sizeof(self->huffval));
+    while (i<=16) {
+        j=0;
+        while (j<17) {
+            if (codesize[j]==i) {
+                huffval[k++] = j;
+            }
+            j++;
+        }
+        i++;
+    }
+    for (i=0;i<17;i++) {
+        printf("i=%d,huffval[i]=%x\n",i,huffval[i]);
+    }
+    int maxbits = 16;
+    while (maxbits>0) {
+        if (bits[maxbits]) break;
+        maxbits--;
+    }
+    u16* huffenc = self->huffenc;
+    u16* huffbits = self->huffbits;
+    int* huffsym = self->huffsym;
+    memset(huffenc,0,sizeof(self->huffenc));
+    memset(huffbits,0,sizeof(self->huffbits));
+    memset(self->huffsym,0,sizeof(self->huffsym));
+    i = 0;
+    int hv = 0;
+    int rv = 0;
+    int vl = 0; // i
+    int hcode;
+    int bitsused = 1;
+    int sym = 0;
+    //printf("%04x:%x:%d:%x\n",i,huffvals[hv],bitsused,1<<(maxbits-bitsused));
+    while (i<1<<maxbits) {
+        if (bitsused>maxbits) {
+            break; // Done. Should never get here!
+        }
+        if (vl >= bits[bitsused]) {
+            bitsused++;
+            vl = 0;
+            continue;
+        }
+        if (rv == 1 << (maxbits-bitsused)) {
+            rv = 0;
+            vl++;
+            hv++;
+            //printf("%04x:%x:%d:%x\n",i,huffvals[hv],bitsused,1<<(maxbits-bitsused));
+            continue;
+        }
+        huffbits[sym] = bitsused;
+        huffenc[sym++] = i>>(maxbits-bitsused);
+        //printf("%d %d %d\n",i,bitsused,hcode);
+        i+= (1<<(maxbits-bitsused));
+        rv = 1<<(maxbits-bitsused);
+    }
+    for (i=0;i<17;i++) {
+        if (huffbits[i]>0) {
+            huffsym[huffval[i]] = i;
+        }
+        printf("huffval[%d]=%d,huffenc[%d]=%d,bits=%d\n",i,huffval[i],i,huffenc[i],huffbits[i]);
+        if (huffbits[i]>0) {
+            huffsym[huffval[i]] = i;
+        }
+    }
+    for (i=0;i<17;i++) {
+        printf("huffsym[%d]=%d\n",i,huffsym[i]);
+    }
+}
+
+void doEncode(lje* self) {
+    // Scan through the tile using the standard type 6 prediction
+    // Need to cache the previous 2 row in target coordinates because of tiling
+    uint16_t* pixel = self->image;
+    int pixcount = self->width*self->height;
+    int scan = self->readLength;
+    uint16_t* rowcache = (uint16_t*)calloc(1,self->width*4);
+    uint16_t* rows[2];
+    rows[0] = rowcache;
+    rows[1] = &rowcache[self->width];
+
+    int col = 0;
+    int row = 0;
+    int Px = 0;
+    int32_t diff = 0;
+    int bitcount = 0;
+    while (pixcount--) {
+        rows[1][col] = *pixel;
+
+        if ((row == 0)&&(col == 0))
+            Px = 1 << (self->bitdepth-1);
+        else if (row == 0)
+            Px = rows[1][col-1];
+        else if (col == 0)
+            Px = rows[0][col];
+        else
+            Px = rows[0][col] + ((rows[1][col-1] - rows[0][col-1])>>1);
+        diff = Px - rows[1][col];
+        int ssss = 32 - __builtin_clz(abs(diff));
+        if (diff==0) ssss=0;
+
+        // Write the huffman code for the ssss value
+        int huffcode = self->huffsym[ssss];
+        int huffval = self->huffval[huffcode];
+        int huffbits = self->huffbits[huffcode];
+        //printf("%d %d %d %d %d\n",diff,ssss,huffcode,huffval,huffbits);
+        bitcount += huffbits + ssss;
+        // Write the rest of the bits for the value
+
+        //printf("%d %d\n",diff,ssss);
+        pixel++;
+        scan--;
+        col++;
+        if (scan==0) { pixel += self->skipLength; scan = self->readLength; }
+        if (col==self->width) {
+            uint16_t* tmprow = rows[1];
+            rows[1] = rows[0];
+            rows[0] = tmprow;
+            col=0;
+            row++;
+        }
+    }
+    int sort[17];
+    for (int h=0;h<17;h++) {
+        sort[h] = h;
+        printf("%d:%d\n",h,self->hist[h]);
+    }
+    printf("Total bytes: %d\n",bitcount>>3);
+    free(rowcache);
+}
+/* Encoder
+ * Read tile from an image and encode in one shot
+ * Return the encoded data
+ */
+int lj92_encode(uint16_t* image, int width, int height, int bitdepth,
+                int readLength, int skipLength,
+                uint16_t* delinearize,int delinearizeLength,
+                char** encoded, int* encodedLength) {
+    int ret = LJ92_ERROR_NONE;
+
+    lje* self = (lje*)calloc(sizeof(lje),1);
+    if (self==NULL) return LJ92_ERROR_NO_MEMORY;
+    self->image = image;
+    self->width = width;
+    self->height = height;
+    self->bitdepth = bitdepth;
+    self->readLength = readLength;
+    self->skipLength = skipLength;
+    self->delinearize = delinearize;
+    self->delinearizeLength = delinearizeLength;
+    self->encodedLength = width*height*2;
+    self->encoded = malloc(self->encodedLength);
+    if (self->encoded==NULL) { free(self); return LJ92_ERROR_NO_MEMORY; }
+    // Scan through data to gather frequencies of ssss prefixes
+    frequencyScan(self);
+    // Create encoded table based on frequencies
+    createEncodeTable(self);
+    // Scan through and do the compression
+    doEncode(self);
+
+    *encoded = self->encoded;
+    *encodedLength = self->encodedLength;
+
+    free(self);
+
+    return ret;
+}
+
+
 #ifdef TEST_DECODER
 void main(int argc,char** argv) {
     char* first;
@@ -722,13 +1039,13 @@ void main(int argc,char** argv) {
     // Test linearization table
     u16* linearize = calloc(4096,sizeof(u16));
     for (int i=0;i<4096;i++) {
-        linearize[i] = (i*65535)/4095;
+        linearize[i] = i;
     }
     //u16* linearize = NULL;
     printf("lj92_open returned %d width=%d, height=%d, bitdepth=%d\n",ret,width2,height2,bitdepth2);
     printf("Creating frame %dx%d\n",width,height*2);
     uint16_t* image = (uint16_t*)calloc(width*height*2,sizeof(uint16_t));
-    for (int loop=0;loop<500;loop++) {
+    for (int loop=0;loop<1;loop++) {
         ret = lj92_decode(ljp,image,width/2,width/2,linearize,4096);
         if (ret != LJ92_ERROR_NONE) {
             printf("lj92_decode returned %d\n",ret);
@@ -744,10 +1061,9 @@ void main(int argc,char** argv) {
         image[i] = (image[i]>>8)|((image[i]&0xFF)<<8);
     }
     FILE* rafile = fopen("dump.pgm","w");
-    fprintf(rafile,"P5 %d %d 65535\n",width,height*2);
+    fprintf(rafile,"P5 %d %d 4095\n",width,height*2);
     fwrite(image,2,width*height*2,rafile);
     fclose(rafile);
-    free(image);
     free(data);
     free(data2);
     free(linearize);
@@ -755,5 +1071,18 @@ void main(int argc,char** argv) {
     // Finish
     lj92_close(ljp);
     lj92_close(ljp2);
+
+    // Test encoder
+    // Convert image back to littleendian....
+    for (int i=0;i<(width*height*2);i++) {
+        image[i] = (image[i]>>8)|((image[i]&0xFF)<<8);
+    }
+    char* encoded = NULL;
+    int encodedLength;
+    ret = lj92_encode(image,width,height,12,width/2,width/2,NULL,0,&encoded,&encodedLength);
+    if (ret == LJ92_ERROR_NONE) free(encoded);
+    ret = lj92_encode(image+width/2,width,height,12,width/2,width/2,NULL,0,&encoded,&encodedLength);
+    if (ret == LJ92_ERROR_NONE) free(encoded);
+    free(image);
 }
 #endif
