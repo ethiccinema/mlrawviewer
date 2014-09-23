@@ -55,4 +55,15 @@ void lj92_close(lj92 lj);
 int lj92_decode(lj92 lj,
                 uint16_t* target, int writeLength, int skipLength, // The image is written to target as a tile
                 uint16_t* linearize, int linearizeLength); // If not null, linearize the data using this table
+
+/*
+ * Encode a grayscale image supplied as 16bit values within the given bitdepth
+ * Read from tile in the image
+ * Apply delinearization if given
+ * Return the encoded lossless JPEG stream
+ */
+int lj92_encode(uint16_t* image, int width, int height, int bitdepth,
+                int readLength, int skipLength,
+                uint16_t* delinearize,int delinearizeLength,
+                char** encoded, int* encodedLength);
 #endif

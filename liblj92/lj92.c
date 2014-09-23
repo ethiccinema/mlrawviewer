@@ -33,6 +33,7 @@ typedef uint16_t u16;
 typedef uint32_t u32;
 
 //#define SLOW_HUFF
+//#define DEBUG
 
 typedef struct _ljp {
     u8* data;
@@ -97,7 +98,9 @@ static int parseHuff(ljp* self) {
     self->huffval = huffval;
     for (int hix=0;hix<(hufflen-19);hix++) {
         huffval[hix] = self->data[self->ix+19+hix];
+#ifdef DEBUG
         printf("huffval[%d]=%d\n",hix,huffval[hix]);
+#endif
     }
     self->ix += hufflen;
     // Generate huffman table
@@ -230,7 +233,9 @@ static int parseHuff(ljp* self) {
     int vl = 0; // i
     int hcode;
     int bitsused = 1;
+#ifdef DEBUG
     printf("%04x:%x:%d:%x\n",i,huffvals[hv],bitsused,1<<(maxbits-bitsused));
+#endif
     while (i<1<<maxbits) {
         if (bitsused>maxbits) {
             break; // Done. Should never get here!
@@ -244,7 +249,9 @@ static int parseHuff(ljp* self) {
             rv = 0;
             vl++;
             hv++;
+#ifdef DEBUG
             printf("%04x:%x:%d:%x\n",i,huffvals[hv],bitsused,1<<(maxbits-bitsused));
+#endif
             continue;
         }
         hcode = huffvals[hv];
@@ -326,7 +333,7 @@ static int extend(ljp* self,int v,int t) {
 }
 #endif
 
-inline static int nextdiff(ljp* self) {
+inline static int nextdiff(ljp* self, int Px) {
 #ifdef SLOW_HUFF
     int t = decode(self);
     int diff = receive(self,t);
@@ -382,6 +389,9 @@ inline static int nextdiff(ljp* self) {
     self->cnt = cnt;
     self->ix = ix;
     //printf("%d %d\n",t,diff);
+#ifdef DEBUG
+    //printf("%d %d %d %x %x %d\n",Px+diff,Px,diff,t,index,usedbits);
+#endif
 #endif
     return diff;
 }
@@ -411,7 +421,7 @@ static int parsePred6(ljp* self) {
     int linear;
 
     // First pixel
-    diff = nextdiff(self);
+    diff = nextdiff(self,0);
     Px = 1 << (self->bits-1);
     left = Px + diff;
     if (self->linearize)
@@ -424,7 +434,7 @@ static int parsePred6(ljp* self) {
     --write;
     int rowcount = self->x-1;
     while (rowcount--) {
-        diff = nextdiff(self);
+        diff = nextdiff(self,0);
         Px = left;
         left = Px + diff;
         if (self->linearize)
@@ -447,12 +457,13 @@ static int parsePred6(ljp* self) {
     //printf("%x %x\n",thisrow,lastrow);
     while (c<pixels) {
         col = 0;
-        diff = nextdiff(self);
+        diff = nextdiff(self,0);
         Px = lastrow[col]; // Use value above for first pixel in row
         left = Px + diff;
-        if (self->linearize)
+        if (self->linearize) {
+            if (left>self->linlen) return LJ92_ERROR_CORRUPT;
             linear = self->linearize[left];
-        else
+        } else
             linear = left;
         thisrow[col++] = left;
         //printf("%d %d %d %d\n",col,diff,left,lastrow[col]);
@@ -464,13 +475,14 @@ static int parsePred6(ljp* self) {
             write = self->writelen;
         }
         while (rowcount--) {
-            diff = nextdiff(self);
+            diff = nextdiff(self,0);
             Px = lastrow[col] + ((left - lastrow[col-1])>>1);
             left = Px + diff;
             //printf("%d %d %d %d %d %x\n",col,diff,left,lastrow[col],lastrow[col-1],&lastrow[col]);
-            if (self->linearize)
+            if (self->linearize) {
+                if (left>self->linlen) return LJ92_ERROR_CORRUPT;
                 linear = self->linearize[left];
-            else
+            } else
                 linear = left;
             thisrow[col++] = left;
             out[c++] = linear;
@@ -514,7 +526,6 @@ static int parseScan(ljp* self) {
     int row = 0;
     int left = 0;
     while (c<pixels) {
-        diff = nextdiff(self);
         if ((col==0)&&(row==0)) {
             Px = 1 << (self->bits-1);
         } else if (row==0) {
@@ -541,12 +552,14 @@ static int parseScan(ljp* self) {
                 Px = (left + lastrow[col])>>1;break;
             }
         }
+        diff = nextdiff(self,Px);
         left = Px + diff;
         //printf("%d %d %d\n",c,diff,left);
         int linear;
-        if (self->linearize)
+        if (self->linearize) {
+            if (left>self->linlen) return LJ92_ERROR_CORRUPT;
             linear = self->linearize[left];
-        else
+        } else
             linear = left;
         thisrow[col] = left;
         out[c++] = linear;
@@ -564,9 +577,9 @@ static int parseScan(ljp* self) {
         if (self->ix >= self->datalen+2) break;
     }
     if (c >= pixels) ret = LJ92_ERROR_NONE;
-    for (int h=0;h<17;h++) {
+    /*for (int h=0;h<17;h++) {
         printf("ssss:%d=%d (%f)\n",h,self->sssshist[h],(float)self->sssshist[h]/(float)(pixels));
-    }
+    }*/
     return ret;
 }
 
@@ -693,7 +706,8 @@ typedef struct _lje {
     int skipLength;
     uint16_t* delinearize;
     int delinearizeLength;
-    char* encoded;
+    uint8_t* encoded;
+    int encodedWritten;
     int encodedLength;
     int hist[17]; // SSSS frequency histogram
     int bits[17];
@@ -729,7 +743,7 @@ void frequencyScan(lje* self) {
             Px = rows[0][col];
         else
             Px = rows[0][col] + ((rows[1][col-1] - rows[0][col-1])>>1);
-        diff = Px - rows[1][col];
+        diff = rows[1][col] - Px;
         int ssss = 32 - __builtin_clz(abs(diff));
         if (diff==0) ssss=0;
         self->hist[ssss]++;
@@ -749,42 +763,50 @@ void frequencyScan(lje* self) {
     int sort[17];
     for (int h=0;h<17;h++) {
         sort[h] = h;
+#ifdef DEBUG
         printf("%d:%d\n",h,self->hist[h]);
+#endif
     }
     free(rowcache);
 }
 
 void createEncodeTable(lje* self) {
     float freq[18];
-    int codesize[17];
-    int others[17];
+    int codesize[18];
+    int others[18];
 
     // Calculate frequencies
     float totalpixels = self->width * self->height;
     for (int i=0;i<17;i++) {
         freq[i] = (float)(self->hist[i])/totalpixels;
+#ifdef DEBUG
         printf("%d:%f\n",i,freq[i]);
+#endif
         codesize[i] = 0;
         others[i] = -1;
     }
+    codesize[17] = 0;
+    others[17] = -1;
     freq[17] = 1.0f;
 
     float v1f,v2f;
     int v1,v2;
 
     while (1) {
-        v1f=2.0f;
+        v1f=3.0f;
         v1=-1;
-        for (int i=0;i<17;i++) {
+        for (int i=0;i<18;i++) {
             if ((freq[i]<=v1f) && (freq[i]>0.0f)) {
                 v1f = freq[i];
                 v1 = i;
             }
         }
+#ifdef DEBUG
         printf("v1:%d,%f\n",v1,v1f);
-        v2f=2.0f;
+#endif
+        v2f=3.0f;
         v2=-1;
-        for (int i=0;i<17;i++) {
+        for (int i=0;i<18;i++) {
             if (i==v1) continue;
             if ((freq[i]<v2f) && (freq[i]>0.0f)) {
                 v2f = freq[i];
@@ -810,20 +832,22 @@ void createEncodeTable(lje* self) {
     }
     int* bits = self->bits;
     memset(bits,0,sizeof(self->bits));
-    for (int i=0;i<17;i++) {
+    for (int i=0;i<18;i++) {
         if (codesize[i]!=0) {
             bits[codesize[i]]++;
         }
     }
+#ifdef DEBUG
     for (int i=0;i<17;i++) {
         printf("bits:%d,%d,%d\n",i,bits[i],codesize[i]);
     }
+#endif
     int* huffval = self->huffval;
     int i=1;
     int k=0;
     int j;
     memset(huffval,0,sizeof(self->huffval));
-    while (i<=16) {
+    while (i<=32) {
         j=0;
         while (j<17) {
             if (codesize[j]==i) {
@@ -833,9 +857,11 @@ void createEncodeTable(lje* self) {
         }
         i++;
     }
+#ifdef DEBUG
     for (i=0;i<17;i++) {
         printf("i=%d,huffval[i]=%x\n",i,huffval[i]);
     }
+#endif
     int maxbits = 16;
     while (maxbits>0) {
         if (bits[maxbits]) break;
@@ -881,17 +907,64 @@ void createEncodeTable(lje* self) {
         if (huffbits[i]>0) {
             huffsym[huffval[i]] = i;
         }
-        printf("huffval[%d]=%d,huffenc[%d]=%d,bits=%d\n",i,huffval[i],i,huffenc[i],huffbits[i]);
+#ifdef DEBUG
+        printf("huffval[%d]=%d,huffenc[%d]=%x,bits=%d\n",i,huffval[i],i,huffenc[i],huffbits[i]);
+#endif
         if (huffbits[i]>0) {
             huffsym[huffval[i]] = i;
         }
     }
+#ifdef DEBUG
     for (i=0;i<17;i++) {
         printf("huffsym[%d]=%d\n",i,huffsym[i]);
     }
+#endif
 }
 
-void doEncode(lje* self) {
+void writeHeader(lje* self) {
+    int w = self->encodedWritten;
+    uint8_t* e = self->encoded;
+    e[w++] = 0xff; e[w++] = 0xd8; //SOI
+    e[w++] = 0xff; e[w++] = 0xc3; //SOF3
+        // Write SOF
+        e[w++] = 0x0; e[w++] = 11; //Lf, frame header length
+        e[w++] = self->bitdepth;
+        e[w++] = self->height>>8; e[w++] = self->height&0xFF;
+        e[w++] = self->width>>8; e[w++] = self->width&0xFF;
+        e[w++] = 1; // Components
+        e[w++] = 0; // Component ID
+        e[w++] = 0x11; // Component X/Y
+        e[w++] = 0; // Unused (Quantisation)
+    e[w++] = 0xff; e[w++] = 0xc4; //HUFF
+    // Write HUFF
+        e[w++] = 0x0; e[w++] = 17+17; //Lf, frame header length
+        e[w++] = 0; // Table ID
+        for (int i=1;i<17;i++) {
+            e[w++] = self->bits[i];
+        }
+        for (int i=0;i<15;i++) {
+            e[w++] = self->huffval[i];
+        }
+    e[w++] = 0xff; e[w++] = 0xda; //SCAN
+    // Write SCAN
+        e[w++] = 0x0; e[w++] = 8; //Ls, scan header length
+        e[w++] = 1; // Components
+        e[w++] = 0; //
+        e[w++] = 0; //
+        e[w++] = 6; // Predictor
+        e[w++] = 0; //
+        e[w++] = 0; //
+    self->encodedWritten = w;
+}
+
+void writePost(lje* self) {
+    int w = self->encodedWritten;
+    uint8_t* e = self->encoded;
+    e[w++] = 0xff; e[w++] = 0xd9; //EOI
+    self->encodedWritten = w;
+}
+
+void writeBody(lje* self) {
     // Scan through the tile using the standard type 6 prediction
     // Need to cache the previous 2 row in target coordinates because of tiling
     uint16_t* pixel = self->image;
@@ -907,6 +980,10 @@ void doEncode(lje* self) {
     int Px = 0;
     int32_t diff = 0;
     int bitcount = 0;
+    uint8_t* out = self->encoded;
+    int w = self->encodedWritten;
+    uint8_t next = 0;
+    uint8_t nextbits = 8;
     while (pixcount--) {
         rows[1][col] = *pixel;
 
@@ -918,17 +995,57 @@ void doEncode(lje* self) {
             Px = rows[0][col];
         else
             Px = rows[0][col] + ((rows[1][col-1] - rows[0][col-1])>>1);
-        diff = Px - rows[1][col];
+        diff = rows[1][col] - Px;
         int ssss = 32 - __builtin_clz(abs(diff));
         if (diff==0) ssss=0;
 
         // Write the huffman code for the ssss value
         int huffcode = self->huffsym[ssss];
-        int huffval = self->huffval[huffcode];
+        int huffenc = self->huffenc[huffcode];
         int huffbits = self->huffbits[huffcode];
-        //printf("%d %d %d %d %d\n",diff,ssss,huffcode,huffval,huffbits);
         bitcount += huffbits + ssss;
+
+
+        int vt = 1<<(ssss-1);
+#ifdef DEBUG
+        //printf("%d %d %d %x %x %d %d\n",rows[1][col],Px,diff,ssss,huffenc,huffbits,vt);
+#endif
+        if (diff < vt)
+            diff += (1 << (ssss))-1;
+
+        // Write the ssss
+        while (huffbits>0) {
+            int usebits = huffbits>nextbits?nextbits:huffbits;
+            // Add top usebits from huffval to next usebits of nextbits
+            int tophuff = huffenc >> (huffbits - usebits);
+            next |= (tophuff << (nextbits-usebits));
+            nextbits -= usebits;
+            huffbits -= usebits;
+            huffenc &= (1<<huffbits)-1;
+            if (nextbits==0) {
+                out[w++] = next;
+                if (next==0xff) out[w++] = 0x0;
+                next = 0;
+                nextbits = 8;
+            }
+        }
         // Write the rest of the bits for the value
+
+        while (ssss>0) {
+            int usebits = ssss>nextbits?nextbits:ssss;
+            // Add top usebits from huffval to next usebits of nextbits
+            int tophuff = diff >> (ssss - usebits);
+            next |= (tophuff << (nextbits-usebits));
+            nextbits -= usebits;
+            ssss -= usebits;
+            diff &= (1<<ssss)-1;
+            if (nextbits==0) {
+                out[w++] = next;
+                if (next==0xff) out[w++] = 0x0;
+                next = 0;
+                nextbits = 8;
+            }
+        }
 
         //printf("%d %d\n",diff,ssss);
         pixel++;
@@ -943,13 +1060,23 @@ void doEncode(lje* self) {
             row++;
         }
     }
+    // Flush the final bits
+    if (nextbits<8) {
+        out[w++] = next;
+        if (next==0xff) out[w++] = 0x0;
+    }
     int sort[17];
     for (int h=0;h<17;h++) {
         sort[h] = h;
+#ifdef DEBUG
         printf("%d:%d\n",h,self->hist[h]);
+#endif
     }
+#ifdef DEBUG
     printf("Total bytes: %d\n",bitcount>>3);
+#endif
     free(rowcache);
+    self->encodedWritten = w;
 }
 /* Encoder
  * Read tile from an image and encode in one shot
@@ -971,16 +1098,24 @@ int lj92_encode(uint16_t* image, int width, int height, int bitdepth,
     self->skipLength = skipLength;
     self->delinearize = delinearize;
     self->delinearizeLength = delinearizeLength;
-    self->encodedLength = width*height*2;
+    self->encodedLength = width*height*3+200;
     self->encoded = malloc(self->encodedLength);
     if (self->encoded==NULL) { free(self); return LJ92_ERROR_NO_MEMORY; }
     // Scan through data to gather frequencies of ssss prefixes
     frequencyScan(self);
     // Create encoded table based on frequencies
     createEncodeTable(self);
+    // Write JPEG head and scan header
+    writeHeader(self);
     // Scan through and do the compression
-    doEncode(self);
-
+    writeBody(self);
+    // Finish
+    writePost(self);
+#ifdef DEBUG
+    printf("written:%d\n",self->encodedWritten);
+#endif
+    self->encoded = realloc(self->encoded,self->encodedWritten);
+    self->encodedLength = self->encodedWritten;
     *encoded = self->encoded;
     *encodedLength = self->encodedLength;
 
@@ -990,99 +1125,3 @@ int lj92_encode(uint16_t* image, int width, int height, int bitdepth,
 }
 
 
-#ifdef TEST_DECODER
-void main(int argc,char** argv) {
-    char* first;
-    char* second;
-    if (argc<2) {
-        printf("Please provide 1 (or 2 identical sized) lossless JPEG file(s)\n");
-        return;
-    }
-    if (argc>=2) first = argv[1];
-    if (argc>=3) second = argv[2];
-    else second = first;
-
-    // Read in filenames to memory
-    FILE* datafile = fopen(argv[1],"r");
-    fseek(datafile,0,SEEK_END);
-    long length = ftell(datafile);
-    fseek(datafile,0,SEEK_SET);
-    printf("Length of file=%lu\n",length);
-    char* data = malloc(length);
-    int readlen = fread(data,1,length,datafile);
-    printf("readlen=%d\n",readlen);
-    fclose(datafile);
-
-    datafile = fopen(argv[2],"r");
-    fseek(datafile,0,SEEK_END);
-    length = ftell(datafile);
-    fseek(datafile,0,SEEK_SET);
-    printf("Length of file=%lu\n",length);
-    char* data2 = malloc(length);
-    int readlen2 = fread(data2,1,length,datafile);
-    printf("readlen=%d\n",readlen2);
-    fclose(datafile);
-
-    // Now process the data
-    int width,height,bitdepth;
-    int width2,height2,bitdepth2;
-    lj92 ljp;
-    lj92 ljp2;
-    int ret = lj92_open(&ljp,data,readlen,&width,&height,&bitdepth);
-    printf("lj92_open returned %d width=%d, height=%d, bitdepth=%d\n",ret,width,height,bitdepth);
-    ret = lj92_open(&ljp2,data2,readlen2,&width2,&height2,&bitdepth2);
-    if ((width!=width2) && (height!=height2)) {
-        printf("Files do not have identical frame size %dx%d vs %dx%d\n",width,height,width2,height2);
-        return;
-    }
-
-    // Test linearization table
-    u16* linearize = calloc(4096,sizeof(u16));
-    for (int i=0;i<4096;i++) {
-        linearize[i] = i;
-    }
-    //u16* linearize = NULL;
-    printf("lj92_open returned %d width=%d, height=%d, bitdepth=%d\n",ret,width2,height2,bitdepth2);
-    printf("Creating frame %dx%d\n",width,height*2);
-    uint16_t* image = (uint16_t*)calloc(width*height*2,sizeof(uint16_t));
-    for (int loop=0;loop<1;loop++) {
-        ret = lj92_decode(ljp,image,width/2,width/2,linearize,4096);
-        if (ret != LJ92_ERROR_NONE) {
-            printf("lj92_decode returned %d\n",ret);
-        }
-        ret = lj92_decode(ljp2,image+width/2,width/2,width/2,linearize,4096);
-        if (ret != LJ92_ERROR_NONE) {
-            printf("lj92_decode returned %d\n",ret);
-        }
-    }
-
-    // Convert to big endian 16bit for output as PGM file
-    for (int i=0;i<(width*height*2);i++) {
-        image[i] = (image[i]>>8)|((image[i]&0xFF)<<8);
-    }
-    FILE* rafile = fopen("dump.pgm","w");
-    fprintf(rafile,"P5 %d %d 4095\n",width,height*2);
-    fwrite(image,2,width*height*2,rafile);
-    fclose(rafile);
-    free(data);
-    free(data2);
-    free(linearize);
-
-    // Finish
-    lj92_close(ljp);
-    lj92_close(ljp2);
-
-    // Test encoder
-    // Convert image back to littleendian....
-    for (int i=0;i<(width*height*2);i++) {
-        image[i] = (image[i]>>8)|((image[i]&0xFF)<<8);
-    }
-    char* encoded = NULL;
-    int encodedLength;
-    ret = lj92_encode(image,width,height,12,width/2,width/2,NULL,0,&encoded,&encodedLength);
-    if (ret == LJ92_ERROR_NONE) free(encoded);
-    ret = lj92_encode(image+width/2,width,height,12,width/2,width/2,NULL,0,&encoded,&encodedLength);
-    if (ret == LJ92_ERROR_NONE) free(encoded);
-    free(image);
-}
-#endif
