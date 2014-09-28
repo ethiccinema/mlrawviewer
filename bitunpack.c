@@ -604,7 +604,8 @@ bitunpack_unpackljto16(PyObject* self, PyObject *args)
     int ret = 0;
     lj92 ljp;
     int iw,ih,ib;
-    ret = lj92_open(&ljp,(char*)input,inlen,&iw,&ih,&ib);
+    Py_BEGIN_ALLOW_THREADS;
+    ret = lj92_open(&ljp,(uint8_t*)input,inlen,&iw,&ih,&ib);
     //printf("JPEG w:%d,h:%d,bits:%d\n",iw,ih,ib);
     if (ret==LJ92_ERROR_NONE) {
         if (linlen>0) {
@@ -612,16 +613,58 @@ bitunpack_unpackljto16(PyObject* self, PyObject *args)
         } else {
             lj92_decode(ljp,(uint16_t*)(output+outindex),outwrite,outskip,NULL,0);
         }
-        //printf("Decoding complete\n");   
-    } 
+        //printf("Decoding complete\n");
+    }
+    Py_END_ALLOW_THREADS;
     PyObject *stat = Py_BuildValue("I",ret);
     return stat;
+}
+
+static PyObject*
+bitunpack_pack16tolj(PyObject* self, PyObject *args)
+{
+    unsigned const char* input = 0;
+    int inlen = 0;
+    int width = 0;
+    int height = 0;
+    int bitdepth = 0;
+    int inindex = 0;
+    int inread = 0;
+    int inskip = 0;
+    unsigned const char* delin = 0;
+    int delinlen = 0;
+
+    if (!PyArg_ParseTuple(args, "t#iiiiiit#", &input, &inlen,
+        &width, &height, &bitdepth,
+        &inindex, &inread, &inskip, &delin, &delinlen))
+        return NULL;
+
+    //printf("width=%d,height=%d,inlen=%d\n",width,height,inlen);
+    if (width*height*sizeof(uint16_t) > inlen) return NULL;
+
+    int ret = 0;
+    uint8_t* encoded;
+    int encodedLength;
+    Py_BEGIN_ALLOW_THREADS;
+    if (delinlen == 0) {
+        ret = lj92_encode((uint16_t*)&input[inindex],width,height,bitdepth,
+                inread,inskip,NULL,0,&encoded,&encodedLength);
+    } else {
+        ret = lj92_encode((uint16_t*)&input[inindex],width,height,bitdepth,
+                inread,inskip,(uint16_t*)delin,delinlen,&encoded,&encodedLength);
+    }
+    //printf("lj92_encode ret=%d\n",ret);
+    if (ret != LJ92_ERROR_NONE) return NULL;
+    Py_END_ALLOW_THREADS;
+    PyObject* ba = PyByteArray_FromStringAndSize((char*)encoded,encodedLength);
+    return ba;
 }
 
 static PyMethodDef methods[] = {
     { "unpack14to16", bitunpack_unpack14to16, METH_VARARGS, "Unpack a string of 14bit values to 16bit values" },
     { "unpack12to16", bitunpack_unpack12to16, METH_VARARGS, "Unpack a string of 12bit values to 16bit values" },
     { "unpackljto16", bitunpack_unpackljto16, METH_VARARGS, "Unpack a string of LJPEG values to 16bit values" },
+    { "pack16tolj", bitunpack_pack16tolj, METH_VARARGS, "Pack a string of 16bit values to LJPEG" },
     { "demosaic14", bitunpack_demosaic14, METH_VARARGS, "Demosaic a 14bit RAW image into RGB float" },
     { "demosaic16", bitunpack_demosaic16, METH_VARARGS, "Demosaic a 16bit RAW image into RGB float" },
     { "demosaicer", bitunpack_demosaicer, METH_VARARGS, "Create a demosaicer object" },

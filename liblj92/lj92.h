@@ -40,7 +40,7 @@ typedef struct _ljp* lj92;
  * If status == LJ92_ERROR_NONE, handle must be closed with lj92_close
  */
 int lj92_open(lj92* lj, // Return handle here
-              char* data,int datalen, // The encoded data
+              uint8_t* data,int datalen, // The encoded data
               int* width,int* height,int* bitdepth); // Width, height and bitdepth
 
 /* Release a decoder object */
@@ -65,5 +65,5 @@ int lj92_decode(lj92 lj,
 int lj92_encode(uint16_t* image, int width, int height, int bitdepth,
                 int readLength, int skipLength,
                 uint16_t* delinearize,int delinearizeLength,
-                char** encoded, int* encodedLength);
+                uint8_t** encoded, int* encodedLength);
 #endif

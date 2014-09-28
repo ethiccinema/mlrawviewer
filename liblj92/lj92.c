@@ -91,7 +91,6 @@ static int parseHuff(ljp* self) {
     bits[0] = 0; // Because table starts from 1
     int hufflen = BEH(huffhead[0]);
     if ((self->ix + hufflen) >= self->datalen) return ret;
-    u8* huffvals = &self->data[self->ix+19];
 #ifdef SLOW_HUFF
     u8* huffval = calloc(hufflen - 19,sizeof(u8));
     if (huffval == NULL) return LJ92_ERROR_NO_MEMORY;
@@ -137,7 +136,6 @@ static int parseHuff(ljp* self) {
         j = 1;
     }
     huffsize[hsix++] = 0;
-    int lastk = k;
 
     // Calculate the size of huffcode array
     int huffcode_needed = 0;
@@ -217,6 +215,7 @@ static int parseHuff(ljp* self) {
 #else
     /* Calculate huffman direct lut */
     // How many bits in the table - find highest entry
+    u8* huffvals = &self->data[self->ix+19];
     int maxbits = 16;
     while (maxbits>0) {
         if (bits[maxbits]) break;
@@ -338,6 +337,7 @@ inline static int nextdiff(ljp* self, int Px) {
     int t = decode(self);
     int diff = receive(self,t);
     diff = extend(self,diff,t);
+    //printf("%d %d %d %x\n",Px+diff,Px,diff,t);//,index,usedbits);
 #else
     u32 b = self->b;
     int cnt = self->cnt;
@@ -389,8 +389,8 @@ inline static int nextdiff(ljp* self, int Px) {
     self->cnt = cnt;
     self->ix = ix;
     //printf("%d %d\n",t,diff);
-#ifdef DEBUG
     //printf("%d %d %d %x %x %d\n",Px+diff,Px,diff,t,index,usedbits);
+#ifdef DEBUG
 #endif
 #endif
     return diff;
@@ -507,7 +507,7 @@ static int parseScan(ljp* self) {
     int compcount = self->data[self->ix+2];
     int pred = self->data[self->ix+3+2*compcount];
     if (pred<0 || pred>7) return ret;
-    //if (pred==6) return parsePred6(self); // Fast path
+    if (pred==6) return parsePred6(self); // Fast path
     self->ix += BEH(self->data[self->ix]);
     self->cnt = 0;
     self->b = 0;
@@ -639,7 +639,7 @@ static void free_memory(ljp* self) {
 }
 
 int lj92_open(lj92* lj,
-              char* data, int datalen,
+              uint8_t* data, int datalen,
               int* width,int* height, int* bitdepth) {
     ljp* self = (ljp*)calloc(sizeof(ljp),1);
     if (self==NULL) return LJ92_ERROR_NO_MEMORY;
@@ -733,7 +733,9 @@ void frequencyScan(lje* self) {
     int Px = 0;
     int32_t diff = 0;
     while (pixcount--) {
-        rows[1][col] = *pixel;
+        uint16_t p = *pixel;
+        if (self->delinearize) p = self->delinearize[p];
+        rows[1][col] = p;
 
         if ((row == 0)&&(col == 0))
             Px = 1 << (self->bitdepth-1);
@@ -747,7 +749,7 @@ void frequencyScan(lje* self) {
         int ssss = 32 - __builtin_clz(abs(diff));
         if (diff==0) ssss=0;
         self->hist[ssss]++;
-        //printf("%d %d\n",diff,ssss);
+        //printf("%d %d %d %d %d %d\n",col,row,p,Px,diff,ssss);
         pixel++;
         scan--;
         col++;
@@ -760,13 +762,13 @@ void frequencyScan(lje* self) {
             row++;
         }
     }
+#ifdef DEBUG
     int sort[17];
     for (int h=0;h<17;h++) {
         sort[h] = h;
-#ifdef DEBUG
         printf("%d:%d\n",h,self->hist[h]);
-#endif
     }
+#endif
     free(rowcache);
 }
 
@@ -877,7 +879,7 @@ void createEncodeTable(lje* self) {
     int hv = 0;
     int rv = 0;
     int vl = 0; // i
-    int hcode;
+    //int hcode;
     int bitsused = 1;
     int sym = 0;
     //printf("%04x:%x:%d:%x\n",i,huffvals[hv],bitsused,1<<(maxbits-bitsused));
@@ -937,12 +939,12 @@ void writeHeader(lje* self) {
         e[w++] = 0; // Unused (Quantisation)
     e[w++] = 0xff; e[w++] = 0xc4; //HUFF
     // Write HUFF
-        e[w++] = 0x0; e[w++] = 17+17; //Lf, frame header length
+        e[w++] = 0x0; e[w++] = 17+19; //Lf, frame header length
         e[w++] = 0; // Table ID
         for (int i=1;i<17;i++) {
             e[w++] = self->bits[i];
         }
-        for (int i=0;i<15;i++) {
+        for (int i=0;i<17;i++) {
             e[w++] = self->huffval[i];
         }
     e[w++] = 0xff; e[w++] = 0xda; //SCAN
@@ -985,7 +987,9 @@ void writeBody(lje* self) {
     uint8_t next = 0;
     uint8_t nextbits = 8;
     while (pixcount--) {
-        rows[1][col] = *pixel;
+        uint16_t p = *pixel;
+        if (self->delinearize) p = self->delinearize[p];
+        rows[1][col] = p;
 
         if ((row == 0)&&(col == 0))
             Px = 1 << (self->bitdepth-1);
@@ -998,6 +1002,7 @@ void writeBody(lje* self) {
         diff = rows[1][col] - Px;
         int ssss = 32 - __builtin_clz(abs(diff));
         if (diff==0) ssss=0;
+        //printf("%d %d %d %d %d\n",col,row,Px,diff,ssss);
 
         // Write the huffman code for the ssss value
         int huffcode = self->huffsym[ssss];
@@ -1005,10 +1010,9 @@ void writeBody(lje* self) {
         int huffbits = self->huffbits[huffcode];
         bitcount += huffbits + ssss;
 
-
-        int vt = 1<<(ssss-1);
-#ifdef DEBUG
+        int vt = ssss>0?(1<<(ssss-1)):0;
         //printf("%d %d %d %x %x %d %d\n",rows[1][col],Px,diff,ssss,huffenc,huffbits,vt);
+#ifdef DEBUG
 #endif
         if (diff < vt)
             diff += (1 << (ssss))-1;
@@ -1065,14 +1069,12 @@ void writeBody(lje* self) {
         out[w++] = next;
         if (next==0xff) out[w++] = 0x0;
     }
+#ifdef DEBUG
     int sort[17];
     for (int h=0;h<17;h++) {
         sort[h] = h;
-#ifdef DEBUG
         printf("%d:%d\n",h,self->hist[h]);
-#endif
     }
-#ifdef DEBUG
     printf("Total bytes: %d\n",bitcount>>3);
 #endif
     free(rowcache);
@@ -1085,7 +1087,7 @@ void writeBody(lje* self) {
 int lj92_encode(uint16_t* image, int width, int height, int bitdepth,
                 int readLength, int skipLength,
                 uint16_t* delinearize,int delinearizeLength,
-                char** encoded, int* encodedLength) {
+                uint8_t** encoded, int* encodedLength) {
     int ret = LJ92_ERROR_NONE;
 
     lje* self = (lje*)calloc(sizeof(lje),1);

@@ -286,11 +286,17 @@ class DNG(object):
             off += self.writeIfd(b,off,self.ifds[0].EXIF_IFD)
 
         # Write first strips
-        off += self.ifds[0].writeStrips(b,off)
+        if self.ifds[0].hasStrips():
+            off += self.ifds[0].writeStrips(b,off)
+        elif self.ifds[0].hasTiles():
+            off += self.ifds[0].writeTiles(b,off)
 
         # Write subifd strips
         for sindex,sifd in enumerate(self.ifds[0].subIFDs):
-            off += sifd.writeStrips(b,off)
+            if sifd.hasStrips():
+                off += sifd.writeStrips(b,off)
+            elif sifd.hasTiles():
+                off += sifd.writeTiles(b,off)
 
         # Done with preparation
 
@@ -453,7 +459,38 @@ class DNG(object):
                 stripoff += stripLen
                 stripNum += 1
             return offset
-
+        def writeTiles(self,buf,offset):
+            if not self._tiles: raise IOError
+            """
+            for tag,toffset,extraOffset in self.entryMap:
+                if tag == Tag.StripByteCounts[0]:
+                    sbc = (toffset,extraOffset)
+                if tag == Tag.StripOffsets[0]:
+                    so = (toffset,extraOffset)
+            StripsPerImage = self.RowsPerStrip * self.length
+            BytesPerRow = self.width * sum(self.BitsPerSample) / 8
+            BytesPerStrip = BytesPerRow * self.RowsPerStrip
+            # Break up self._strips according to these settings
+            left = len(self._strips)
+            stripoff = 0
+            stripNum = 0
+            for s in self._strips:
+                stripLen = len(s)
+                buf[offset:offset+stripLen] = s
+                if len(self._strips)==1:
+                    i = 0
+                    o = 8
+                else:
+                    i = 1
+                    o = stripNum*4
+                buf[so[i]+o:so[i]+o+4] = struct.pack(self.dng.bo+"I",offset)
+                buf[sbc[i]+o:sbc[i]+o+4] = struct.pack(self.dng.bo+"I",stripLen)
+                offset += stripLen
+                left -= stripLen
+                stripoff += stripLen
+                stripNum += 1
+            """
+            return offset
 
     def readIfd(self,offset):
         count = struct.unpack(self.bo+"H",self.readFrom(offset,2))[0]
