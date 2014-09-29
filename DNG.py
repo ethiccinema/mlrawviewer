@@ -285,6 +285,7 @@ class DNG(object):
             b[exififd[0]+8:exififd[0]+12] = struct.pack(self.bo+"I",off)
             off += self.writeIfd(b,off,self.ifds[0].EXIF_IFD)
 
+        print "1",self.ifds[0].hasTiles()
         # Write first strips
         if self.ifds[0].hasStrips():
             off += self.ifds[0].writeStrips(b,off)
@@ -293,6 +294,7 @@ class DNG(object):
 
         # Write subifd strips
         for sindex,sifd in enumerate(self.ifds[0].subIFDs):
+            print "1",sifd.hasTiles()
             if sifd.hasStrips():
                 off += sifd.writeStrips(b,off)
             elif sifd.hasTiles():
@@ -460,36 +462,29 @@ class DNG(object):
                 stripNum += 1
             return offset
         def writeTiles(self,buf,offset):
+            print "writeTiles"
             if not self._tiles: raise IOError
-            """
+            print "Writing tiles"
             for tag,toffset,extraOffset in self.entryMap:
-                if tag == Tag.StripByteCounts[0]:
+                if tag == Tag.TileByteCounts[0]:
                     sbc = (toffset,extraOffset)
-                if tag == Tag.StripOffsets[0]:
+                if tag == Tag.TileOffsets[0]:
                     so = (toffset,extraOffset)
-            StripsPerImage = self.RowsPerStrip * self.length
-            BytesPerRow = self.width * sum(self.BitsPerSample) / 8
-            BytesPerStrip = BytesPerRow * self.RowsPerStrip
-            # Break up self._strips according to these settings
-            left = len(self._strips)
-            stripoff = 0
-            stripNum = 0
-            for s in self._strips:
-                stripLen = len(s)
-                buf[offset:offset+stripLen] = s
-                if len(self._strips)==1:
+            tileoff = 0
+            tileNum = 0
+            for t in self._tiles:
+                tileLen = len(t)
+                buf[offset:offset+tileLen] = t
+                if len(self._tiles)==1:
                     i = 0
                     o = 8
                 else:
                     i = 1
-                    o = stripNum*4
+                    o = tileNum*4
                 buf[so[i]+o:so[i]+o+4] = struct.pack(self.dng.bo+"I",offset)
-                buf[sbc[i]+o:sbc[i]+o+4] = struct.pack(self.dng.bo+"I",stripLen)
-                offset += stripLen
-                left -= stripLen
-                stripoff += stripLen
-                stripNum += 1
-            """
+                buf[sbc[i]+o:sbc[i]+o+4] = struct.pack(self.dng.bo+"I",tileLen)
+                offset += tileLen
+                tileNum += 1
             return offset
 
     def readIfd(self,offset):
@@ -675,6 +670,7 @@ def testReadDng(filename):
             # Should check here if it's really lossless JPEG....
             lj = LJ92.lj92()
             for fi,t in enumerate(full):
+                print fi,len(t)
                 lj.parse(t)
 
                 # For debugging/PoC just dump as raw PGM
@@ -682,7 +678,7 @@ def testReadDng(filename):
                 for i in range(len(im)):
                     im[i] = (im[i]>>8)|((im[i]&0xFF)<<8)
                 dump = file("dump%d.pgm"%fi,'wb')
-                dump.write("P5 %d %d 4096\n"%(lj.x,lj.y))
+                dump.write("P5 %d %d 16000\n"%(lj.x,lj.y))
                 dump.write(im)
                 dump.close()
 

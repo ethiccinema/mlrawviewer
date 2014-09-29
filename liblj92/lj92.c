@@ -939,12 +939,12 @@ void writeHeader(lje* self) {
         e[w++] = 0; // Unused (Quantisation)
     e[w++] = 0xff; e[w++] = 0xc4; //HUFF
     // Write HUFF
-        e[w++] = 0x0; e[w++] = 17+19; //Lf, frame header length
+        e[w++] = 0x0; e[w++] = 17+18; //Lf, frame header length
         e[w++] = 0; // Table ID
         for (int i=1;i<17;i++) {
             e[w++] = self->bits[i];
         }
-        for (int i=0;i<17;i++) {
+        for (int i=0;i<16;i++) {
             e[w++] = self->huffval[i];
         }
     e[w++] = 0xff; e[w++] = 0xda; //SCAN
@@ -1011,7 +1011,7 @@ void writeBody(lje* self) {
         bitcount += huffbits + ssss;
 
         int vt = ssss>0?(1<<(ssss-1)):0;
-        //printf("%d %d %d %x %x %d %d\n",rows[1][col],Px,diff,ssss,huffenc,huffbits,vt);
+        //printf("%d %d %d %d\n",rows[1][col],Px,diff,Px+diff);
 #ifdef DEBUG
 #endif
         if (diff < vt)
