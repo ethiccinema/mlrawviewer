@@ -45,6 +45,8 @@ from ShaderPatternNoise import *
 
 import numpy as np
 
+import bitunpack
+
 def at(entries,tag,val):
     entries.append((tag[0],tag[1][0],1,(val,)))
 def atm(entries,tag,val):
@@ -242,7 +244,7 @@ class ExportQueue(threading.Thread):
         #print "FPS parts:",fps,fpsnum,fpsden
         return fps,fpsnum,fpsden
 
-    def setDngHeader(self,r,d,bits,frame,rgbl):
+    def setDngHeader(self,r,d,bits,frame,rgbl,ljpeg=False):
         d.stripTotal = 3000000
         d.bo = "<" # Little endian
         # Prepopulate DNG with basic set of tags for a single image
@@ -258,23 +260,34 @@ class ExportQueue(threading.Thread):
         at(e,DNG.Tag.ImageLength,r.height())
         at(e,DNG.Tag.BitsPerSample,bits)
         ifd.BitsPerSample = (bits,)
-        at(e,DNG.Tag.Compression,1) # No compression
+        if ljpeg:
+            at(e,DNG.Tag.Compression,7) # LJPEG
+        else:
+            at(e,DNG.Tag.Compression,1) # No compression
         at(e,DNG.Tag.PhotometricInterpretation,32803) # CFA
         at(e,DNG.Tag.FillOrder,1)
         atm(e,DNG.Tag.Make,r.make()+"\0")
         atm(e,DNG.Tag.Model,r.make()+" "+r.model()+"\0")
-        at(e,DNG.Tag.StripOffsets,0)
+        if not ljpeg:
+            at(e,DNG.Tag.StripOffsets,0)
         at(e,DNG.Tag.Orientation,1)
         at(e,DNG.Tag.SamplesPerPixel,1)
-        at(e,DNG.Tag.RowsPerStrip,r.height())
-        ifd.RowsPerStrip = r.height()
-        at(e,DNG.Tag.StripByteCounts,0)
+        if not ljpeg:
+            at(e,DNG.Tag.RowsPerStrip,r.height())
+            ifd.RowsPerStrip = r.height()
+            at(e,DNG.Tag.StripByteCounts,0)
         at(e,DNG.Tag.PlanarConfiguration,1) # Chunky
         atm(e,DNG.Tag.Software,"MlRawViewer"+"\0")
         if frame.rtc != None:
             se,mi,ho,da,mo,ye = frame.rtc[1:7]
             atm(e,DNG.Tag.DateTime,"%04d:%02d:%02d %02d:%02d:%02d\0"%(ye+1900,mo,da,ho,mi,se))
         #atm(e,DNG.Tag.DateTime,"1988:10:01 23:23:23")
+        if ljpeg:
+            at(e,DNG.Tag.TileWidth,r.width()/2)
+            at(e,DNG.Tag.TileLength,r.height())
+            ifd.TileWidth = r.width()/2
+            atm(e,DNG.Tag.TileOffsets,(0,0))
+            atm(e,DNG.Tag.TileByteCounts,(0,0))
         atm(e,DNG.Tag.CFARepeatPatternDim,(2,2)) # No compression
         atm(e,DNG.Tag.CFAPattern,(0,1,1,2)) # No compression
         at(e,DNG.Tag.EXIF_IFD,0)
@@ -291,7 +304,7 @@ class ExportQueue(threading.Thread):
         tlx,tly = aa[1],aa[0]
         aw = aa[3]-aa[1]
         ah = aa[2]-aa[0]
-	cw,ch = r.cropSize
+        cw,ch = r.cropSize
         if aw>=fw:
             aw = fw
             tlx = 0
@@ -427,11 +440,14 @@ class ExportQueue(threading.Thread):
         self.writtenFrame = 0
         r.preloadFrame(startFrame)
         r.preloadFrame(startFrame+1) # Preload one ahead
+        ljpeg = True
+        if bits == 14: jpeg = False
         for i in range(endFrame-startFrame+1):
             self.processCommands(block=False)
             f = r.frame(startFrame+i)
+            f.writeljpeg = ljpeg
             d = DNG.DNG()
-            self.setDngHeader(r,d,bits,f,rgbl)
+            self.setDngHeader(r,d,bits,f,rgbl,ljpeg)
             ifd = d.FULL_IFD
             if ((startFrame+i+1)<r.frames()):
                 r.preloadFrame(startFrame+i+1)
@@ -444,11 +460,12 @@ class ExportQueue(threading.Thread):
                 # Must first preprocess with shader
                 self.bgiq.put((f,d,2,r.width(),r.height(),i,target,rgbl))
             else:
+                d.ljpeg = ljpeg
                 if bits==14:
-                    ifd._strips = [np.frombuffer(f.rawdata,dtype=np.uint16).byteswap().tostring()]
+                    d.rawdata = np.frombuffer(f.rawdata,dtype=np.uint16).byteswap().tostring()
                 elif bits==16:
                     f.convert() # Will block if still processing
-                    ifd._strips = [np.frombuffer(f.rawimage,dtype=np.uint16).tostring()]
+                    d.rawdata = np.frombuffer(f.rawimage,dtype=np.uint16).tostring()
                 self.wq.put((i,target,d)) # Queue writing
             st = float(self.writtenFrame+1)/float(todo)
             #print "%.02f%%"%(st*100.0)
@@ -477,6 +494,14 @@ class ExportQueue(threading.Thread):
         while nextbuf != None:
             try:
                 index,target,dng = nextbuf
+                ifd = dng.FULL_IFD
+                if dng.ljpeg:
+                    ifd._tiles = [
+                        bitunpack.pack16tolj(dng.rawdata,ifd.width,ifd.length/2,16,0,ifd.width/2,ifd.width/2,""),
+                        bitunpack.pack16tolj(dng.rawdata,ifd.width,ifd.length/2,16,ifd.width,ifd.width/2,ifd.width/2,"")
+                        ]
+                else:
+                    ifd._strips = [ dng.rawdata ]
                 dng.writeFile(target+"_%06d.dng"%index)
                 self.writtenFrame = index
             except:
@@ -858,8 +883,9 @@ class ExportQueue(threading.Thread):
                 self.shaderPreprocess.draw(w,h,self.rawUploadTex,self.preprocessTex1,self.horizontalPattern,self.verticalPattern,ssh,ssv,frame.black/65536.0,frame.white/65536.0,(1.0,1.0,1.0,1.0),control=(0.0,1.0,1.0,1.0),cfa=frame.cfa)
                 self.lastPP = self.preprocessTex2
             rawpreprocessed = glReadPixels(0,0,w,h,GL_RED,GL_UNSIGNED_SHORT)
-            #print rawpreprocessed.min(),rawpreprocessed.max(),rawpreprocessed.mean()
-            ifd._strips = [np.frombuffer(rawpreprocessed,dtype=np.uint16).tostring()]
+            dng.rawdata = np.frombuffer(rawpreprocessed,dtype=np.uint16).tostring()
+            dng.ljpeg = frame.writeljpeg
+            print rawpreprocessed.min(),rawpreprocessed.max(),rawpreprocessed.mean()
             self.wq.put((index,target,dng)) # Queue writing
             return None
 

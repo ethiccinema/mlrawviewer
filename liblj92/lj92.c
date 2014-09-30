@@ -939,12 +939,16 @@ void writeHeader(lje* self) {
         e[w++] = 0; // Unused (Quantisation)
     e[w++] = 0xff; e[w++] = 0xc4; //HUFF
     // Write HUFF
-        e[w++] = 0x0; e[w++] = 17+18; //Lf, frame header length
+        int count = 0;
+        for (int i=0;i<17;i++) {
+            count += self->bits[i];
+        }
+        e[w++] = 0x0; e[w++] = 17+2+count; //Lf, frame header length
         e[w++] = 0; // Table ID
         for (int i=1;i<17;i++) {
             e[w++] = self->bits[i];
         }
-        for (int i=0;i<16;i++) {
+        for (int i=0;i<count;i++) {
             e[w++] = self->huffval[i];
         }
     e[w++] = 0xff; e[w++] = 0xda; //SCAN

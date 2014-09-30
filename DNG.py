@@ -285,7 +285,6 @@ class DNG(object):
             b[exififd[0]+8:exififd[0]+12] = struct.pack(self.bo+"I",off)
             off += self.writeIfd(b,off,self.ifds[0].EXIF_IFD)
 
-        print "1",self.ifds[0].hasTiles()
         # Write first strips
         if self.ifds[0].hasStrips():
             off += self.ifds[0].writeStrips(b,off)
@@ -294,7 +293,6 @@ class DNG(object):
 
         # Write subifd strips
         for sindex,sifd in enumerate(self.ifds[0].subIFDs):
-            print "1",sifd.hasTiles()
             if sifd.hasStrips():
                 off += sifd.writeStrips(b,off)
             elif sifd.hasTiles():
@@ -462,9 +460,7 @@ class DNG(object):
                 stripNum += 1
             return offset
         def writeTiles(self,buf,offset):
-            print "writeTiles"
             if not self._tiles: raise IOError
-            print "Writing tiles"
             for tag,toffset,extraOffset in self.entryMap:
                 if tag == Tag.TileByteCounts[0]:
                     sbc = (toffset,extraOffset)

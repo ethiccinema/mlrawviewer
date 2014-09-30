@@ -19,7 +19,10 @@ root.iconify()
 
 def okToExit():
     ret = tkMessageBox.askyesno("Exit","Cancel export and exit?")
-    return ret
+    if ret:
+        return "True"
+    else:
+        return "False"
 
 def chooseOutputDir(initialDir):
     adir = tkFileDialog.askdirectory(title='Choose DNG or ProRes output directory...', initialdir=initialDir)
