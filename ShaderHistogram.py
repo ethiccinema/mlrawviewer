@@ -72,12 +72,23 @@ void main() {
         if self.svbo==None:
             self.svbo = svbo
             self.svbobase = svbo.allocate(width*height)
-            vertexarray = np.meshgrid(np.arange(width,dtype=np.float32),np.arange(height,dtype=np.float32),np.arange(3.0),np.arange(3.0))
+            flatva = np.empty(shape=(width*height,9),dtype=np.float32)
+            flatva[:,:3] = 0.0
+            flatva[:,3:6] = 1.0
+            flatva[:,6:] = 2.0
+            v = np.reshape(flatva,(height,width,3,3))
+            va0 = np.empty(shape=(height,width,9),dtype=np.float32)
+            for i in range(9):
+                va0[:,:,i] = np.arange(width,dtype=np.float32)
+            va0 = va0.reshape((height,width,3,3))
+            va1 = np.empty(shape=(height,width*9),dtype=np.float32)
+            for i in range(height):
+                va1[i,:] = i
+            va1 = va1.reshape((height,width,3,3))
             yinc = 1.0/float(height)
             xinc = 1.0/float(width)
-            v = vertexarray[2]
-            v[:,:,:,0] = vertexarray[0][:,:,:,0]*xinc+xinc*0.5
-            v[:,:,:,1] = vertexarray[1][:,:,:,0]*yinc+yinc*0.5
+            v[:,:,:,0] = va0[:,:,:,0]*xinc+xinc*0.5
+            v[:,:,:,1] = va1[:,:,:,0]*yinc+yinc*0.5
             self.svbo.update(v.flatten(),self.svbobase)
             self.samples = width*height
 

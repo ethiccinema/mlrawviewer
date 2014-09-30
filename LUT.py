@@ -274,7 +274,7 @@ def ClogLut(n):
     scale = (2**14.0)/float(l.n-1.0)
     for i in range(l.n):
         f = float(i)*scale
-        v = (135.0*math.log(f/320.0 + 1.0, 2.0) + 72.0)/1024.0
+        v = (155.0*math.log(f/480.0 + 1.0, 2.0) + 96.0)/1024.0
         #print i,f,v
         l.a.extend((v,v,v))
     return l

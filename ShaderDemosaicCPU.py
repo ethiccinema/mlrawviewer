@@ -80,8 +80,8 @@ vec3 LogCgamma(vec3 linear) {
 }
 
 vec3 CLoggamma(vec3 linear) {
-    //135*LOG(x/320 + 1, 2) + 72
-    return (135.0 * log2(linear * 16384.0 / 320.0 + 1.0) + 72.0) / 1024.0 ;
+    //155*LOG(x/480 + 1, 2) + 96
+    return (155.0 * log2(linear * 16384.0 / 480.0 + 1.0) + 96.0) / 1024.0 ;
 }
 
 /* Native trilinear interpolation cannot be trusted not to
