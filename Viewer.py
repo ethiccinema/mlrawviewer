@@ -369,11 +369,17 @@ class Viewer(GLCompute.GLCompute):
             self.toggleStripes()
 
         elif k==self.KEY_ONE:
-            self.changeWhiteBalance(2.0, 1.0, 2.0, "WhiteFluro")  # ~WhiteFluro
+            if m==0:
+                self.changeWhiteBalance(2.0, 1.0, 2.0, "WhiteFluro")  # ~WhiteFluro
+            elif m==1:
+                self.deleteLut1D()
         elif k==self.KEY_TWO:
             self.changeWhiteBalance(2.0, 1.0, 1.5, "Daylight")    # ~Daylight
         elif k==self.KEY_THREE:
-            self.changeWhiteBalance(2.5, 1.0, 1.5, "Cloudy ")     # ~Cloudy
+            if m==0:
+                self.changeWhiteBalance(2.5, 1.0, 1.5, "Cloudy ")     # ~Cloudy
+            elif m==1:
+                self.deleteLut3D()
 
         elif k==self.KEY_FOUR:
             self.changeWhiteBalance(self.setting_rgb[0]*0.99, self.setting_rgb[1], self.setting_rgb[2], "red-")
@@ -536,6 +542,29 @@ class Viewer(GLCompute.GLCompute):
             config.setState("lut1d",LUT1D)
         if update3d:
             config.setState("lut3d",LUT3D)
+
+    def deleteLut3D(self):
+        """
+        Delete the current LUT3D from the current file, and from the index
+        """
+        del LUT3D[self.lut3dindex-1]
+        config.setState("lut3d",LUT3D)
+        self.setting_lut3d = None
+        self.lut3dindex = 0
+        self.raw.setMeta("lut3d_v1",None)
+        self.refresh()
+
+    def deleteLut1D(self):
+        """
+        Delete the current LUT1D from the current file, and from the index
+        """
+        if LUT1D[self.lut1d1index-1][1] != LUT.LUT_STANDARD:
+            del LUT1D[self.lut1d1index-1]
+            config.setState("lut1d",LUT1D)
+        self.lut1d1index = 0
+        self.setting_lut1d1 = None
+        self.raw.setMeta("lut1d1_v1",None)
+        self.refresh()
 
     def changeLut3D(self,change):
         self.lut3dindex += change
