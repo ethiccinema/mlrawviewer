@@ -531,12 +531,14 @@ class Viewer(GLCompute.GLCompute):
                 l.load(fn)
                 print "Importing LUT",fn
                 if l.dim()==1:
-                    LUT1D.append((l,LUT_USER))
+                    LUT1D.append((l,LUT.LUT_USER))
                     update1d = True
                 elif l.dim()==3:
-                    LUT3D.append((l,LUT_USER))
+                    LUT3D.append((l,LUT.LUT_USER))
                     update3d = True
             except:
+		import traceback
+		traceback.print_exc()
                 pass
         if update1d:
             config.setState("lut1d",LUT1D)
