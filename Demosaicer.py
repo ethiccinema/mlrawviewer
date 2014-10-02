@@ -48,6 +48,8 @@ class Demosaicer(ui.Drawable):
         self.shaderNormal = ShaderDemosaicBilinear()
         self.shaderQuality = ShaderDemosaicCPU()
         self.shaderHistogram = ShaderHistogram()
+        if not self.shaderHistogram.program:
+            self.shaderHistogram = None
         self.settings = settings
         self.encoder = encoder
         self.lastFrameData = None
@@ -235,7 +237,8 @@ class Demosaicer(ui.Drawable):
         # Calculate histogram
         if self.frames.setting_histogram == 1:
             self.histogramTex.bindfbo()
-            self.shaderHistogram.draw(scene.size[0],scene.size[1],self.rgbImage)
+            if self.shaderHistogram:
+                self.shaderHistogram.draw(scene.size[0],scene.size[1],self.rgbImage)
             """
             histogram = glReadPixels(0,0,256,1,GL_RGB,GL_UNSIGNED_SHORT)
             print histogram
@@ -300,5 +303,5 @@ class DemosaicScene(ui.Scene):
             if maxcount > 1000000:
                 h = h / 2
                 maxcount = w * h
-
-        self.demosaicer.shaderHistogram.prepare(self.frames.svbo,width=w,height=h)
+        if self.demosaicer.shaderHistogram:
+            self.demosaicer.shaderHistogram.prepare(self.frames.svbo,width=w,height=h)
