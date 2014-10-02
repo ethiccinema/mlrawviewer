@@ -91,8 +91,11 @@ class Shader(object):
         vertexShaderHandle = compileShader(vs,GL_VERTEX_SHADER)
         fragmentShaderHandle = compileShader(fs,GL_FRAGMENT_SHADER)
         self.program = mrvCompileProgramPreValidate(vertexShaderHandle,fragmentShaderHandle)
+        try:
+            self.vertex = glGetAttribLocation(self.program, "vertex")
+        except:
+            self.program = None
         if not self.program: return
-        self.vertex = glGetAttribLocation(self.program, "vertex")
         self.uniforms = {}
         for key in uniforms:
             self.uniforms[key] = glGetUniformLocation(self.program,key)
