@@ -459,7 +459,7 @@ class ExportQueue(threading.Thread):
                 # Give writing thread time to write...
                 if self.endflag or self.cancel:
                     break
-                time.sleep(0.01)
+                time.sleep(0.1)
             if preprocess==self.PREPROCESS_ALL:
                 # Must first preprocess with shader
                 self.bgiq.put((f,d,2,r.width(),r.height(),i,target,rgbl))
@@ -515,6 +515,7 @@ class ExportQueue(threading.Thread):
                 if dng.ljpeg:
                     self.tc.put((dng.rawdata,ifd.width,ifd.length))
                     tile1 = bitunpack.pack16tolj(dng.rawdata,ifd.width,ifd.length/2,16,0,ifd.width/2,ifd.width/2,"")
+                    #tile2 = bitunpack.pack16tolj(dng.rawdata,ifd.width,ifd.length/2,16,ifd.width,ifd.width/2,ifd.width/2,"")
                     self.tc.join() # Wait for it to be done
                     tile2 = self.nextCompressedTile
                     ifd._tiles = [
@@ -530,7 +531,7 @@ class ExportQueue(threading.Thread):
                 traceback.print_exc()
                 self.cancel = True
             self.wq.task_done()
-            #time.sleep(0.016) # Yield
+            time.sleep(0.016) # Yield
             nextbuf = self.wq.get()
         self.wq.task_done()
         #print "WRITER FINISHED!"

@@ -657,6 +657,7 @@ bitunpack_pack16tolj(PyObject* self, PyObject *args)
     if (ret != LJ92_ERROR_NONE) return NULL;
     Py_END_ALLOW_THREADS;
     PyObject* ba = PyByteArray_FromStringAndSize((char*)encoded,encodedLength);
+    free(encoded);
     return ba;
 }
 
