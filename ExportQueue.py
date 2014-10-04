@@ -21,7 +21,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
-import sys,os,threading,Queue,time,math,subprocess,wave
+import sys,os,threading,Queue,time,math,subprocess,wave,multiprocessing
 
 try:
     import OpenGL
@@ -74,6 +74,7 @@ class ExportQueue(threading.Thread):
         self.bgiq = Queue.Queue()
         self.wq = Queue.Queue()
         self.dq = Queue.Queue()
+        self.tc = Queue.Queue()
         self.jobs = {}
         self.jobstatus = {}
         self.jobindex = 0
@@ -434,6 +435,9 @@ class ExportQueue(threading.Thread):
         targfile = os.path.splitext(os.path.split(r.filename)[1])[0]
         target = os.path.join(target,targfile)
         print "DNG export to",repr(target),"started"
+        self.tileCompressor = threading.Thread(target=self.tileCompress)
+        self.tileCompressor.daemon = True
+        self.tileCompressor.start()
         self.writer = threading.Thread(target=self.dngWriter)
         self.writer.daemon = True
         self.writer.start()
@@ -455,7 +459,7 @@ class ExportQueue(threading.Thread):
                 # Give writing thread time to write...
                 if self.endflag or self.cancel:
                     break
-                time.sleep(0.1)
+                time.sleep(0.01)
             if preprocess==self.PREPROCESS_ALL:
                 # Must first preprocess with shader
                 self.bgiq.put((f,d,2,r.width(),r.height(),i,target,rgbl))
@@ -489,6 +493,19 @@ class ExportQueue(threading.Thread):
         print "DNG export to",repr(target),"finished"
         r.close()
 
+    def tileCompress(self):
+        tilejob = self.tc.get()
+        while tilejob != None:
+            try:
+                rawdata,w,l = tilejob
+                self.nextCompressedTile = bitunpack.pack16tolj(rawdata,w,l/2,16,w,w/2,w/2,"")
+                self.tc.task_done()
+            except:
+                import traceback
+                traceback.print_exc()
+                self.nextCompressedTile = None
+            tilejob = self.tc.get()
+
     def dngWriter(self):
         nextbuf = self.wq.get()
         while nextbuf != None:
@@ -496,9 +513,13 @@ class ExportQueue(threading.Thread):
                 index,target,dng = nextbuf
                 ifd = dng.FULL_IFD
                 if dng.ljpeg:
+                    self.tc.put((dng.rawdata,ifd.width,ifd.length))
+                    tile1 = bitunpack.pack16tolj(dng.rawdata,ifd.width,ifd.length/2,16,0,ifd.width/2,ifd.width/2,"")
+                    self.tc.join() # Wait for it to be done
+                    tile2 = self.nextCompressedTile
                     ifd._tiles = [
-                        bitunpack.pack16tolj(dng.rawdata,ifd.width,ifd.length/2,16,0,ifd.width/2,ifd.width/2,""),
-                        bitunpack.pack16tolj(dng.rawdata,ifd.width,ifd.length/2,16,ifd.width,ifd.width/2,ifd.width/2,"")
+                        tile1,
+                        tile2
                         ]
                 else:
                     ifd._strips = [ dng.rawdata ]
@@ -509,7 +530,7 @@ class ExportQueue(threading.Thread):
                 traceback.print_exc()
                 self.cancel = True
             self.wq.task_done()
-            time.sleep(0.016) # Yield
+            #time.sleep(0.016) # Yield
             nextbuf = self.wq.get()
         self.wq.task_done()
         #print "WRITER FINISHED!"
@@ -885,7 +906,6 @@ class ExportQueue(threading.Thread):
             rawpreprocessed = glReadPixels(0,0,w,h,GL_RED,GL_UNSIGNED_SHORT)
             dng.rawdata = np.frombuffer(rawpreprocessed,dtype=np.uint16).tostring()
             dng.ljpeg = frame.writeljpeg
-            print rawpreprocessed.min(),rawpreprocessed.max(),rawpreprocessed.mean()
             self.wq.put((index,target,dng)) # Queue writing
             return None
 
