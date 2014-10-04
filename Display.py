@@ -27,7 +27,6 @@ from Config import config
 
 import PerformanceLog
 from PerformanceLog import PLOG
-PerformanceLog.PLOG_CONTROL(False)
 PLOG_FILE_IO = PerformanceLog.PLOG_TYPE(0,"FILE_IO")
 PLOG_FRAME = PerformanceLog.PLOG_TYPE(1,"FRAME")
 PLOG_CPU = PerformanceLog.PLOG_TYPE(2,"CPU")

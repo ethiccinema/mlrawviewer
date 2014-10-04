@@ -25,6 +25,7 @@ and transform coordinates to the right bin n a small horizontal accumulation tex
 """
 
 import GLCompute
+import GLComputeUI
 from OpenGL.GL import *
 import numpy as np
 import array
@@ -67,11 +68,14 @@ void main() {
         myclass = self.__class__
         super(ShaderHistogram,self).__init__(myclass.vertex_src,myclass.fragment_src,["rawtex","rawres"],**kwds)
         self.svbo = None
+	self.normalsvbo = None
         self.samples = 0
-    def prepare(self,svbo,width,height):
+	self.uploaded = False
+    def prepare(self,normalsvbo,histsvbo,width,height):
         if self.svbo==None:
-            self.svbo = svbo
-            self.svbobase = svbo.allocate(width*height)
+            self.normalsvbo = normalsvbo
+	    self.svbo = histsvbo
+            self.svbobase = self.svbo.allocate(width*height)
             flatva = np.empty(shape=(width*height,9),dtype=np.float32)
             flatva[:,:3] = 0.0
             flatva[:,3:6] = 1.0
@@ -91,10 +95,15 @@ void main() {
             v[:,:,:,1] = va1[:,:,:,0]*yinc+yinc*0.5
             self.svbo.update(v.flatten(),self.svbobase)
             self.samples = width*height
+            
 
     def draw(self,width,height,texture):
         self.use()
         self.blend(False)
+        self.svbo.bind()
+	if not self.uploaded:
+            self.svbo.upload()
+            self.uploaded = True
         glVertexAttribPointer(self.vertex,3,GL_FLOAT,GL_FALSE,0,self.svbo.vboOffset(self.svbobase))
         glEnableVertexAttribArray(self.vertex)
         texture.bindtex(False)
@@ -108,5 +117,6 @@ void main() {
         glBlendFunc(GL_ONE,GL_ONE)
         glDrawArrays(GL_POINTS, 0, self.samples)
         glDisable(GL_BLEND)
+        self.normalsvbo.bind()
 
 

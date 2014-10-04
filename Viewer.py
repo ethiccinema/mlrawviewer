@@ -111,6 +111,7 @@ class Viewer(GLCompute.GLCompute):
         self.setting_histogram = config.getState("histogramType")
         if self.setting_histogram == None: self.setting_histogram = 0
         self.svbo = None
+        self.svbostatic = None
         self.fpsMeasure = None
         self.fpsCount = 0
 
@@ -242,6 +243,8 @@ class Viewer(GLCompute.GLCompute):
         if self._init: return
         if self.svbo == None:
             self.svbo = ui.SharedVbo()
+        if self.svbostatic == None:
+            self.svbostatic = ui.SharedVbo(size=16*1024*1024)
         self.scenes = []
         if self.demosaic == None:
             self.demosaic = DemosaicScene(self.raw,self,self,self,size=(self.raw.width(),self.raw.height()))
