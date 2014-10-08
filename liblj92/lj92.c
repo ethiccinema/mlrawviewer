@@ -717,7 +717,7 @@ typedef struct _lje {
     int huffsym[17];
 } lje;
 
-void frequencyScan(lje* self) {
+int frequencyScan(lje* self) {
     // Scan through the tile using the standard type 6 prediction
     // Need to cache the previous 2 row in target coordinates because of tiling
     uint16_t* pixel = self->image;
@@ -732,9 +732,20 @@ void frequencyScan(lje* self) {
     int row = 0;
     int Px = 0;
     int32_t diff = 0;
+    int maxval = (1 << self->bitdepth);
     while (pixcount--) {
         uint16_t p = *pixel;
-        if (self->delinearize) p = self->delinearize[p];
+        if (self->delinearize) {
+            if (p>=self->delinearizeLength) {
+                free(rowcache);
+                return LJ92_ERROR_TOO_WIDE;
+            }
+            p = self->delinearize[p];
+        }
+        if (p>=maxval) {
+            free(rowcache);
+            return LJ92_ERROR_TOO_WIDE;
+        }
         rows[1][col] = p;
 
         if ((row == 0)&&(col == 0))
@@ -770,6 +781,7 @@ void frequencyScan(lje* self) {
     }
 #endif
     free(rowcache);
+    return LJ92_ERROR_NONE;
 }
 
 void createEncodeTable(lje* self) {
@@ -1108,7 +1120,12 @@ int lj92_encode(uint16_t* image, int width, int height, int bitdepth,
     self->encoded = malloc(self->encodedLength);
     if (self->encoded==NULL) { free(self); return LJ92_ERROR_NO_MEMORY; }
     // Scan through data to gather frequencies of ssss prefixes
-    frequencyScan(self);
+    ret = frequencyScan(self);
+    if (ret != LJ92_ERROR_NONE) {
+        free(self->encoded);
+        free(self);
+        return ret;
+    }
     // Create encoded table based on frequencies
     createEncodeTable(self);
     // Write JPEG head and scan header

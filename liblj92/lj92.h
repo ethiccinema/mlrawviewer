@@ -29,6 +29,7 @@ enum LJ92_ERRORS {
     LJ92_ERROR_CORRUPT = -1,
     LJ92_ERROR_NO_MEMORY = -2,
     LJ92_ERROR_BAD_HANDLE = -3,
+    LJ92_ERROR_TOO_WIDE = -4,
 };
 
 typedef struct _ljp* lj92;
