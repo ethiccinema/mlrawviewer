@@ -559,9 +559,9 @@ class MLRAW(ImageSequence):
                 if needed==0:
                     break
             if needed!=0:
-                return ""
+                return Frame(self,None,self.width(),self.height(),self.black,self.white)
             return Frame(self,framedata,self.width(),self.height(),self.black,self.white,convert=convert)
-        return ""
+        return Frame(self,None,self.width(),self.height(),self.black,self.white)
 
 
 """
