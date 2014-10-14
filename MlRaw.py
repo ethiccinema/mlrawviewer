@@ -343,17 +343,22 @@ def colorMatrix(raw_info):
     #print "colorMatrix:",camTosRGB
     return XYZToCam
 
+def isNumber(string):
+    try:
+        number = int(string)
+        return True
+    except ValueError:
+        return False
+
 def getRawFileSeries(basename):
     dirname,filename = os.path.split(basename)
     base = filename[:-2]
     ld = os.listdir(dirname)
-    samenamefiles = [n for n in ld if n[:-2]==base and n!=filename and n[-4:].lower()!=".mrx"]
-    #idxname = base[:-1]+"IDX"
-    #indexfile = [n for n in ld if n==idxname]
+    samenamefiles = [n for n in ld if n[:-2]==base and n!=filename and isNumber(n[-2:])]
     allfiles = [filename]
-    #allfiles.extend(indexfile)
     samenamefiles.sort()
     allfiles.extend(samenamefiles)
+    print allfiles
     return dirname,allfiles
 
 """
