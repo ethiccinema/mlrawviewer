@@ -418,7 +418,7 @@ class ExportQueue(threading.Thread):
         target = dngdir
         r = MlRaw.loadRAWorMLV(filename)
         if endFrame == None:
-            endFrame = r.frames()
+            endFrame = r.frames()-1
         todo = endFrame-startFrame+1
         if r.audioFrames()>0:
             # Must index the whole file in order that we have the wav file
@@ -566,7 +566,7 @@ class ExportQueue(threading.Thread):
         tempwavname = None
         r = MlRaw.loadRAWorMLV(filename)
         if endFrame == None:
-            endFrame = r.frames()
+            endFrame = r.frames()-1
         todo = endFrame-startFrame+1
         if r.audioFrames()>0:
             # Must index the whole file in order that we have the wav file

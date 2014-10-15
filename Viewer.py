@@ -931,7 +931,7 @@ class Viewer(GLCompute.GLCompute):
             self.movExport()
     def addEncodingAll(self):
         """
-        Magic button for smoe workflows?
+        Magic button for some workflows?
         Auto-add all files in current directory using current settings
         """
         fn = self.raw.filename
