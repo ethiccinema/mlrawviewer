@@ -98,16 +98,16 @@ class GLCompute(object):
     KEY_RIGHT = glfw.GLFW_KEY_RIGHT
     KEY_UP = glfw.GLFW_KEY_UP
     KEY_DOWN = glfw.GLFW_KEY_DOWN
-   
+
     KEY_MOD_SHIFT = glfw.GLFW_MOD_SHIFT
     KEY_MOD_CONTROL= glfw.GLFW_MOD_CONTROL
     KEY_MOD_ALT = glfw.GLFW_MOD_ALT
- 
+
     BUTTON_DOWN = 1
     BUTTON_UP = 0
     BUTTON_LEFT = 0
     BUTTON_RIGHT = 1
-    
+
     def __init__(self,width=640,height=360,**kwds):
         cwd = os.getcwd()
         if not glfw.glfwInit():
@@ -190,22 +190,13 @@ class GLCompute(object):
             glfw.glfwHideWindow(self.glfwWindow)
             glfw.glfwSwapInterval(1)
             self._isFull = True
-            if self.cursorVisible:
-                glfw.glfwSetInputMode(self.glfwFullscreenWindow,glfw.GLFW_CURSOR,glfw.GLFW_CURSOR_NORMAL)
-            else:
-                glfw.glfwSetInputMode(self.glfwFullscreenWindow,glfw.GLFW_CURSOR,glfw.GLFW_CURSOR_HIDDEN)
             self.redisplay()
         else:
             glfw.glfwDestroyWindow(self.glfwFullscreenWindow)
             glfw.glfwShowWindow(self.glfwWindow)
             glfw.glfwSwapInterval(1)
             self._isFull = False
-            if self.cursorVisible:
-                glfw.glfwSetInputMode(self.glfwWindow,glfw.GLFW_CURSOR,glfw.GLFW_CURSOR_NORMAL)
-            else:
-                glfw.glfwSetInputMode(self.glfwWindow,glfw.GLFW_CURSOR,glfw.GLFW_CURSOR_HIDDEN)
             self.redisplay()
-        self.setCursorVisible(True)
     def bgdrawthread(self):
         try:
             while 1:
@@ -280,7 +271,7 @@ class GLCompute(object):
         except:
             import traceback
             traceback.print_exc()
-            return    
+            return
         #glFlush()
         if not self.hasSync:
             self.bgDrawn = False
@@ -293,7 +284,7 @@ class GLCompute(object):
         glBindFramebuffer(GL_FRAMEBUFFER, 0)
         if self._isFull:
             w,h = glfw.glfwGetWindowSize(self.glfwFullscreenWindow)
-        else: 
+        else:
             w,h = glfw.glfwGetWindowSize(self.glfwWindow)
         self.width = w
         self.height = h
@@ -305,7 +296,7 @@ class GLCompute(object):
         except:
             import traceback
             traceback.print_exc()
-            return    
+            return
         self._frames+=1
     def onFboDraw(self):
         pass
@@ -365,19 +356,23 @@ class GLCompute(object):
     def input2d(self,x,y,buttons):
         pass
     def setCursorVisible(self,visible):
-        if self.cursorVisible != None:
-            if visible == self.cursorVisible:
-                return
-        w = self.glfwWindow 
+        #if self.cursorVisible != None:
+        #    if visible == self.cursorVisible:
+        #        return
+        w = self.glfwWindow
         if self._isFull:
             w = self.glfwFullscreenWindow
-        if visible:
+        if visible: # 3 times as workaround for bug in GLFW
+            glfw.glfwSetInputMode(w,glfw.GLFW_CURSOR,glfw.GLFW_CURSOR_NORMAL)
+            glfw.glfwSetInputMode(w,glfw.GLFW_CURSOR,glfw.GLFW_CURSOR_HIDDEN)
             glfw.glfwSetInputMode(w,glfw.GLFW_CURSOR,glfw.GLFW_CURSOR_NORMAL)
         else:
             glfw.glfwSetInputMode(w,glfw.GLFW_CURSOR,glfw.GLFW_CURSOR_HIDDEN)
+            glfw.glfwSetInputMode(w,glfw.GLFW_CURSOR,glfw.GLFW_CURSOR_NORMAL)
+            glfw.glfwSetInputMode(w,glfw.GLFW_CURSOR,glfw.GLFW_CURSOR_HIDDEN)
         self.cursorVisible = visible
     def __dropfunc(self,window,count,objects):
-        result = [objects[i] for i in range(count)]    
+        result = [objects[i] for i in range(count)]
         try:
             self.drop(result)
         except:
