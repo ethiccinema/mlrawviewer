@@ -842,16 +842,25 @@ class ExportQueue(threading.Thread):
                 self.luttex1d1 = GLCompute.Texture1D(l.len(),l.lut().tostring())
                 self.luttex1d1.context = self.context
                 self.currentLut1d1 = frame.lut1d1
+            elif frame.lut1d1 == None and self.luttex1d1 != None:
+                self.luttex1d1.free()
+                self.luttex1d1 = None
             if frame.lut != None and self.currentLut != frame.lut:
                 l = frame.lut
                 self.luttex = GLCompute.Texture3D(l.len(),l.lut().tostring())
                 self.luttex.context = self.context
                 self.currentLut = frame.lut
+            elif frame.lut == None and self.luttex != None:
+                self.luttex.free()
+                self.luttex = None
             if frame.lut1d2 != None and self.currentLut1d2 != frame.lut1d2:
                 l = frame.lut1d2
                 self.luttex1d2 = GLCompute.Texture1D(l.len(),l.lut().tostring())
                 self.luttex1d2.context = self.context
                 self.currentLut1d2 = frame.lut1d2
+            elif frame.lut1d2 == None and self.luttex1d2 != None:
+                self.luttex1d2.free()
+                self.luttex1d2 = None
             self.shaderQuality.demosaicPass(self.rgbUploadTex,self.luttex,frame.black,balance=rgbl,white=frame.white,tonemap=tm,colourMatrix=matrix,recover=recover,lut1d1=self.luttex1d1,lut1d2=self.luttex1d2)
             rgb = glReadPixels(area[0],h-(area[1]+area[3]),area[2],area[3],GL_RGB,GL_UNSIGNED_SHORT)
             return (index,rgb)

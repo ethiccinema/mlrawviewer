@@ -358,7 +358,6 @@ def getRawFileSeries(basename):
     allfiles = [filename]
     samenamefiles.sort()
     allfiles.extend(samenamefiles)
-    print allfiles
     return dirname,allfiles
 
 """
