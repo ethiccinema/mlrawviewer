@@ -225,11 +225,9 @@ const char* DEMOSAICER_NAME = "demosaicer";
 static void
 bitunpack_freedemosaicer(PyObject* self)
 {
-    //printf("Free demosaicer called\n");
     demosaicer* dem = (demosaicer*)PyCapsule_GetPointer(self,DEMOSAICER_NAME);
     if (dem == NULL)
         return;
-    //printf("Free demosaicer releasing buffer w:%d h:%d\n",dem->width,dem->height);
     free(dem->raw);
     free(dem->rrows);
     free(dem->red);
@@ -480,11 +478,10 @@ bitunpack_postdemosaic(PyObject* self, PyObject *args)
     if (dem == NULL)
         return NULL;
 
-    //printf("width %d height %d\n",width,height);
     PyObject* ba = PyByteArray_FromStringAndSize("",0);
     int elements = dem->width * dem->height;
-    PyByteArray_Resize(ba,elements*12); // Demosaiced as RGB 32bit float data
-
+    int resres = PyByteArray_Resize(ba,elements*12); // Demosaiced as RGB 32bit float data
+    if (resres < 0) return NULL;
     // Now interleave into final RGB float array
     float* outptr = (float*)PyByteArray_AS_STRING(ba);
     float* rptr = dem->red;

@@ -886,7 +886,6 @@ class Viewer(GLCompute.GLCompute):
         name = rfn+"_%06d"%i
         #full = os.path.join(self.outfilename,name)
         queuedfiles = [j[1][3] for j in self.exporter.jobs.items()]
-        print queuedfiles
         increment = True
         existing = os.listdir(self.outfilename)
         while increment:

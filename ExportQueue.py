@@ -489,6 +489,7 @@ class ExportQueue(threading.Thread):
             if self.endflag or self.cancel:
                 break
         self.wq.join()
+	self.writer.join()
         self.jobstatus[jobindex] = 1.0
         print "DNG export to",repr(target),"finished"
         r.close()
@@ -713,6 +714,7 @@ class ExportQueue(threading.Thread):
             if self.endflag or self.cancel:
                 break
         self.dq.join()
+	self.writer.join()
         self.jobstatus[jobindex] = 1.0
         print "MOV export to",repr(movfile),"finished"
         r.close()
@@ -893,6 +895,7 @@ class ExportQueue(threading.Thread):
             return None
         elif jobtype==2:            # DNG preprocessing
             frame,dng,jobtype,w,h,index,target,rgbl = args
+            frame.convert()
             ifd = dng.FULL_IFD
             self.svbo.bind()
             self.shaderPatternNoise.prepare(self.svbo)
