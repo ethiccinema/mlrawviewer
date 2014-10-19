@@ -216,6 +216,8 @@ class DisplayScene(ui.Scene):
         self.timeline = ui.Timeline()
         self.fadeAnimation = ui.Animation(self.timeline,1.0)
         self.clearhover = self.clearTooltip
+        self.wasFull = None
+        self.refreshCursor = False
 
     def clearTooltip(self):
         if self.tooltip.text != "":
@@ -412,13 +414,17 @@ class DisplayScene(ui.Scene):
         self.histogram.shader.prepare(self.frames.svbo,self.histogram.size[0],self.histogram.size[1])
         self.timeline.setNow(time.time())
         idle = self.frames.userIdleTime()
-        if idle>5.0 and self.fadeAnimation.targval == 1.0 and not self.frames.encoding():
+        if idle>5.0 and self.fadeAnimation.targval == 1.0 and not self.frames.encoding() or self.refreshCursor:
             self.fadeAnimation.setTarget(0.0,2.0,0.0,ui.Animation.SMOOTH)
             self.frames.setCursorVisible(False)
-        elif idle<=5.0:
+        elif idle<=5.0 and self.fadeAnimation.targval == 0.0 or self.refreshCursor:
             self.frames.setCursorVisible(True)
-            if self.fadeAnimation.targval == 0.0:
-                self.fadeAnimation.setTarget(1.0,0.5,0.0,ui.Animation.SMOOTH)
+            self.fadeAnimation.setTarget(1.0,0.5,0.0,ui.Animation.SMOOTH)
+        self.refreshCursor = False
+        if self.frames._isFull != self.wasFull: # work around for GLFW bug
+            self.refreshCursor = True
+            self.wasFull = self.frames._isFull
+            self.frames.refresh()
         self.overlayOpacity = self.fadeAnimation.value()
         if self.frames.paused: self.overlayOpacity = 1.0
         frameNumber = self.frames.currentFrameNumber()
