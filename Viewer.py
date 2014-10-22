@@ -42,7 +42,7 @@ from Demosaicer import *
 from Display import *
 from Audio import *
 import LUT
-from Dialogs import *
+from Dialog import *
 
 ENCODE_TYPE_MOV = 0
 ENCODE_TYPE_DNG = 1
