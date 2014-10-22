@@ -389,3 +389,5 @@ except:
     from GLComputeGLUT import GLCompute
     print "Using GLUT instead of GLFW. Some features may be disabled."
     # Fallback, potentially more limited
+    import traceback
+    traceback.print_exc()

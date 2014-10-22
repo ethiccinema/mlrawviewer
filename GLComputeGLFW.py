@@ -346,7 +346,9 @@ class GLCompute(object):
     def okToExit(self):
         return True
     def __scroll(self,window,xoffset,yoffset):
-        print "scroll",window,xoffset,yoffset
+        self.onScroll(xoffset,yoffset)
+    def onScroll(self,x,y):
+        pass
     def __mousefunc(self,window,button,action,mods):
         x,y = glfw.glfwGetCursorPos(window)
         if action==glfw.GLFW_PRESS: state = self.BUTTON_DOWN

@@ -21,7 +21,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
-import zlib,os,sys,math,time
+import zlib,os,sys,math,time,threading,Queue
 
 from Config import config
 
@@ -45,11 +45,45 @@ class DialogScene(ui.Scene):
         super(DialogScene,self).__init__(**kwds)
         self.frames = frames
         self.svbo = ui.SharedVbo()
-        self.init = True
-        self.thumbs = []
         self.thumbitems = []
         self.layoutsize = (0,0)
+        self.layoutcount = 0
         self.atlases = []
+        self.scanJob = Queue.Queue()
+        self.scanResults = []
+        self.scanThread = threading.Thread(target=self.scanFunction)
+        self.scanThread.daemon = True
+        self.scanThread.start()
+        self.yoffset = 0
+    def key(self,k,m):
+        if k==self.frames.KEY_BACKSPACE:
+            self.frames.toggleBrowser()
+        else:
+            return False
+        return True
+    def scroll(self,x,y):
+        self.layoutcount = 0
+        self.yoffset -= y*10
+        if self.yoffset < 0: self.yoffset = 0
+        self.frames.refresh()
+    def browse(self,path):
+        self.scanJob.join() # Wait for any previous job to complete
+        self.scanResults = [] # Delete all old results
+        self.reset()
+        self.scanJob.put(path)
+    def reset(self):
+        # Clear all old items
+        self.drawables = []
+        self.thumbitems = []
+        for atlas in self.atlases:
+            atlas.free()
+        self.atlases = []
+    def scanFunction(self):
+        while 1:
+            scandir = self.scanJob.get()
+            self.findMlv(scandir)
+            self.scanJob.task_done()
+            self.frames.refresh()
     def indexFile(self,filename):
         r = MlRaw.loadRAWorMLV(filename,preindex=False)
         r.preloadFrame(1)
@@ -57,7 +91,6 @@ class DialogScene(ui.Scene):
         t = r.nextFrame()[1].thumb()
         return t
     def findMlv(self,root):
-        print root
         allmlvs = []
         for dirpath,dirnames,filenames in os.walk(root):
             mlvs = [fn for fn in filenames if fn.lower().endswith(".mlv") and fn[0]!="."]
@@ -68,7 +101,7 @@ class DialogScene(ui.Scene):
         for fullpath in allmlvs:
             try:
                 t = self.indexFile(fullpath)
-                self.thumbs.append((fullpath,t))
+                self.scanResults.append((fullpath,t))
             except:
                 import traceback
                 traceback-print_exc()
@@ -80,17 +113,19 @@ class DialogScene(ui.Scene):
             atlas = self.atlases[-1]
             index = atlas.atlasadd(thumbnail.flatten(),thumbnail.shape[1],thumbnail.shape[0])
         if index == None: # Atlas is full or there isn't one yet
-            atlas = GLCompute.Texture((2048,2048),rgbadata=np.zeros(shape=(2048,2048,3),dtype=np.uint16),hasalpha=False,mono=False,sixteen=True,mipmap=False)
+            atlas = GLCompute.Texture((1024,1024),rgbadata=np.zeros(shape=(1024,1024,3),dtype=np.uint16),hasalpha=False,mono=False,sixteen=True,mipmap=False)
             self.atlases.append(atlas)
             index = atlas.atlasadd(thumbnail.flatten(),thumbnail.shape[1],thumbnail.shape[0])
         uv = atlas.atlas[index]
         return index,atlas,uv
     def prepareToRender(self):
-        if self.init:
-            self.findMlv(os.path.abspath(os.path.expanduser("/media/andrew/Shared")))
-            self.findMlv(os.path.abspath(os.path.expanduser("~/Videos")))
+        if len(self.scanResults)>0:
             self.svbo.bind()
-            for ft in self.thumbs:
+            while 1:
+                try:
+                    ft = self.scanResults.pop()
+                except:
+                    break
                 fullpath,t = ft
                 index,atlas,uv = self.addToAtlas(t)
                 class entry:
@@ -109,22 +144,24 @@ class DialogScene(ui.Scene):
                 item.rectangle(t.shape[1],t.shape[0],rgba=(1.0,1.0,1.0,1.0),uv=uv,solid=0.0,tex=1,texture=atlas)
                 #item.setScale(0.5)
                 item.t = t
-                self.thumbitems.append(item)
+                item.fp = fullpath
+                self.thumbitems.append((fullpath,item))
+            self.thumbitems.sort()
             self.svbo.upload()
             self.frames.svbo.bind()
-            self.init = False
         self.layout()
     def layout(self):
-        if self.size != self.layoutsize:
-            y = 100
+        if self.size != self.layoutsize or self.layoutcount != len(self.thumbitems):
+            y = 100-self.yoffset
             x = 100
-            for item in self.thumbitems:
+            for fp,item in self.thumbitems:
                 item.setPos(x,y)
                 x += item.t.shape[1]+10
                 if x> self.size[0]-item.t.shape[1]:
                     x = 100
                     y += item.t.shape[0]+10
             self.layoutsize = self.size
+            self.laoucount = len(self.thumbitems)
     def render(self):
         self.svbo.bind()
         super(DialogScene,self).render()

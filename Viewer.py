@@ -90,6 +90,7 @@ class Viewer(GLCompute.GLCompute):
         self.audioOffset = self.raw.getMeta("audioOffset_v1")
         if self.audioOffset == None: self.audioOffset = 0.0
         self.lastEventTime = time.time()
+        self.hideOverlay = False
         self.wasFull = False
         self.demosaic = None
         self.dialog = None
@@ -223,6 +224,8 @@ class Viewer(GLCompute.GLCompute):
         self.init()
         self.updateWindowName()
         self.updateColourMatrix()
+        if self.paused:
+            self.togglePlay() # Play..
         self.refresh()
 
     def drop(self,objects):
@@ -372,7 +375,28 @@ class Viewer(GLCompute.GLCompute):
             self.startAudio(offset)
         PLOG(PLOG_FRAME,"jump by %d frames, now need %d"%(framesToJumpBy,self.neededFrame))
         self.refresh()
+    def onScroll(self,x,y):
+        if self.browser:
+            self.dialog.scroll(x,y)
+        else:
+            if x<0:
+                self.jump(self.fps*0.5) # Go back 1 second (will wrap)
+            elif x>0:
+                self.jump(-self.fps*0.5) # Go forward 1 second (will wrap)
+            """
+            if y<0:
+                self.scaleBrightness(1.1)
+            elif y>0:
+                self.scaleBrightness(1.0/1.1)
+            """
+
     def key(self,k,m):
+        if self.browser:
+            # Defer processing to browser view
+            if not self.dialog.key(k,m):
+                super(Viewer,self).key(k,m) # Inherit standard behaviour
+            return
+
         now = time.time()
         if (now - self.lastEventTime)>5.0:
             self.refresh()
@@ -528,6 +552,9 @@ class Viewer(GLCompute.GLCompute):
         elif k==self.KEY_BACKSPACE:
             self.toggleBrowser()
 
+        elif m==1 and k==self.KEY_TAB:
+            self.toggleHideOverlay()
+
         else:
             super(Viewer,self).key(k,m) # Inherit standard behaviour
 
@@ -627,8 +654,10 @@ class Viewer(GLCompute.GLCompute):
         self.refresh()
 
     def userIdleTime(self):
+        idleAdd = 0
+        if self.hideOverlay: idleAdd += 10.0
         now = time.time()
-        return now - self.lastEventTime
+        return now - self.lastEventTime + idleAdd
 
     def input2d(self,x,y,buttons):
         now = time.time()
@@ -690,6 +719,9 @@ class Viewer(GLCompute.GLCompute):
         #print "%s:\t %.1f %.1f %.1f"%(Name, R, G, B)
         if updateUndoStack:
             self.colourRedoStack = []
+        self.refresh()
+    def toggleHideOverlay(self):
+        self.hideOverlay = not self.hideOverlay
         self.refresh()
     def togglePlay(self):
         self.paused = not self.paused
@@ -1426,6 +1458,9 @@ class Viewer(GLCompute.GLCompute):
     def toggleBrowser(self):
         """
         if not self.browser:
+            if not self.paused:
+                self.togglePlay()
+            self.dialog.browse(os.path.split(self.raw.filename)[0])
             self.dialog.hidden = False
             self.display.hidden = True
             self.demosaic.hidden = True

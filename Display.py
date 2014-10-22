@@ -415,7 +415,11 @@ class DisplayScene(ui.Scene):
         self.timeline.setNow(time.time())
         idle = self.frames.userIdleTime()
         if idle>5.0 and self.fadeAnimation.targval == 1.0 and not self.frames.encoding() or self.refreshCursor:
-            self.fadeAnimation.setTarget(0.0,2.0,0.0,ui.Animation.SMOOTH)
+            if not self.frames.hideOverlay:
+                self.fadeAnimation.setTarget(0.0,2.0,0.0,ui.Animation.SMOOTH)
+            else:
+                self.fadeAnimation.setTarget(0.0,0.0,0.0,ui.Animation.SMOOTH)
+                self.frames.refresh()
             self.frames.setCursorVisible(False)
         elif idle<=5.0 and self.fadeAnimation.targval == 0.0 or self.refreshCursor:
             self.frames.setCursorVisible(True)
@@ -426,7 +430,7 @@ class DisplayScene(ui.Scene):
             self.wasFull = self.frames._isFull
             self.frames.refresh()
         self.overlayOpacity = self.fadeAnimation.value()
-        if self.frames.paused: self.overlayOpacity = 1.0
+        if self.frames.paused and not self.frames.hideOverlay: self.overlayOpacity = 1.0
         frameNumber = self.frames.currentFrameNumber()
         frameTime = self.frames.currentTime()
         width,height = self.size
