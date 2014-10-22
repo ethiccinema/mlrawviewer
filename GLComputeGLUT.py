@@ -164,17 +164,19 @@ class GLCompute(object):
     def run(self):
         glutMainLoop()
     def updateWindowName(self):
-        glutSetWindowTitle(self.windowName())  
+        glutSetWindowTitle(self.windowName())
     def windowName(self):
         return "GLCompute"
     def bgWindowName(self):
         return "GLCompute Background"
     def renderScenes(self):
         for s in self.scenes:
-            s.prepareToRender()
+            if not s.hidden:
+                s.prepareToRender()
         self.scenesPrepared()
         for s in self.scenes:
-            s.render()
+            if not s.hidden:
+                s.render()
     def scenesPrepared(self):
         pass
     def __bgvisble(self,state):

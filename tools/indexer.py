@@ -23,7 +23,7 @@ def indexFile(filename):
         out = "%.0f%%"%(stat*100.0)
         if stat<1.0:
             if not informed:
-                print "Indexing:"   
+                print "Indexing:"
                 informed = True
             out += "..."
         if stat==1.0:

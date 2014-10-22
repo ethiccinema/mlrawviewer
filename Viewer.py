@@ -42,6 +42,7 @@ from Demosaicer import *
 from Display import *
 from Audio import *
 import LUT
+from Dialogs import *
 
 ENCODE_TYPE_MOV = 0
 ENCODE_TYPE_DNG = 1
@@ -91,6 +92,8 @@ class Viewer(GLCompute.GLCompute):
         self.lastEventTime = time.time()
         self.wasFull = False
         self.demosaic = None
+        self.dialog = None
+        self.browser = False
         self.markLoad()
         # Shared settings
         self.initFps()
@@ -137,6 +140,14 @@ class Viewer(GLCompute.GLCompute):
         fl.extend(cdngs)
         fl.sort()
         return fl
+
+    def load(self,newname):
+        print "Loading",repr(newname)
+        try:
+            r = MlRaw.loadRAWorMLV(newname)
+        except:
+            pass
+        self.loadSet(r,newname)
 
     def loadNewRawSet(self,step):
         fn = self.raw.filename
@@ -257,6 +268,10 @@ class Viewer(GLCompute.GLCompute):
         self.display.setRgbImage(self.demosaic.rgbImage)
         self.display.setHistogram(self.demosaic.histogramTex)
         self.scenes.append(self.display)
+        if self.dialog == None:
+            self.dialog = DialogScene(self,size=(0,0))
+            self.dialog.hidden = True
+        self.scenes.append(self.dialog)
         self.rgbImage = self.demosaic.rgbImage
         self.initWav()
         self.vidAspectHeight = float(self.raw.height())/(self.raw.width()) # multiply this number on width to give height in aspect
@@ -300,6 +315,8 @@ class Viewer(GLCompute.GLCompute):
         else:
             self.display.setSize(aspectWidth,height)
             self.display.setPosition(width/2 - aspectWidth/2, 0)
+        self.dialog.setSize(width,height)
+        self.dialog.setPosition(0,0)
         self.renderScenes()
         """
         now = time.time()
@@ -508,6 +525,9 @@ class Viewer(GLCompute.GLCompute):
             elif m==1:
                 self.changeLut3D(-1)
 
+        elif k==self.KEY_BACKSPACE:
+            self.toggleBrowser()
+
         else:
             super(Viewer,self).key(k,m) # Inherit standard behaviour
 
@@ -612,8 +632,10 @@ class Viewer(GLCompute.GLCompute):
 
     def input2d(self,x,y,buttons):
         now = time.time()
-        if self.display != None:
+        if self.display != None and not self.display.hidden:
             handled = self.display.input2d(x,y,buttons)
+        elif self.dialog != None and not self.dialog.hidden:
+            handled = self.dialog.input2d(x,y,buttons)
         if (now - self.lastEventTime)>5.0:
             self.refresh()
         self.lastEventTime = now
@@ -1400,6 +1422,19 @@ class Viewer(GLCompute.GLCompute):
             self.changeWhiteBalance(r,g,b,"Shared")
             self.setBrightness(l)
             self.refresh()
+
+    def toggleBrowser(self):
+        if not self.browser:
+            self.dialog.hidden = False
+            self.display.hidden = True
+            self.demosaic.hidden = True
+            self.browser = True
+        else:
+            self.dialog.hidden = True
+            self.display.hidden = False
+            self.demosaic.hidden = False
+            self.browser = False
+        self.refresh()
 
 def launchDialog(dialogtype,initial="None"):
     import codecs

@@ -163,6 +163,7 @@ class Scene(object):
         self.ignoreMotion = True
         self.setPosition(0.0, 0.0)
         self.clearhover = None
+        self.hidden = False
     def setSize(self,w,h):
         self.size = (float(w),float(h))
         self.updateMatrices()

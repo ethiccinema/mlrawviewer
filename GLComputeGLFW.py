@@ -114,7 +114,7 @@ class GLCompute(object):
             print "Could not init GLFW"
             sys.exit(1)
         os.chdir(cwd) # GLFW changes it, which causes problems
-        self.width = width  
+        self.width = width
         self.height = height
         self.glfwMonitor = glfw.glfwGetPrimaryMonitor()
         glfw.glfwWindowHint(glfw.GLFW_RED_BITS, 8)
@@ -166,6 +166,7 @@ class GLCompute(object):
         glfw.glfwSetKeyCallback(w, self.__key)
         glfw.glfwSetCursorPosCallback(w, self.__motionfunc)
         glfw.glfwSetMouseButtonCallback(w, self.__mousefunc)
+        glfw.glfwSetScrollCallback(w, self.__scroll)
         glfw.glfwSetDropCallback(w, self.__dropfunc)
         glfw.glfwSetWindowPosCallback(w, self.__posfunc)
     def setBgProcess(self,state):
@@ -243,10 +244,12 @@ class GLCompute(object):
         return "GLCompute Background"
     def renderScenes(self):
         for s in self.scenes:
-            s.prepareToRender()
+            if not s.hidden:
+                s.prepareToRender()
         self.scenesPrepared()
         for s in self.scenes:
-            s.render()
+            if not s.hidden:
+                s.render()
     def scenesPrepared(self):
         pass
     def __bgdraw(self):
@@ -342,6 +345,8 @@ class GLCompute(object):
             self.toggleFullscreen()
     def okToExit(self):
         return True
+    def __scroll(self,window,xoffset,yoffset):
+        print "scroll",window,xoffset,yoffset
     def __mousefunc(self,window,button,action,mods):
         x,y = glfw.glfwGetCursorPos(window)
         if action==glfw.GLFW_PRESS: state = self.BUTTON_DOWN
