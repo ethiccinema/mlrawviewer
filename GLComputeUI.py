@@ -66,7 +66,10 @@ class SharedVbo(object):
         self.data = np.zeros(shape=(size,),dtype=np.float32)
         self.vbo = vbo.VBO(self.data)
         self.bound = False
-        self.avail = size
+        self.size = size
+        self.reset()
+    def reset(self):
+        self.avail = self.size
         self.allocated = 0
     def free(self):
         self.vbo.delete()

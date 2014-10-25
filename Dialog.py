@@ -58,6 +58,10 @@ class DialogScene(ui.Scene):
     def key(self,k,m):
         if k==self.frames.KEY_BACKSPACE:
             self.frames.toggleBrowser()
+        elif k==self.frames.KEY_UP:
+            self.scroll(0,1)
+        elif k==self.frames.KEY_DOWN:
+            self.scroll(0,-1)
         else:
             return False
         return True
@@ -73,6 +77,7 @@ class DialogScene(ui.Scene):
         self.scanJob.put(path)
     def reset(self):
         # Clear all old items
+        self.svbo.reset()
         self.drawables = []
         self.thumbitems = []
         for atlas in self.atlases:
