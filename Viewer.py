@@ -133,15 +133,6 @@ class Viewer(GLCompute.GLCompute):
         if self.setting_fpsOverride != None:
             self.fps = self.setting_fpsOverride
 
-    def candidatesInDir(self,fn):
-        path,name = os.path.split(fn) # Correct for files and CDNG dirs
-        fl = [f for f in os.listdir(path) if f.lower().endswith(".mlv") or f.lower().endswith(".raw")]
-        dirs = [f for f in os.listdir(path) if os.path.isdir(os.path.join(path,f))]
-        cdngs = [f for f in dirs if len([d for d in os.listdir(os.path.join(path,f)) if d.lower().endswith(".dng")])]
-        fl.extend(cdngs)
-        fl.sort()
-        return fl
-
     def load(self,newname):
         print "Loading",repr(newname)
         try:
@@ -155,7 +146,7 @@ class Viewer(GLCompute.GLCompute):
         path,name = os.path.split(fn) # Correct for files and CDNG dirs
         if len(name)==0:
             path,name = os.path.split(path)
-        fl = self.candidatesInDir(fn)
+        fl = MlRaw.candidatesInDir(fn)
         #print self.raw.filename,fl,path,name
         current = fl.index(name)
         newOne = (current + step)%len(fl)
@@ -1465,6 +1456,7 @@ class Viewer(GLCompute.GLCompute):
             self.display.hidden = True
             self.demosaic.hidden = True
             self.browser = True
+            self.setCursorVisible(True)
         else:
             self.dialog.hidden = True
             self.display.hidden = False

@@ -196,19 +196,22 @@ class FrameConverter(threading.Thread):
     def process(self,frame):
         self.iq.put(frame)
     def run(self):
-        try:
-            while 1:
-                nextFrame = self.iq.get()
-                PLOG(PLOG_CPU,"Threaded convert for frame starts")
-                nextFrame.convertQ.put(nextFrame._convert())
+        while 1:
+            nextFrame = self.iq.get()
+            PLOG(PLOG_CPU,"Threaded convert for frame starts")
+            try:
+                res = nextFrame._convert()
+                nextFrame.convertQ.put(res)
                 PLOG(PLOG_CPU,"Threaded convert for frame complete")
-        except:
-            pass # Avoid shutdown errors
+            except:
+                import traceback
+                traceback.print_exc()
+                nextFrame.convertQ.put(None)
 
 FrameConverterThread = FrameConverter()
 
 class Frame:
-    def __init__(self,rawfile,rawdata,width,height,black,white,byteSwap=0,bitsPerSample=14,bayer=True,rgb=False,convert=True,rtc=None,lens=None,expo=None,wbal=None,ljpeg=False,linearization=None,cfa=0):
+    def __init__(self,rawfile,rawdata,width,height,black,white,byteSwap=0,bitsPerSample=14,bayer=True,rgb=False,convert=True,rtc=None,lens=None,expo=None,wbal=None,ljpeg=False,linearization="",cfa=0):
         #print "opening frame",len(rawdata),width,height
         #print width*height
         self.rawfile = rawfile
@@ -310,7 +313,7 @@ class Frame:
             # (packed into 14 bytes) on 2 out of 8 rows.
             # That gives R,G1,G2,B values. Make 1 pixel from those
             h = 8*(self.height/8)
-            bayer = np.fromstring(self.rawdata,dtype=np.uint16).reshape(self.height,(self.width*7)/8)[:h,:].astype(np.uint16) # Clip to height divisible by 8
+            bayer = np.fromstring(self.rawdata[:self.height*self.width*14/8],dtype=np.uint16).reshape(self.height,(self.width*7)/8)[:h,:].astype(np.uint16) # Clip to height divisible by 8
             r1 = bayer[::8,::7]
             r2 = bayer[::8,1::7]
             b1 = bayer[1::8,::7]
@@ -319,6 +322,24 @@ class Frame:
             nrgb[:,:,0] = r1>>2
             nrgb[:,:,1] = ((r1&0x3)<<12) | (r2>>4)
             nrgb[:,:,2] = ((b1&0x3)<<12) | (b2>>4)
+            # Random brightness and colour balance
+            ssnrgb = ((64.0/65536.0)*np.array([2.0,1.0,1.5]))*(nrgb.astype(np.float32)-self.black)
+            ssnrgb = np.clip(ssnrgb,0.0,1000000.0)
+            # Tone map
+            ssnrgb = ssnrgb/(1.0 + ssnrgb)
+            # Map to 16bit uint range
+            PLOG(PLOG_CPU,"Frame thumb gen done")
+            return (ssnrgb*65536.0).astype(np.uint16)
+        else: # Convert to 16 bit and make thumbnail from that
+            self.convert()
+            ri = np.array(self.rawimage,dtype=np.uint16).reshape(self.height,self.width)
+            nrgb = np.zeros(shape=(self.height/8,self.width/8,3),dtype=np.uint16)+self.black
+            nrgb[:,:,0] = ri[::8,::8][:nrgb.shape[0],:nrgb.shape[1]]
+            nrgb[:,:,1] = ri[::8,1::8][:nrgb.shape[0],:nrgb.shape[1]]
+            nrgb[:,:,2] = ri[1::8,1::8][:nrgb.shape[0],:nrgb.shape[1]]
+            #nrgb[:,:,0] = self.rawimage
+            #nrgb[:,:,1] = ((r1&0x3)<<12) | (r2>>4)
+            #nrgb[:,:,2] = ((b1&0x3)<<12) | (b2>>4)
             # Random brightness and colour balance
             ssnrgb = ((64.0/65536.0)*np.array([2.0,1.0,1.5]))*(nrgb.astype(np.float32)-self.black)
             ssnrgb = np.clip(ssnrgb,0.0,1000000.0)
@@ -467,7 +488,6 @@ class MLRAW(ImageSequence):
         footerdata = self.indexfile.read(192)
         self.footer = struct.unpack("4shhiiiiii",footerdata[:8*4])
         self.fps = float(self.footer[6])*0.001
-        print "RAW frames in header",self.footer[4]
         if self.footer>=23974 and self.footer<=23976:
             self.fpsnum = 24000
             self.fpsden = 1001
@@ -1129,7 +1149,7 @@ class CDNG(ImageSequence):
             self.black = self.black[0]/self.black[1]
         self.white = fd.FULL_IFD.tags[DNG.Tag.WhiteLevel[0]][3][0]
         matrix = self.tag(fd,DNG.Tag.ColorMatrix1)
-        self.colormatrix = np.eye(3)
+        self.colorMatrix = np.eye(3)
         if matrix != None:
             self.colorMatrix = np.matrix(np.array([float(n)/float(d) for n,d in matrix[3]]).reshape(3,3))
 
@@ -1166,10 +1186,9 @@ class CDNG(ImageSequence):
                 print "Unsupported Compression = ",self.compression
                 raise IOError
 
-        self.linearization = None
+        self.linearization = ""
         if DNG.Tag.LinearizationTable[0] in fd.FULL_IFD.tags:
             self.linearization = np.array(fd.FULL_IFD.tags[DNG.Tag.LinearizationTable[0]][3],dtype=np.uint16)
-            print "linearization",self.linearization
 
         self.cfa = 0
         if DNG.Tag.CFAPattern[0] in fd.FULL_IFD.tags:
@@ -1520,6 +1539,14 @@ class RAWSEQ(ImageSequence):
             return Frame(self,rawdata,self.width(),self.height(),self.black,self.white,byteSwap=1,bitsPerSample=self.bitsPerSample,convert=convert,cfa=self.cfa)
         return ""
 
+def candidatesInDir(fn):
+    path,name = os.path.split(fn) # Correct for files and CDNG dirs
+    fl = [f for f in os.listdir(path) if f.lower().endswith(".mlv") or f.lower().endswith(".raw")]
+    dirs = [f for f in os.listdir(path) if os.path.isdir(os.path.join(path,f))]
+    cdngs = [f for f in dirs if len([d for d in os.listdir(os.path.join(path,f)) if d.lower().endswith(".dng")])]
+    fl.extend(cdngs)
+    fl.sort()
+    return fl
 
 def loadRAWorMLV(filename,preindex=True):
     fl = filename.lower()

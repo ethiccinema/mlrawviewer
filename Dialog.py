@@ -46,6 +46,7 @@ class DialogScene(ui.Scene):
         self.frames = frames
         self.svbo = ui.SharedVbo()
         self.thumbitems = []
+        self.folderitems = []
         self.layoutsize = (0,0)
         self.layoutcount = 0
         self.atlases = []
@@ -54,7 +55,10 @@ class DialogScene(ui.Scene):
         self.scanThread = threading.Thread(target=self.scanFunction)
         self.scanThread.daemon = True
         self.scanThread.start()
+        self.thumbcache = {}
         self.yoffset = 0
+        self.title = None
+        self.path = ""
     def key(self,k,m):
         if k==self.frames.KEY_BACKSPACE:
             self.frames.toggleBrowser()
@@ -62,6 +66,12 @@ class DialogScene(ui.Scene):
             self.scroll(0,1)
         elif k==self.frames.KEY_DOWN:
             self.scroll(0,-1)
+        elif k==self.frames.KEY_PAGE_UP:
+            self.scroll(0,8)
+        elif k==self.frames.KEY_PAGE_DOWN:
+            self.scroll(0,-8)
+        elif k==self.frames.KEY_LEFT_SHIFT or k==self.frames.KEY_RIGHT_SHIFT:
+            self.browse(os.path.split(self.path)[0])
         else:
             return False
         return True
@@ -74,42 +84,59 @@ class DialogScene(ui.Scene):
         self.scanJob.join() # Wait for any previous job to complete
         self.scanResults = [] # Delete all old results
         self.reset()
+        self.path = path
         self.scanJob.put(path)
     def reset(self):
         # Clear all old items
         self.svbo.reset()
         self.drawables = []
+        self.title = None
         self.thumbitems = []
+        self.folderitems = []
         for atlas in self.atlases:
             atlas.free()
         self.atlases = []
+        self.layoutcount = 0
     def scanFunction(self):
         while 1:
             scandir = self.scanJob.get()
-            self.findMlv(scandir)
+            self.find(scandir)
             self.scanJob.task_done()
             self.frames.refresh()
     def indexFile(self,filename):
         r = MlRaw.loadRAWorMLV(filename,preindex=False)
-        r.preloadFrame(1)
+        if r.frames()>1:
+            r.preloadFrame(1)
+            t = r.nextFrame()[1].thumb()
+        else:
+            t = r.firstFrame.thumb()
         r.close()
-        t = r.nextFrame()[1].thumb()
         return t
-    def findMlv(self,root):
-        allmlvs = []
-        for dirpath,dirnames,filenames in os.walk(root):
-            mlvs = [fn for fn in filenames if fn.lower().endswith(".mlv") and fn[0]!="."]
-            if len(mlvs)>0:
-                for fn in mlvs:
-                    fullpath = os.path.join(dirpath,fn)
-                    allmlvs.append(fullpath)
-        for fullpath in allmlvs:
+    def find(self,root):
+        try:
+            candidates = MlRaw.candidatesInDir(os.path.join(root,"dummy"))
+        except:
+            candidates = []
+        try: 
+            folders = [d for d in os.listdir(root) if os.path.isdir(os.path.join(root,d)) and d not in candidates and d[0]!='.' and d[0]!='$']
+        except:
+            folders = []
+        for d in folders:
+            self.scanResults.append((True,os.path.join(root,d),None))
+        for name in candidates:
             try:
-                t = self.indexFile(fullpath)
-                self.scanResults.append((fullpath,t))
+                fullpath = os.path.join(root,name)
+                if fullpath in self.thumbcache:
+                    t = self.thumbcache[fullpath]
+                else:
+                    t = self.indexFile(fullpath)
+                    if t != None:
+                        self.thumbcache[fullpath] = t
+                if t != None:
+                    self.scanResults.append((False,fullpath,t))
             except:
                 import traceback
-                traceback-print_exc()
+                traceback.print_exc()
                 pass
     def addToAtlas(self,thumbnail):
         atlas = None
@@ -124,6 +151,25 @@ class DialogScene(ui.Scene):
         uv = atlas.atlas[index]
         return index,atlas,uv
     def prepareToRender(self):
+        if not self.title:
+            self.title = ui.Text("",svbo=self.svbo)
+            self.title.ignoreInput = True
+            self.title.maxchars = 80
+            self.title.setScale(0.5)
+            self.title.setPos(40,35)
+            self.title.colour = (1.0,1.0,1.0,1.0)
+            self.titlebg = ui.Geometry(svbo=self.svbo)
+            self.titlebg.edges = (1.0,1.0,0.01,0.2)
+            self.titlebg.setPos(10.0,10.0)
+            self.titlebg.rectangle(self.size[0]-20,80,rgba=(0.25,0.25,0.25,0.75))
+            self.drawables.append(self.titlebg)
+            self.drawables.append(self.title)
+
+        if self.title.text != self.path:
+            self.title.text = self.path
+            self.svbo.bind()
+            self.title.update()
+            self.svbo.upload()
         if len(self.scanResults)>0:
             self.svbo.bind()
             while 1:
@@ -131,42 +177,83 @@ class DialogScene(ui.Scene):
                     ft = self.scanResults.pop()
                 except:
                     break
-                fullpath,t = ft
-                index,atlas,uv = self.addToAtlas(t)
-                class entry:
-                    def __init__(self,item,frames):
-                        self.frames = frames
-                        self.item = item
-                    def click(self,lx,ly):
-                        print self.item,lx,ly
-                        self.frames.toggleBrowser()
-                        self.frames.load(self.item)
-                e = entry(fullpath,self.frames)
-                item = ui.Button(t.shape[1],t.shape[0],svbo=self.svbo,onclick=e.click)
-                item.edges = (1.0,1.0,.0,.0)
-                item.colour = (1.0,1.0,1.0,1.0)
-                self.drawables.append(item)
-                item.rectangle(t.shape[1],t.shape[0],rgba=(1.0,1.0,1.0,1.0),uv=uv,solid=0.0,tex=1,texture=atlas)
-                #item.setScale(0.5)
-                item.t = t
+                isdir,fullpath,t = ft
+                if not isdir:
+                    index,atlas,uv = self.addToAtlas(t)
+                    class entry:
+                        def __init__(self,item,frames):
+                            self.frames = frames
+                            self.item = item
+                        def click(self,lx,ly):
+                            self.frames.toggleBrowser()
+                            self.frames.load(self.item)
+                    e = entry(fullpath,self.frames)
+                    item = ui.Button(240,135,svbo=self.svbo,onclick=e.click)
+                    item.edges = (1.0,1.0,.0,.0)
+                    item.colour = (1.0,1.0,1.0,1.0)
+                    item.t = t
+                    item.rectangle(240,135,rgba=(1.0,1.0,1.0,1.0),uv=uv,solid=0.0,tex=1,texture=atlas)
+                    self.thumbitems.append((fullpath,item))
+                else:
+                    class folder:
+                        def __init__(self,item,browser):
+                            self.browser = browser
+                            self.item = item
+                        def click(self,lx,ly):
+                            self.browser.browse(self.item)
+                    f = folder(fullpath,self)
+                    item = ui.Button(240,60,svbo=self.svbo,onclick=f.click)
+                    item.edges = (1.0,1.0,.02,.1)
+                    item.colour = (1.0,1.0,0.3,1.0)
+                    item.rectangle(240,60,rgba=(1.0,1.0,0.3,1.0))
+                    name = ui.Text("",svbo=self.svbo)
+                    name.ignoreInput = True
+                    name.maxchars = 80
+                    name.setScale(0.25)
+                    name.colour = (0.0,0.0,0.0,1.0)
+                    name.size = (220,50)
+                    n = os.path.split(fullpath)[1]
+                    while 1:
+                        name.text = n
+                        name.update()
+                        if name.size[0]>220:
+                            n = n[:-1]
+                            name.text = n+"..."
+                        else:
+                            break
+                    name.setPos(120-name.size[0]/2,32-name.size[1]/2)
+                    item.children.append(name)
+                    self.folderitems.append((fullpath,item))
                 item.fp = fullpath
-                self.thumbitems.append((fullpath,item))
+                self.drawables.insert(0,item)
+                #item.setScale(0.5)
+            self.folderitems.sort()
             self.thumbitems.sort()
             self.svbo.upload()
-            self.frames.svbo.bind()
+        self.frames.svbo.bind()
         self.layout()
     def layout(self):
-        if self.size != self.layoutsize or self.layoutcount != len(self.thumbitems):
+        if self.size != self.layoutsize or self.layoutcount != len(self.thumbitems)+len(self.folderitems):
             y = 100-self.yoffset
-            x = 100
+            x = 20
+            for fp,item in self.folderitems:
+                item.setPos(x,y)
+                x += item.size[0]+10
+                if x> self.size[0]-item.size[0]:
+                    x = 20
+                    y += item.size[1]+10
+            if x!=20:
+                x = 20
+                y += item.size[1]+10
             for fp,item in self.thumbitems:
                 item.setPos(x,y)
-                x += item.t.shape[1]+10
-                if x> self.size[0]-item.t.shape[1]:
-                    x = 100
-                    y += item.t.shape[0]+10
+                x += item.size[0]+10
+                if x> self.size[0]-item.size[0]:
+                    x = 20
+                    y += item.size[1]+10
             self.layoutsize = self.size
-            self.laoucount = len(self.thumbitems)
+            self.layoutcount = len(self.thumbitems)+len(self.folderitems)
+            self.titlebg.rectangle(self.size[0]-20,80,rgba=(0.25,0.25,0.25,0.75))
     def render(self):
         self.svbo.bind()
         super(DialogScene,self).render()
