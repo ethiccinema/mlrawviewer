@@ -467,6 +467,7 @@ class MLRAW(ImageSequence):
         footerdata = self.indexfile.read(192)
         self.footer = struct.unpack("4shhiiiiii",footerdata[:8*4])
         self.fps = float(self.footer[6])*0.001
+        print "RAW frames in header",self.footer[4]
         if self.footer>=23974 and self.footer<=23976:
             self.fpsnum = 24000
             self.fpsden = 1001
@@ -562,6 +563,9 @@ class MLRAW(ImageSequence):
                 framedata += newframedata
                 if needed==0:
                     break
+                offset += len(newframedata)
+                if offset>=filelen:
+                    offset -= filelen
             if needed!=0:
                 return Frame(self,None,self.width(),self.height(),self.black,self.white)
             return Frame(self,framedata,self.width(),self.height(),self.black,self.white,convert=convert)
