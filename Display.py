@@ -105,9 +105,9 @@ class DisplayScene(ui.Scene):
         super(DisplayScene,self).__init__(**kwds)
         self.dropperActive = False
         self.frames = frames # Frames interface
-        self.icons = zlib.decompress(file(os.path.join(programpath,"data/icons.z"),'rb').read())
-        self.iconsz = int(math.sqrt(len(self.icons)))
-        self.icontex = GLCompute.Texture((self.iconsz,self.iconsz),rgbadata=self.icons,hasalpha=False,mono=True,sixteen=False,mipmap=True)
+        self.icons = self.frames.icons
+        self.iconsz = self.frames.iconsz
+        self.icontex = self.frames.icontex
         self.display = Display()
         self.iconBackground = ui.Geometry(svbo=frames.svbo)
         self.iconBackground.edges = (1.0,1.0,0.35,0.25)

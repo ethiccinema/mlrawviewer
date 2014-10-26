@@ -61,6 +61,7 @@ class Viewer(GLCompute.GLCompute):
         self.raw = raw
         super(Viewer,self).__init__(width=userWidth,height=int(userWidth*self.vidAspectHeight),**kwds)
         self._init = False
+        self.icons = None
         self.display = None
         self.realStartTime = 0
         self.playTime = 0
@@ -246,6 +247,10 @@ class Viewer(GLCompute.GLCompute):
         #    return "MlRawViewer v"+version
     def init(self):
         if self._init: return
+        if self.icons == None:
+            self.icons = zlib.decompress(file(os.path.join(programpath,"data/icons.z"),'rb').read())
+            self.iconsz = int(math.sqrt(len(self.icons)))
+            self.icontex = GLCompute.Texture((self.iconsz,self.iconsz),rgbadata=self.icons,hasalpha=False,mono=True,sixteen=False,mipmap=True)
         if self.svbo == None:
             self.svbo = ui.SharedVbo()
         if self.svbostatic == None:
