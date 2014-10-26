@@ -169,3 +169,5 @@ Shift-H - Show/Hide RGB Histogram
 Shift-1 - Remove current 1D1 LUT. Delete from available 1D LUTs if not standard
 
 Shift-3 - Remove current 3D LUT. Delete from available 3D LUTs
+
+Shift-TAB - Hide overlay

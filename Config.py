@@ -191,4 +191,4 @@ class Config(object):
     def isWin(self):
         return self.platform == PLAT_WIN
 
-config = Config(version=(1,3,3))
+config = Config(version=(1,3,4))

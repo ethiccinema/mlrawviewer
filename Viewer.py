@@ -1424,6 +1424,7 @@ class Viewer(GLCompute.GLCompute):
             self.refresh()
 
     def toggleBrowser(self):
+        """
         if not self.browser:
             self.dialog.hidden = False
             self.display.hidden = True
@@ -1435,6 +1436,7 @@ class Viewer(GLCompute.GLCompute):
             self.demosaic.hidden = False
             self.browser = False
         self.refresh()
+        """
 
 def launchDialog(dialogtype,initial="None"):
     import codecs
