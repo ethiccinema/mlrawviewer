@@ -40,6 +40,34 @@ import MlRaw
 
 programpath = os.path.abspath(os.path.split(sys.argv[0])[0])
 
+class ScrollBar(ui.Button):
+    def __init__(self,width,height,onclick,**kwds):
+        super(ScrollBar,self).__init__(width,height,onclick,**kwds)
+        self.motionWhileClicked = True
+        self.dragging = False
+        self.handle = ui.Geometry(svbo=self.svbo)
+        self.children.append(self.handle)
+    def resize(self,perc,offset):
+        if perc>=1.0:
+            self.opacity = 0.0
+        else:
+            self.opacity = 1.0
+        self.perc = perc
+        self.offset = offset
+        self.rectangle(self.size[0],self.size[1],rgba=(0.1,0.1,0.1,0.5))
+        self.handle.rectangle(30,self.size[1]*perc,rgba=(0.5,0.5,0.5,0.5))
+        self.handle.setPos(5,self.size[1]*offset)
+    def event2d(self,lx,ly,buttons):
+        if buttons[0] == 1:
+            if self.dragging == False:
+                self.dragging = True
+            # Clicked
+            self.onclick(lx,ly)
+            return self
+        else:
+            self.dragging = False
+            return None
+
 class DialogScene(ui.Scene):
     def __init__(self,frames,**kwds):
         super(DialogScene,self).__init__(**kwds)
@@ -67,6 +95,7 @@ class DialogScene(ui.Scene):
         self.iconsz = self.frames.iconsz
         self.icontex = self.frames.icontex
         self.items = None
+        self.scrollbar = None
     def key(self,k,m):
         if k==self.frames.KEY_BACKSPACE:
             self.close()
@@ -126,6 +155,7 @@ class DialogScene(ui.Scene):
         self.items = None
         self.yoffset = 0
         self.scrollextent = 0
+        self.scrollbar = None
     def scanFunction(self):
         while 1:
             scandir = self.scanJob.get()
@@ -188,6 +218,12 @@ class DialogScene(ui.Scene):
         up = os.path.split(self.path)[0]
         if len(up)>0 and up != self.path:
             self.browse(up)
+    def scrollDrag(self,x,y):
+        p = float(y)/float(self.scrollbar.size[1]*(1.0-self.scrollbar.perc))
+        if p>1.0: p = 1.0
+        if p<0.0: p = 0.0
+        self.yoffset = p * self.scrollextent
+        self.frames.refresh()
     def prepareToRender(self):
         if not self.background:
             self.background = ui.Geometry(svbo=self.svbo)
@@ -241,6 +277,13 @@ class DialogScene(ui.Scene):
             self.items.ignoreMotion = True
             self.items.ignoreInput = False
             self.drawables.insert(1,self.items)
+        if not self.scrollbar:
+            self.scrollbar = ScrollBar(40,self.size[1]-95,self.scrollDrag,svbo=self.svbo)
+            self.scrollbar.edges = (1.0,1.0,0.5,0.02)
+            self.drawables.append(self.scrollbar)
+        if self.size != self.layoutsize:
+            self.scrollbar.size = (40,self.size[1]-95)
+            self.scrollbar.setPos(self.size[0]-30,95)
         if len(self.scanResults)>0:
             self.svbo.bind()
             while 1:
@@ -347,7 +390,8 @@ class DialogScene(ui.Scene):
                     y += item.size[1]+10
             if x != 0:
                 y += item.size[1]+10
-            self.items.size = ((item.size[0]+10)*int(self.size[0]/(item.size[0]+10)),y)
+            if item:
+                self.items.size = ((item.size[0]+10)*int(self.size[0]/(item.size[0]+10)),y)
         self.scrollextent = self.items.size[1] - (self.size[1] - 100)
         if self.scrollextent < 0: self.scrollextent = 0
         if self.yoffset > self.scrollextent: self.yoffset = self.scrollextent
@@ -355,6 +399,7 @@ class DialogScene(ui.Scene):
         self.layoutsize = self.size
         self.layoutcount = len(self.thumbitems)+len(self.folderitems)
         self.titlebg.rectangle(self.size[0]-20,80,rgba=(0.25,0.25,0.25,0.75))
+        self.scrollbar.resize(float(self.size[1]-100)/float(self.items.size[1]),self.yoffset/float(self.items.size[1]))
     def render(self):
         self.svbo.bind()
         super(DialogScene,self).render()
