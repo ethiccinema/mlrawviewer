@@ -77,6 +77,7 @@ class DialogScene(ui.Scene):
         self.folderitems = []
         self.layoutsize = (0,0)
         self.layoutcount = 0
+        self.layoutwidth = 1
         self.atlases = []
         self.scanJob = Queue.Queue()
         self.scanResults = []
@@ -96,19 +97,34 @@ class DialogScene(ui.Scene):
         self.icontex = self.frames.icontex
         self.items = None
         self.scrollbar = None
+        self.focusindex = 0 # FolderItems then ThumbItems
+        self.focusitem = None
+        self.focusmoved = False # Allow named initial item
     def key(self,k,m):
         if k==self.frames.KEY_BACKSPACE:
             self.close()
         elif k==self.frames.KEY_UP:
+            self.scroll(0,-1)
+        elif k==self.frames.KEY_DOWN:
             self.scroll(0,1)
+        elif k==self.frames.KEY_LEFT:
+            self.scroll(1,0)
+        elif k==self.frames.KEY_RIGHT:
+            self.scroll(-1,0)
         elif k==self.frames.KEY_DOWN:
             self.scroll(0,-1)
         elif k==self.frames.KEY_PAGE_UP:
-            self.scroll(0,8)
+            self.scroll(0,3)
         elif k==self.frames.KEY_PAGE_DOWN:
-            self.scroll(0,-8)
+            self.scroll(0,-3)
         elif k==self.frames.KEY_LEFT_SHIFT or k==self.frames.KEY_RIGHT_SHIFT:
             self.upFolder()
+        elif k==self.frames.KEY_ENTER:
+            if self.focusindex < len(self.folderitems):
+                fi = self.folderitems[self.focusindex][1]
+            else:
+                fi = self.thumbitems[self.focusindex-len(self.folderitems)][1]
+            fi.onclick(0,0)
         else:
             return False
         return True
@@ -125,16 +141,66 @@ class DialogScene(ui.Scene):
         s = 128.0/float(self.iconsz)
         icon.rectangle(w,h,uv=(ix*s,iy*s,s,s),solid=0.0,tex=0.0,tint=0.0,texture=self.icontex)
     def scroll(self,x,y):
+        self.focusmoved = True
+        x = int(x)
+        y = int(y)
+        if len(self.folderitems)+len(self.thumbitems)==0: return
+        # First move the highlight by the desired amount
+        if y<0:
+            for i in range(abs(y)):
+                # Up
+                # Missing folders
+                missing = self.layoutwidth-len(self.folderitems)%self.layoutwidth
+                if self.focusindex >= len(self.folderitems) and self.focusindex-self.layoutwidth < len(self.folderitems):
+                    self.focusindex += missing
+                    self.focusindex -= self.layoutwidth
+                    if self.focusindex>=len(self.folderitems):
+                        self.focusindex -= self.layoutwidth
+                else:
+                    self.focusindex -= self.layoutwidth
+                if self.focusindex < 0: self.focusindex = 0
+        elif y>0: 
+            for i in range(y):
+                # Down
+                missing = self.layoutwidth-len(self.folderitems)%self.layoutwidth
+                if self.focusindex < len(self.folderitems) and self.focusindex+self.layoutwidth >= len(self.folderitems):
+                    self.focusindex += self.layoutwidth
+                    if self.focusindex>=len(self.folderitems):
+                        self.focusindex -= missing
+                    if self.focusindex<len(self.folderitems):
+                        self.focusindex += self.layoutwidth
+                else:
+                    self.focusindex += self.layoutwidth
+                m = len(self.folderitems)+len(self.thumbitems)
+                if self.focusindex >= m: self.focusindex = m-1
+        if x>0:
+            for i in range(abs(x)):
+                # Left
+                self.focusindex -= 1
+                if self.focusindex < 0: self.focusindex = 0
+        elif x<0:
+            for i in range(abs(x)):
+                # Right
+                self.focusindex += 1
+                m = len(self.folderitems)+len(self.thumbitems)
+                if self.focusindex == m: self.focusindex = m-1
+
+        # Then scroll the view to keep ://bitbucket.org/baldand/mlrawviewer/issuesthe highlight in view
+        if self.focusindex < len(self.folderitems):
+            fi = self.folderitems[self.focusindex][1]
+        else:
+            fi = self.thumbitems[self.focusindex-len(self.folderitems)][1]
+        self.yoffset = fi.pos[1]-(self.items.size[1]-self.scrollextent)/2
         self.layoutcount = 0
-        self.yoffset -= y*10
         if self.yoffset < 0: self.yoffset = 0
         if self.yoffset > self.scrollextent: self.yoffset = self.scrollextent
         self.frames.refresh()
-    def browse(self,path):
+    def browse(self,path,filename=None):
         self.scanJob.join() # Wait for any previous job to complete
         self.scanResults = [] # Delete all old results
         self.reset()
         self.path = path
+        self.startfile = filename
         self.prompt = "Choose a file to view"
         self.scanJob.put(path)
     def reset(self):
@@ -156,6 +222,9 @@ class DialogScene(ui.Scene):
         self.yoffset = 0
         self.scrollextent = 0
         self.scrollbar = None
+        self.focusitem = None
+        self.focusindex = 0
+        self.focusmoved = False
     def scanFunction(self):
         while 1:
             scandir = self.scanJob.get()
@@ -284,6 +353,14 @@ class DialogScene(ui.Scene):
         if self.size != self.layoutsize:
             self.scrollbar.size = (40,self.size[1]-95)
             self.scrollbar.setPos(self.size[0]-30,95)
+        if not self.focusitem:
+            self.focusitem = ui.Geometry(svbo=self.svbo)
+            self.focusitem.ignoreMotion = True
+            self.focusitem.ignoreInput = False
+            self.focusitem.edges = (1.0,1.0,0.05,0.05)
+            self.focusitem.setPos(10.0,10.0)
+            self.items.children.insert(0,self.focusitem)
+
         if len(self.scanResults)>0:
             self.svbo.bind()
             while 1:
@@ -341,12 +418,12 @@ class DialogScene(ui.Scene):
                     f = folder(fullpath,self)
                     item = ui.Button(240,60,svbo=self.svbo,onclick=f.click)
                     item.edges = (1.0,1.0,.02,.1)
-                    item.colour = (1.0,1.0,0.3,1.0)
-                    item.rectangle(240,60,rgba=(1.0,1.0,0.3,1.0))
+                    item.colour = (0.7,0.7,0.7,1.0)
+                    item.rectangle(240,60,rgba=(1.0,1.0,1.0,1.0))
                     name = ui.Text("",svbo=self.svbo)
                     name.ignoreInput = True
                     name.maxchars = 80
-                    name.setScale(0.25)
+                    name.setScale(0.35)
                     name.colour = (0.0,0.0,0.0,1.0)
                     name.size = (220,50)
                     n = os.path.split(fullpath)[1]
@@ -373,33 +450,62 @@ class DialogScene(ui.Scene):
         if self.size != self.layoutsize or self.layoutcount != len(self.thumbitems)+len(self.folderitems):
             y = 0
             x = 0
+            c = 0
+            itemnum = 0
+            item = None
+            lw = None
             for fp,item in self.folderitems:
                 item.setPos(x,y)
                 x += item.size[0]+10
+                c += 1
                 if x> self.size[0]-item.size[0]-20:
                     x = 0
                     y += item.size[1]+10
+                    if lw == None and c>0: lw = c
+                if not self.focusmoved and os.path.split(fp)[1]==self.startfile:
+                    self.focusindex = itemnum
+                itemnum += 1
             if x!=0:
                 x = 0
                 y += item.size[1]+10
             for fp,item in self.thumbitems:
                 item.setPos(x,y)
                 x += item.size[0]+10
+                c += 1
                 if x> self.size[0]-item.size[0]-20:
                     x = 0
                     y += item.size[1]+10
+                    if lw == None and c>0: lw = c
+                if not self.focusmoved and os.path.split(fp)[1]==self.startfile:
+                    self.focusindex = itemnum
+                itemnum += 1
             if x != 0:
                 y += item.size[1]+10
             if item:
                 self.items.size = ((item.size[0]+10)*int(self.size[0]/(item.size[0]+10)),y)
+            if lw != None:
+                self.layoutwidth = lw
+        self.titlebg.rectangle(self.size[0]-20,80,rgba=(0.25,0.25,0.25,0.75))
+        if self.items.size[1]>0:
+            self.scrollbar.resize(float(self.size[1]-100)/float(self.items.size[1]),self.yoffset/float(self.items.size[1]))
+        # Position the focus item
         self.scrollextent = self.items.size[1] - (self.size[1] - 100)
         if self.scrollextent < 0: self.scrollextent = 0
+        fi = None
+        if (len(self.folderitems)+len(self.thumbitems))>0:
+            if self.focusindex < len(self.folderitems):
+                fi = self.folderitems[self.focusindex][1]
+            else:
+                fi = self.thumbitems[self.focusindex-len(self.folderitems)][1]
+            self.focusitem.rectangle(fi.size[0]+10,fi.size[1]+10,rgba=(0.5,0.5,0.0,0.5))
+            self.focusitem.setPos(fi.pos[0]-5,fi.pos[1]-5)
+            self.yoffset = fi.pos[1]-(self.items.size[1]-self.scrollextent)/2
+        if self.yoffset < 0: self.yoffset = 0
         if self.yoffset > self.scrollextent: self.yoffset = self.scrollextent
         self.items.setPos(20,100-self.yoffset)
         self.layoutsize = self.size
         self.layoutcount = len(self.thumbitems)+len(self.folderitems)
-        self.titlebg.rectangle(self.size[0]-20,80,rgba=(0.25,0.25,0.25,0.75))
-        self.scrollbar.resize(float(self.size[1]-100)/float(self.items.size[1]),self.yoffset/float(self.items.size[1]))
+
     def render(self):
         self.svbo.bind()
         super(DialogScene,self).render()

@@ -181,7 +181,7 @@ class DisplayScene(ui.Scene):
         self.brightnessHandle = self.newIcon(0,0,8,8,2,None)
         self.brightnessHandle.colour = (0.5,0.5,0.5,0.5)
         self.brightnessHandle.ignoreInput = True
-        self.mdbg = ui.Geometry(svbo=frames.svbo)
+        self.mdbg = ui.Button(0,0,self.browserClick,svbo=frames.svbo,onhover=self.updateTooltip,onhoverobj="File info. Click to change (Key:BACKSPACE)")
         self.mdbg.edges = (1.0,1.0,0.05,0.10)
         self.metadata = ui.Text("",svbo=self.frames.svbo)
         self.metadata.setScale(0.25)
@@ -241,6 +241,9 @@ class DisplayScene(ui.Scene):
         self.display.setRgbImage(rgbImage)
     def setHistogram(self,histogram):
         self.histogram.texture = histogram
+
+    def browserClick(self,x,y):
+        self.frames.toggleBrowser()
 
     def histogramClick(self,x,y):
         self.frames.changeHistogram()
@@ -361,7 +364,8 @@ class DisplayScene(ui.Scene):
     def summariseMetadata(self):
         r = self.frames.raw
         f = self.frames.playFrame
-        s = r.make()+" "+r.model()
+        s = os.path.split(r.filename)[1]+"\n"
+        s += r.make()+" "+r.model()
         if f.lens != None:
             s += ", "+f.lens[0]+"\n"
         else:
@@ -509,6 +513,7 @@ class DisplayScene(ui.Scene):
         self.coldata.text = self.summariseColdata()
         self.coldata.update()
         self.mdbg.setPos(54.0,4.0)
+        self.mdbg.size = (self.metadata.size[0]+24.0,self.metadata.size[1]+12.0)
         self.mdbg.rectangle(self.metadata.size[0]+24.0,self.metadata.size[1]+12.0,rgba=(0.0,0.0,0.0,0.25))
 
         ua = config.isUpdateAvailable()

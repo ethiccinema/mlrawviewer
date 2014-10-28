@@ -53,7 +53,7 @@ LUT3D = LUT.LUT3D
 
 class Viewer(GLCompute.GLCompute):
     def __init__(self,raw,outfilename,wavfilename=None,**kwds):
-        userWidth = 720
+        userWidth = 809
         self.colourUndoStack = []
         self.colourRedoStack = []
         self.vidAspectHeight = float(raw.height())/(raw.width()) # multiply this number on width to give height in aspect
@@ -1452,11 +1452,10 @@ class Viewer(GLCompute.GLCompute):
             self.refresh()
 
     def toggleBrowser(self):
-        """
         if not self.browser:
             if not self.paused:
                 self.togglePlay()
-            self.dialog.browse(os.path.split(self.raw.filename)[0])
+            self.dialog.browse(*os.path.split(self.raw.filename))
             self.dialog.hidden = False
             self.display.hidden = True
             self.demosaic.hidden = True
@@ -1468,7 +1467,6 @@ class Viewer(GLCompute.GLCompute):
             self.demosaic.hidden = False
             self.browser = False
         self.refresh()
-        """
 
 def launchDialog(dialogtype,initial="None"):
     import codecs

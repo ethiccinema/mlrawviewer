@@ -47,6 +47,7 @@ def timeInUsec():
     return dt.day*3600.0*24.0+dt.hour*3600.0+dt.minute*60.0+dt.second+0.000001*dt.microsecond
 
 class GLCompute(object):
+    KEY_ENTER = 13
     KEY_ESCAPE = 27
     KEY_TAB = 9
     KEY_SPACE = 32
