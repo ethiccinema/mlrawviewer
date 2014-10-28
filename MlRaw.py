@@ -1114,7 +1114,7 @@ class CDNG(ImageSequence):
     Treat a directory of DNG files as sequential frames
     """
     def __init__(self,filename,preindex=False,**kwds):
-        print "Opening CinemaDNG",filename
+        #print "Opening CinemaDNG",filename
         self.filename = filename
         if os.path.isdir(filename):
             self.cdngpath = filename
@@ -1133,14 +1133,14 @@ class CDNG(ImageSequence):
         FrameRate = self.tag(fd,DNG.Tag.FrameRate)
         if FrameRate != None:
             FrameRate = FrameRate[3][0]
-            print FrameRate
+            #print FrameRate
             if FrameRate[1]>0 and FrameRate[0]>0:
                 self.fps = float(FrameRate[0])/float(FrameRate[1])
                 self.fpsnum = FrameRate[0]
                 self.fpsden = FrameRate[1]
             else:
                 print "Bad FrameRate in DNG files",FrameRate[0],FrameRate[1]
-            print "FPS:",self.fps,FrameRate
+            #print "FPS:",self.fps,FrameRate
         else:
             print "No internal frame rate. Defaulting to",self.fps
 
@@ -1164,24 +1164,24 @@ class CDNG(ImageSequence):
                 baselineExposureOffset = float(n)/float(d)
                 baselineExposure += baselineExposureOffset
         self.brightness = math.pow(2.0,baselineExposure)
-        print "brightness",self.brightness
+        #print "brightness",self.brightness
 
         #print "color matrix:",self.colorMatrix
         #self.colorMatrix = colorMatrix(self.info)
-        print "Black level:", self.black, "White level:", self.white
+        #print "Black level:", self.black, "White level:", self.white
 
         self._width = fd.FULL_IFD.width
         self._height = fd.FULL_IFD.length
 
         bps = self.bitsPerSample = fd.FULL_IFD.tags[DNG.Tag.BitsPerSample[0]][3][0]
-        print "BitsPerSample:",bps
+        #print "BitsPerSample:",bps
         if bps != 14 and bps != 16 and bps != 12:
             print "Unsupported BitsPerSample = ",bps,"(should be 12 or 14 or 16 )"
             raise IOError # Only support 12 or 14 or 16 bitsPerSample
 
         if DNG.Tag.Compression[0] in fd.FULL_IFD.tags:
             self.compression = fd.FULL_IFD.tags[DNG.Tag.Compression[0]][3][0]
-            print "Compression:",self.compression
+            #print "Compression:",self.compression
             if self.compression != 1 and self.compression != 7:
                 print "Unsupported Compression = ",self.compression
                 raise IOError
@@ -1193,16 +1193,16 @@ class CDNG(ImageSequence):
         self.cfa = 0
         if DNG.Tag.CFAPattern[0] in fd.FULL_IFD.tags:
             pattern = fd.FULL_IFD.tags[DNG.Tag.CFAPattern[0]][3]
-            print pattern
+            #print pattern
             if pattern==(1,2,0,1):
-                print "!"
+                #print "!"
                 self.cfa = 1 # GBRG instead of RGGB
 
         neutral = self.tag(fd,DNG.Tag.AsShotNeutral)
         self.whiteBalance = [1.0,1.0,1.0]
         if neutral:
             self.whiteBalance = [float(d)/float(n) for n,d in neutral[3]] # Note: immediately take reciprocal
-            print "rgb",self.whiteBalance
+            #print "rgb",self.whiteBalance
         #self.whiteBalance =
 
         self._make = "Unknown Make"
@@ -1219,17 +1219,17 @@ class CDNG(ImageSequence):
         self.cropSize = (self._width,self._height)
         self.activeArea = (0,0,self._height,self._width) # Y,X,Y,X
         if DNG.Tag.DefaultCropOrigin[0] in fd.FULL_IFD.tags:
-            print fd.FULL_IFD.tags[DNG.Tag.DefaultCropOrigin[0]][3]
+            #print fd.FULL_IFD.tags[DNG.Tag.DefaultCropOrigin[0]][3]
             self.cropOrigin = tuple(fd.FULL_IFD.tags[DNG.Tag.DefaultCropOrigin[0]][3])
         if DNG.Tag.DefaultCropSize[0] in fd.FULL_IFD.tags:
-            print fd.FULL_IFD.tags[DNG.Tag.DefaultCropSize[0]][3]
+            #print fd.FULL_IFD.tags[DNG.Tag.DefaultCropSize[0]][3]
             self.cropSize = tuple(fd.FULL_IFD.tags[DNG.Tag.DefaultCropSize[0]][3])
         if DNG.Tag.ActiveArea[0] in fd.FULL_IFD.tags:
-            print fd.FULL_IFD.tags[DNG.Tag.ActiveArea[0]][3]
+            #print fd.FULL_IFD.tags[DNG.Tag.ActiveArea[0]][3]
             self.activeArea = tuple(fd.FULL_IFD.tags[DNG.Tag.ActiveArea[0]][3])
-        print "Crop origin:",self.cropOrigin
-        print "Crop size:",self.cropSize
-        print "Active area:",self.activeArea
+        #print "Crop origin:",self.cropOrigin
+        #print "Crop size:",self.cropSize
+        #print "Active area:",self.activeArea
 
         self.firstFrame = self._loadframe(0,convert=False)
 

@@ -202,6 +202,7 @@ class DialogScene(ui.Scene):
         self.path = path
         self.startfile = filename
         self.prompt = "Choose a file to view"
+        config.setState("directory",path)
         self.scanJob.put(path)
     def reset(self):
         # Clear all old items
@@ -376,8 +377,8 @@ class DialogScene(ui.Scene):
                             self.frames = frames
                             self.item = item
                         def click(self,lx,ly):
-                            self.frames.toggleBrowser()
                             self.frames.load(self.item)
+                            self.frames.toggleBrowser()
                     e = entry(fullpath,self.frames)
                     item = ui.Button(240,135,svbo=self.svbo,onclick=e.click)
                     item.edges = (1.0,1.0,.0,.0)

@@ -344,9 +344,11 @@ class GLCompute(object):
             self.key(key,mods)
     def exit(self):
         pass
+    def close(self):
+        glfw.glfwSetWindowShouldClose(self.glfwWindow,1)
     def key(self,k,m):
         if k == self.KEY_ESCAPE:
-            glfw.glfwSetWindowShouldClose(self.glfwWindow,1)
+            self.close()
         if k == self.KEY_TAB:
             self.toggleFullscreen()
     def okToExit(self):

@@ -52,13 +52,13 @@ LUT1D = LUT.LUT1D
 LUT3D = LUT.LUT3D
 
 class Viewer(GLCompute.GLCompute):
-    def __init__(self,raw,outfilename,wavfilename=None,**kwds):
-        userWidth = 809
+    def __init__(self,**kwds):
+        userWidth = 800
         self.colourUndoStack = []
         self.colourRedoStack = []
-        self.vidAspectHeight = float(raw.height())/(raw.width()) # multiply this number on width to give height in aspect
-        self.vidAspectWidth = float(raw.width())/(raw.height()) # multiply this number on height to give height in aspect
-        self.raw = raw
+        self.vidAspectHeight = 9.0/16.0
+        self.vidAspectWidth = 16.0/9.0
+        self.raw = None
         super(Viewer,self).__init__(width=userWidth,height=int(userWidth*self.vidAspectHeight),**kwds)
         self._init = False
         self.icons = None
@@ -69,36 +69,36 @@ class Viewer(GLCompute.GLCompute):
         self.nextFrameNumber = 0
         self.neededFrame = 0
         self.drawnFrameNumber = None
-        self.playFrame = self.raw.firstFrame
-        self.frameCache = {0:self.raw.firstFrame}
+        self.playFrame = None #self.raw.firstFrame
+        self.frameCache = {} # {0:self.raw.firstFrame}
         self.preloadingFrame = []
         self.preloadingFrames = []
-        self.preloadFrame(1) # Immediately try to preload the next frame
+        #self.preloadFrame(1) # Immediately try to preload the next frame
         self.paused = False
         self.needsRefresh = False
         self.anamorphic = False # Canon squeeze
         self.anamorLens = 0 # Lens squeeze
         self.encoderProcess = None
-        self.outfilename = outfilename
+        self.outfilename = None#  outfilename
         self.lastEncodedFrame = None
         self.demosaicCount = 0
         self.demosaicTotal = 0.0
         self.demosaicAverage = 0.0
         self.audio = Audio()
-        self.wavname = wavfilename
+        self.wavname = None # wavfilename
         self.wav = None
         self.indexing = True
-        self.audioOffset = self.raw.getMeta("audioOffset_v1")
-        if self.audioOffset == None: self.audioOffset = 0.0
+        #self.audioOffset = self.raw.getMeta("audioOffset_v1")
+        #if self.audioOffset == None: self.audioOffset = 0.0
         self.lastEventTime = time.time()
         self.hideOverlay = False
         self.wasFull = False
         self.demosaic = None
         self.dialog = None
         self.browser = False
-        self.markLoad()
+        #self.markLoad()
         # Shared settings
-        self.initFps()
+        #self.initFps()
         self.setting_rgb = (2.0, 1.0, 1.5)
         self.setting_highQuality = False
         self.setting_encoding = False
@@ -109,7 +109,7 @@ class Viewer(GLCompute.GLCompute):
         self.setting_preprocess = config.getState("preprocess")
         if self.setting_preprocess == None:
 	        self.setting_preprocess = False
-        self.updateColourMatrix()
+        #self.updateColourMatrix()
         if self.setting_loop == None: self.setting_loop = True
         self.setting_encodeType = config.getState("encodeType")
         if self.setting_encodeType == None: self.setting_encodeType = (ENCODE_TYPE_MOV,)
@@ -128,18 +128,31 @@ class Viewer(GLCompute.GLCompute):
         self.lut3dindex = 0
         self.lut1d1index = 0
         self.lut1d2index = 0
+
     def initFps(self):
         self.fps = self.raw.fps
         self.setting_fpsOverride = self.raw.getMeta("fpsOverride_v1")
         if self.setting_fpsOverride != None:
             self.fps = self.setting_fpsOverride
 
+    def openBrowser(self,initFolder=None):
+        if initFolder==None:
+            initFolder = config.getState("directory")
+            if initFolder == None:
+                initFolder = '~'
+            initFolder = os.path.expanduser(initFolder)
+        self.init()
+        self.dialog.browse(initFolder)
+        self.dialog.hidden = False
+        self.browser = True
+
     def load(self,newname):
         print "Loading",repr(newname)
         try:
             r = MlRaw.loadRAWorMLV(newname)
         except:
-            pass
+            import traceback
+            traceback.print_exc()
         self.loadSet(r,newname)
 
     def loadNewRawSet(self,step):
@@ -174,27 +187,14 @@ class Viewer(GLCompute.GLCompute):
             wavfiles = [w for w in os.listdir(wavdir) if w.lower().endswith(".wav")]
             if len(wavfiles)>0:
                 self.wavname = os.path.join(wavdir,wavfiles[0])
-        #print "New wavname:",self.wavname
-        """
-        else:
-            fn = self.wavname
-            path,name = os.path.split(fn) # Correct for files and CDNG dirs
-            wv = [f for f in os.listdir(path) if f.lower().endswith(".wav")]
-            wv.sort()
-            try:
-                current = wv.index(name)
-                newOne = (current + step)%len(wv)
-                newname = os.path.join(path,wv[newOne])
-                self.wavname = newname
-            except:
-                self.wavname = newname[:-3]+".WAV"
-        """
         self.colourUndoStack = []
         self.colourRedoStack = []
         self.audio.stop()
-        self.demosaic.free() # Release textures
+        if self.demosaic:
+            self.demosaic.free() # Release textures
         self.wav = None
-        self.raw.close()
+        if self.raw:
+            self.raw.close()
         self.raw = raw
         self.playFrame = self.raw.firstFrame
         self.frameCache = {0:self.raw.firstFrame}
@@ -241,10 +241,11 @@ class Viewer(GLCompute.GLCompute):
             self.togglePlay() # ...and restart with new Wav
 
     def windowName(self):
-        #try:
-        return "MlRawViewer v"+config.versionString()+" - "+self.raw.description()
-        #except:
-        #    return "MlRawViewer v"+version
+        if self.raw:
+            return "MlRawViewer v"+config.versionString()+" - "+self.raw.description()
+        else:
+            return "MlRawViewer v"+config.versionString()
+
     def init(self):
         if self._init: return
         if self.icons == None:
@@ -256,25 +257,30 @@ class Viewer(GLCompute.GLCompute):
         if self.svbostatic == None:
             self.svbostatic = ui.SharedVbo(size=16*1024*1024)
         self.scenes = []
-        if self.demosaic == None:
+        if self.demosaic == None and self.raw:
             self.demosaic = DemosaicScene(self.raw,self,self,self,size=(self.raw.width(),self.raw.height()))
-        else:
+        elif self.demosaic:
             self.demosaic.initTextures()
             self.demosaic.setSize(self.raw.width(),self.raw.height())
-        self.scenes.append(self.demosaic)
-        if self.display == None:
+        if self.demosaic:
+            self.scenes.append(self.demosaic)
+        if self.display == None and self.raw:
             self.display = DisplayScene(self,size=(0,0))
-        self.display.setRgbImage(self.demosaic.rgbImage)
-        self.display.setHistogram(self.demosaic.histogramTex)
-        self.scenes.append(self.display)
+        if self.display:
+            self.display.setRgbImage(self.demosaic.rgbImage)
+            self.display.setHistogram(self.demosaic.histogramTex)
+            self.scenes.append(self.display)
         if self.dialog == None:
             self.dialog = DialogScene(self,size=(0,0))
             self.dialog.hidden = True
         self.scenes.append(self.dialog)
-        self.rgbImage = self.demosaic.rgbImage
         self.initWav()
-        self.vidAspectHeight = float(self.raw.height())/(self.raw.width()) # multiply this number on width to give height in aspect
-        self.vidAspectWidth = float(self.raw.width())/(self.raw.height()) # multiply this number on height to give height in aspect
+        if self.raw:
+            self.vidAspectHeight = float(self.raw.height())/(self.raw.width()) # multiply this number on width to give height in aspect
+            self.vidAspectWidth = float(self.raw.width())/(self.raw.height()) # multiply this number on height to give height in aspect
+        else:
+            self.vidAspectHeight = 9.0/16.0
+            self.vidAspectWidth = 16.0/9.0
         self._init = True
     def onDraw(self,width,height):
         # First convert Raw to RGB image at same size
@@ -286,54 +292,44 @@ class Viewer(GLCompute.GLCompute):
             self.wasFull = self._isFull
         if not self.svbo.bound:
             self.svbo.bind()
-        if self.realStartTime == None or self.raw.indexingStatus()<1.0:
-            offset = self.playFrameNumber / self.fps
-            self.realStartTime = time.time() - offset
-            PLOG(PLOG_FRAME,"realStartTime set to %f"%self.realStartTime)
-        aspectHeight = int((width*self.vidAspectHeight))
-        aspectWidth = int((height*self.vidAspectWidth))
-        if self.anamorphic == True:
-            aspectHeight = int(aspectHeight*1.6)
-            aspectWidth = int(aspectWidth/1.6)
-        if self.anamorLens != 0:
-            if self.anamorLens == 1:
-                aspectHeight = int(aspectHeight/(4.0/3))
-                aspectWidth = int(aspectWidth*(4.0/3))
-            elif self.anamorLens == 2:
-                aspectHeight = int(aspectHeight/1.4)
-                aspectWidth = int(aspectWidth*1.4)
-            elif self.anamorLens == 3:
-                aspectHeight = int(aspectHeight/1.5)
-                aspectWidth = int(aspectWidth*1.5)
-            elif self.anamorLens == 4:
-                aspectHeight = int(aspectHeight/2.0)
-                aspectWidth = int(aspectWidth*2.0)
-        if height > aspectHeight:
-            self.display.setSize(width,aspectHeight)
-            self.display.setPosition(0, height/2 - aspectHeight/2)
-        else:
-            self.display.setSize(aspectWidth,height)
-            self.display.setPosition(width/2 - aspectWidth/2, 0)
+        if self.raw:
+            if self.realStartTime == None or self.raw.indexingStatus()<1.0:
+                offset = self.playFrameNumber / self.fps
+                self.realStartTime = time.time() - offset
+                PLOG(PLOG_FRAME,"realStartTime set to %f"%self.realStartTime)
+            aspectHeight = int((width*self.vidAspectHeight))
+            aspectWidth = int((height*self.vidAspectWidth))
+            if self.anamorphic == True:
+                aspectHeight = int(aspectHeight*1.6)
+                aspectWidth = int(aspectWidth/1.6)
+            if self.anamorLens != 0:
+                if self.anamorLens == 1:
+                    aspectHeight = int(aspectHeight/(4.0/3))
+                    aspectWidth = int(aspectWidth*(4.0/3))
+                elif self.anamorLens == 2:
+                    aspectHeight = int(aspectHeight/1.4)
+                    aspectWidth = int(aspectWidth*1.4)
+                elif self.anamorLens == 3:
+                    aspectHeight = int(aspectHeight/1.5)
+                    aspectWidth = int(aspectWidth*1.5)
+                elif self.anamorLens == 4:
+                    aspectHeight = int(aspectHeight/2.0)
+                    aspectWidth = int(aspectWidth*2.0)
+            if height > aspectHeight:
+                self.display.setSize(width,aspectHeight)
+                self.display.setPosition(0, height/2 - aspectHeight/2)
+            else:
+                self.display.setSize(aspectWidth,height)
+                self.display.setPosition(width/2 - aspectWidth/2, 0)
         self.dialog.setSize(width,height)
         self.dialog.setPosition(0,0)
         self.renderScenes()
-        """
-        now = time.time()
-        if self.fpsMeasure == None:
-            self.fpsMeasure = now
-            self.fpsCount = 0
-        elif self.fpsCount == 10:
-            print"READ FPS:",10.0/(now-self.fpsMeasure)
-            self.fpsCount = 0
-            self.fpsMeasure = now
-        else:
-            self.fpsCount += 1
-        """
-        self.drawnFrameNumber = self.playFrameNumber
-        if self.paused: # or self.raw.indexingStatus()<1.0:
-            self._frames -= 1
-        if self.raw.indexingStatus()<1.0:
-            self.refresh()
+        if self.raw:
+            self.drawnFrameNumber = self.playFrameNumber
+            if self.paused: # or self.raw.indexingStatus()<1.0:
+                self._frames -= 1
+            if self.raw.indexingStatus()<1.0:
+                self.refresh()
         PLOG(PLOG_FRAME,"onDraw end")
     def scenesPrepared(self):
         self.svbo.upload() # In case there are changes
@@ -819,95 +815,96 @@ class Viewer(GLCompute.GLCompute):
         if self.userIdleTime()>5.0 and self.userIdleTime()<7.0:
             self.refresh()
 
-        if self.display.isDirty():
-            self.refresh()
+        if self.raw:
+            if self.display.isDirty():
+                self.refresh()
 
-        self.handleIndexing()
-        self.checkForLoadedFrames()
-        wrongFrame = self.neededFrame != self.drawnFrameNumber
-        if not self.needsRefresh and self.paused and not wrongFrame:
-            time.sleep(0.016) # Sleep for one 60FPS frame -> Avoid burning idle function
-        if not self.paused and self.raw.indexingStatus()==1.0:
-            now = time.time()
-            elapsed = now - self.realStartTime # Since before first frame drawn
-            neededFrame = int(self.fps*elapsed)
-            # Is it time for a new frame?
-            newNeeded = neededFrame != self.neededFrame
-            if newNeeded and not self.dropframes():
-                # In non-drop-frame mode, only step by 1 frame
-                neededFrame = self.nextFrameNumber
-            if neededFrame >= self.raw.frames():
-                if self.setting_loop:
-                    neededFrame = 0 #self.raw.frames() - 1 # End of file
-                    self.playFrameNumber = 0
-                    self.nextFrameNumber = 0
-                    self.realStartTime = now
-                    self.audio.stop()
-                    self.startAudio()
+            self.handleIndexing()
+            self.checkForLoadedFrames()
+            wrongFrame = self.neededFrame != self.drawnFrameNumber
+            if not self.needsRefresh and self.paused and not wrongFrame:
+                time.sleep(0.016) # Sleep for one 60FPS frame -> Avoid burning idle function
+            if not self.paused and self.raw.indexingStatus()==1.0:
+                now = time.time()
+                elapsed = now - self.realStartTime # Since before first frame drawn
+                neededFrame = int(self.fps*elapsed)
+                # Is it time for a new frame?
+                newNeeded = neededFrame != self.neededFrame
+                if newNeeded and not self.dropframes():
+                    # In non-drop-frame mode, only step by 1 frame
+                    neededFrame = self.nextFrameNumber
+                if neededFrame >= self.raw.frames():
+                    if self.setting_loop:
+                        neededFrame = 0 #self.raw.frames() - 1 # End of file
+                        self.playFrameNumber = 0
+                        self.nextFrameNumber = 0
+                        self.realStartTime = now
+                        self.audio.stop()
+                        self.startAudio()
+                    else:
+                        neededFrame = self.raw.frames()-1
+                        self.playFrameNumber = neededFrame
+                        self.nextFrameNumber = neededFrame
+                        self.togglePlay() # Pause on last frame
+
+                self.neededFrame = neededFrame
+                #print "neededFrame",neededFrame,elapsed
+                if newNeeded:
+                    PLOG(PLOG_FRAME,"neededFrame now %d"%neededFrame)
+
+            if self.neededFrame != self.drawnFrameNumber:
+                # Yes it is
+                # Do we have the needed frame available?
+                if self.neededFrame in self.frameCache:
+                    PLOG(PLOG_FRAME,"Using frame %d"%self.neededFrame)
+                    # Yes we do. Update the frame details and queue display
+                    self.playFrameNumber = self.neededFrame
+                    self.nextFrameNumber = self.playFrameNumber + 1
+                    self.playTime = self.neededFrame * self.fps
+                    self.playFrame = self.frameCache[self.neededFrame]
+                    self.needsRefresh = True
+                    self.redisplay()
                 else:
-                    neededFrame = self.raw.frames()-1
-                    self.playFrameNumber = neededFrame
-                    self.nextFrameNumber = neededFrame
-                    self.togglePlay() # Pause on last frame
+                    # Is there a better frame in the cache than the one we are currently displaying?
+                    newer = []
+                    older = []
+                    for ix in self.frameCache:
+                        if ix>self.neededFrame:
+                            newer.append(ix)
+                        if ix<self.neededFrame:
+                            older.append(ix)
 
-            self.neededFrame = neededFrame
-            #print "neededFrame",neededFrame,elapsed
-            if newNeeded:
-                PLOG(PLOG_FRAME,"neededFrame now %d"%neededFrame)
-
-        if self.neededFrame != self.drawnFrameNumber:
-            # Yes it is
-            # Do we have the needed frame available?
-            if self.neededFrame in self.frameCache:
-                PLOG(PLOG_FRAME,"Using frame %d"%self.neededFrame)
-                # Yes we do. Update the frame details and queue display
-                self.playFrameNumber = self.neededFrame
-                self.nextFrameNumber = self.playFrameNumber + 1
-                self.playTime = self.neededFrame * self.fps
-                self.playFrame = self.frameCache[self.neededFrame]
-                self.needsRefresh = True
-                self.redisplay()
-            else:
-                # Is there a better frame in the cache than the one we are currently displaying?
-                newer = []
-                older = []
-                for ix in self.frameCache:
-                    if ix>self.neededFrame:
-                        newer.append(ix)
-                    if ix<self.neededFrame:
-                        older.append(ix)
-
-                newer.sort()
-                older.sort()
-                nearest = None
-                if len(newer)>0:
-                    nearest = newer[0]
-                elif len(older)>0:
-                    nearest = older[-1]
-                if nearest:
-                    if abs(nearest-self.neededFrame)<abs(self.neededFrame-self.playFrameNumber):
-                        # It is "better"
-                        # Yes we do. Update the frame details and queue display
-                        self.playFrameNumber = nearest
-                        self.nextFrameNumber = self.playFrameNumber + 1
-                        self.playTime = nearest * self.fps
-                        self.playFrame = self.frameCache[nearest]
-                        self.needsRefresh = True
-                        self.redisplay()
-                        PLOG(PLOG_FRAME,"Using near frame %d"%nearest)
+                    newer.sort()
+                    older.sort()
+                    nearest = None
+                    if len(newer)>0:
+                        nearest = newer[0]
+                    elif len(older)>0:
+                        nearest = older[-1]
+                    if nearest:
+                        if abs(nearest-self.neededFrame)<abs(self.neededFrame-self.playFrameNumber):
+                            # It is "better"
+                            # Yes we do. Update the frame details and queue display
+                            self.playFrameNumber = nearest
+                            self.nextFrameNumber = self.playFrameNumber + 1
+                            self.playTime = nearest * self.fps
+                            self.playFrame = self.frameCache[nearest]
+                            self.needsRefresh = True
+                            self.redisplay()
+                            PLOG(PLOG_FRAME,"Using near frame %d"%nearest)
+                        else:
+                            time.sleep(0.003)
                     else:
                         time.sleep(0.003)
-                else:
-                    time.sleep(0.003)
-        else:
-            time.sleep(0.003)
-
-            """
-            if (now-self._last >= (1.0/self.fps)):
-                self.redisplay()
             else:
-                time.sleep(0.001)
-            """
+                time.sleep(0.003)
+
+                """
+                if (now-self._last >= (1.0/self.fps)):
+                    self.redisplay()
+                else:
+                    time.sleep(0.001)
+                """
 
         if self.needsRefresh: # and self.paused:
             self.redisplay()
@@ -1462,9 +1459,12 @@ class Viewer(GLCompute.GLCompute):
             self.browser = True
             self.setCursorVisible(True)
         else:
-            self.dialog.hidden = True
-            self.display.hidden = False
-            self.demosaic.hidden = False
+            if not self.raw:
+                self.close()
+            else:
+                self.dialog.hidden = True
+                self.display.hidden = False
+                self.demosaic.hidden = False
             self.browser = False
         self.refresh()
 
@@ -1508,9 +1508,3 @@ def okToExitDialog():
 def askOutputDialog(initial):
     result = launchDialog("chooseOutputDir",initial)
     return result
-
-def openFilename(initial):
-    result = launchDialog("openFilename",initial)
-    return result.strip()
-
-

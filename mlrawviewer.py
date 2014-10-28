@@ -76,71 +76,14 @@ import MlRaw
 from Viewer import *
 
 def main():
-    filename = None
-    if len(sys.argv)<2:
-        #print "Error. Please specify an MLV or RAW file to view"
-        #return -1
-        directory = config.getState("directory")
-        if directory == None:
-            directory = '~'
-        afile = openFilename(directory)
-        if afile != None:
-            filename = afile
-            if afile != '':
-                config.setState("directory",os.path.dirname(filename))
-    if filename == None:
-        filename = sys.argv[1].decode(sys.getfilesystemencoding())
-    if not os.path.exists(filename):
-        print "Error. Specified filename",filename,"does not exist"
-        return -1
-
-    # Try to pick a sensible default filename for any possible encoding
-
-    outfilename = config.getState("targetDir") # Restore persisted target
-    if outfilename == None:
-        outfilename = os.path.split(filename)[0]
-    poswavname = os.path.splitext(filename)[0]+".WAV"
-    if os.path.isdir(filename):
-        wavdir = filename
+    rmc = Viewer()
+    if len(sys.argv)>1:
+        rmc.load(sys.argv[1])
     else:
-        wavdir = os.path.split(filename)[0]
-    wavnames = [w for w in os.listdir(wavdir) if w.lower().endswith(".wav")]
-    #print "wavnames",wavnames
-    if os.path.isdir(filename) and len(wavnames)>0:
-        wavfilename = os.path.join(wavdir,wavnames[0])
-    else:
-        wavfilename = poswavname # Expect this to be extracted by indexing of MLV with SND
-
-    #print "wavfilename",wavfilename
-    if len(sys.argv)==3:
-        # Second arg could be WAV or outfilename
-        if sys.argv[2].lower().endswith(".wav"):
-            wavfilename = sys.argv[2]
-        else:
-            outfilename = sys.argv[2]
-            config.setState("targetDir",outfilename)
-    elif len(sys.argv)>3:
-        wavfilename = sys.argv[2]
-        outfilename = sys.argv[3]
-        config.setState("targetDir",outfilename)
-
-    try:
-        r = MlRaw.loadRAWorMLV(filename)
-        if r==None:
-            sys.stderr.write("%s not a recognised RAW/MLV file or CinemaDNG directory.\n"%filename)
-            return 1
-    except Exception, err:
-        import traceback
-        traceback.print_exc()
-        sys.stderr.write('Could not open file %s. Error:%s\n'%(filename,str(err)))
-        return 1
-
-
-    rmc = Viewer(r,outfilename,wavfilename)
+        rmc.openBrowser()
     ret = rmc.run()
     PerformanceLog.PLOG_PRINT()
     return ret
-
 
 if __name__ == '__main__':
     sys.exit(main())

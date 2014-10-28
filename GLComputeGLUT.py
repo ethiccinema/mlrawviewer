@@ -282,6 +282,8 @@ class GLCompute(object):
         pass
     def okToExit(self):
         return True
+    def close(self):
+        self.__close()
     def __close(self):
         if not self.okToExit(): return
         self.exit()
@@ -303,7 +305,7 @@ class GLCompute(object):
         self.key(k,m)
     def key(self,k,m):
         if k==self.KEY_ESCAPE:
-            self.__close()
+            self.close()
         if k==self.KEY_TAB:
             self.toggleFullscreen()
     def __mousefunc(self,button,state,x,y):
