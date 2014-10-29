@@ -40,6 +40,10 @@ import MlRaw
 
 programpath = os.path.abspath(os.path.split(sys.argv[0])[0])
 
+SCAN_VIDEOS = 1
+SCAN_EXPORT = 2
+SCAN_LUT = 3
+
 class ScrollBar(ui.Button):
     def __init__(self,width,height,onclick,**kwds):
         super(ScrollBar,self).__init__(width,height,onclick,**kwds)
@@ -100,6 +104,9 @@ class DialogScene(ui.Scene):
         self.focusindex = 0 # FolderItems then ThumbItems
         self.focusitem = None
         self.focusmoved = False # Allow named initial item
+        self.nofiles = False
+        self.shownprompt = ""
+        self.startfile = None
     def key(self,k,m):
         if k==self.frames.KEY_BACKSPACE:
             self.close()
@@ -159,7 +166,7 @@ class DialogScene(ui.Scene):
                 else:
                     self.focusindex -= self.layoutwidth
                 if self.focusindex < 0: self.focusindex = 0
-        elif y>0: 
+        elif y>0:
             for i in range(y):
                 # Down
                 missing = self.layoutwidth-len(self.folderitems)%self.layoutwidth
@@ -185,7 +192,7 @@ class DialogScene(ui.Scene):
                 m = len(self.folderitems)+len(self.thumbitems)
                 if self.focusindex == m: self.focusindex = m-1
 
-        # Then scroll the view to keep ://bitbucket.org/baldand/mlrawviewer/issuesthe highlight in view
+        # Then scroll the view to keep the highlight in view
         if self.focusindex < len(self.folderitems):
             fi = self.folderitems[self.focusindex][1]
         else:
@@ -195,7 +202,9 @@ class DialogScene(ui.Scene):
         if self.yoffset < 0: self.yoffset = 0
         if self.yoffset > self.scrollextent: self.yoffset = self.scrollextent
         self.frames.refresh()
-    def browse(self,path,filename=None):
+    def browse(self,path,filename=None,nofiles=False):
+        if nofiles: # For target dir setting case only
+            config.setState("targetDir",path)
         self.scanJob.join() # Wait for any previous job to complete
         self.scanResults = [] # Delete all old results
         self.reset()
@@ -203,7 +212,16 @@ class DialogScene(ui.Scene):
         self.startfile = filename
         self.prompt = "Choose a file to view"
         config.setState("directory",path)
-        self.scanJob.put(path)
+        self.nofiles = nofiles
+        self.scanJob.put((SCAN_VIDEOS,path))
+    def chooseExport(self):
+        self.scanJob.join() # Wait for any previous job to complete
+        self.scanResults = [] # Delete all old results
+        self.reset()
+        self.prompt = "Choose export target folder"
+        self.path = config.getState("targetDir")
+        self.nofiles = True
+        self.scanJob.put((SCAN_EXPORT,self.path))
     def reset(self):
         # Clear all old items
         self.svbo.reset()
@@ -228,8 +246,8 @@ class DialogScene(ui.Scene):
         self.focusmoved = False
     def scanFunction(self):
         while 1:
-            scandir = self.scanJob.get()
-            self.find(scandir)
+            scantype,scandir = self.scanJob.get()
+            self.find(scantype,scandir)
             self.scanJob.task_done()
             self.frames.refresh()
     def indexFile(self,filename):
@@ -241,7 +259,7 @@ class DialogScene(ui.Scene):
             t = r.firstFrame.thumb()
         r.close()
         return t
-    def find(self,root):
+    def find(self,scantype,root):
         try:
             candidates = MlRaw.candidatesInDir(os.path.join(root,"dummy"))
         except:
@@ -287,12 +305,25 @@ class DialogScene(ui.Scene):
     def upFolder(self,x=0,y=0):
         up = os.path.split(self.path)[0]
         if len(up)>0 and up != self.path:
-            self.browse(up)
+            self.browse(up,nofiles=self.nofiles)
     def scrollDrag(self,x,y):
         p = float(y)/float(self.scrollbar.size[1]*(1.0-self.scrollbar.perc))
         if p>1.0: p = 1.0
         if p<0.0: p = 0.0
         self.yoffset = p * self.scrollextent
+        # Now find the item corresponding to this offset
+        count = 0
+        #print self.yoffset,self.scrollextent,self.yoffset+(self.items.size[1]-self.scrollextent)/2
+        items = self.folderitems + self.thumbitems
+        for ifi in items:
+            i,fi = ifi
+            #print fi.pos,
+            if fi.pos[1] > self.yoffset+(self.items.size[1]-self.scrollextent)/3:
+                self.focusindex = count
+                #print fi,fi.pos[1],self.focusindex
+                break
+            count += 1
+        print
         self.frames.refresh()
     def prepareToRender(self):
         if not self.background:
@@ -327,16 +358,18 @@ class DialogScene(ui.Scene):
             self.closeicon.rotation = 45
             self.closeicon.setPos(15,50)
             self.drawables.append(self.closeicon)
-        if self.shownpath != self.path or self.size != self.layoutsize:
+        if self.shownpath != self.path or self.size != self.layoutsize or self.prompt != self.shownprompt:
             p = self.path
             ps = p
             self.svbo.bind()
             while 1:
                 self.title.text = self.prompt+"\n     "+ps
+                self.shownprompt = self.prompt
                 self.title.update()
                 if self.title.size[0]>self.size[0]-105:
                     p = p[1:]
                     ps = "..."+p
+                    if len(p)==0: break
                 else:
                     break
             self.title.setPos(85,10+40-self.title.size[1]/2)
@@ -373,13 +406,15 @@ class DialogScene(ui.Scene):
                 if not isdir:
                     index,atlas,uv = self.addToAtlas(t)
                     class entry:
-                        def __init__(self,item,frames):
+                        def __init__(self,item,frames,nofiles):
                             self.frames = frames
                             self.item = item
+                            self.nofiles = nofiles
                         def click(self,lx,ly):
-                            self.frames.load(self.item)
-                            self.frames.toggleBrowser()
-                    e = entry(fullpath,self.frames)
+                            if not self.nofiles:
+                                self.frames.load(self.item)
+                                self.frames.toggleBrowser()
+                    e = entry(fullpath,self.frames,self.nofiles)
                     item = ui.Button(240,135,svbo=self.svbo,onclick=e.click)
                     item.edges = (1.0,1.0,.0,.0)
                     item.colour = (1.0,1.0,1.0,1.0)
@@ -411,12 +446,13 @@ class DialogScene(ui.Scene):
                     self.thumbitems.append((fullpath,item))
                 else:
                     class folder:
-                        def __init__(self,item,browser):
+                        def __init__(self,item,browser,nofiles=False):
                             self.browser = browser
                             self.item = item
+                            self.nofiles = nofiles
                         def click(self,lx,ly):
-                            self.browser.browse(self.item)
-                    f = folder(fullpath,self)
+                            self.browser.browse(self.item,nofiles=self.nofiles)
+                    f = folder(fullpath,self,self.nofiles)
                     item = ui.Button(240,60,svbo=self.svbo,onclick=f.click)
                     item.edges = (1.0,1.0,.02,.1)
                     item.colour = (0.7,0.7,0.7,1.0)
@@ -434,6 +470,7 @@ class DialogScene(ui.Scene):
                         if name.size[0]>220:
                             n = n[:-1]
                             name.text = n+"..."
+                            if len(n)==0: break
                         else:
                             break
                     name.setPos(120-name.size[0]/2,32-name.size[1]/2)

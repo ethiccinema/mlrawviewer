@@ -79,7 +79,7 @@ class Viewer(GLCompute.GLCompute):
         self.anamorphic = False # Canon squeeze
         self.anamorLens = 0 # Lens squeeze
         self.encoderProcess = None
-        self.outfilename = None#  outfilename
+        self.outfilename = config.getState("targetDir")
         self.lastEncodedFrame = None
         self.demosaicCount = 0
         self.demosaicTotal = 0.0
@@ -138,6 +138,8 @@ class Viewer(GLCompute.GLCompute):
     def openBrowser(self,initFolder=None):
         if initFolder==None:
             initFolder = config.getState("directory")
+            if not os.path.exists(initFolder):
+                initFolder = None
             if initFolder == None:
                 initFolder = '~'
             initFolder = os.path.expanduser(initFolder)
@@ -500,7 +502,8 @@ class Viewer(GLCompute.GLCompute):
             self.loadNewRawSet(1)
 
         elif k==self.KEY_W:
-            self.askOutput()
+            self.toggleChooseExport()
+            #self.askOutput()
 
         elif k==self.KEY_Z:
             if m==0:
@@ -1465,6 +1468,24 @@ class Viewer(GLCompute.GLCompute):
                 self.dialog.hidden = True
                 self.display.hidden = False
                 self.demosaic.hidden = False
+            self.outfilename = config.getState("targetDir") # In case it changed
+            self.browser = False
+        self.refresh()
+
+    def toggleChooseExport(self):
+        if not self.browser:
+            if not self.paused:
+                self.togglePlay()
+            self.dialog.chooseExport()
+            self.dialog.hidden = False
+            self.display.hidden = True
+            self.demosaic.hidden = True
+            self.browser = True
+            self.setCursorVisible(True)
+        else:
+            self.dialog.hidden = True
+            self.display.hidden = False
+            self.demosaic.hidden = False
             self.browser = False
         self.refresh()
 
