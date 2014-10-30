@@ -37,6 +37,10 @@ import GLComputeUI as ui
 import ExportQueue
 from ShaderText import *
 import MlRaw
+import LUT
+
+LUT1D = LUT.LUT1D
+LUT3D = LUT.LUT3D
 
 programpath = os.path.abspath(os.path.split(sys.argv[0])[0])
 
@@ -104,9 +108,9 @@ class DialogScene(ui.Scene):
         self.focusindex = 0 # FolderItems then ThumbItems
         self.focusitem = None
         self.focusmoved = False # Allow named initial item
-        self.nofiles = False
         self.shownprompt = ""
         self.startfile = None
+        self.scantype = 1
     def key(self,k,m):
         if k==self.frames.KEY_BACKSPACE:
             self.close()
@@ -202,9 +206,19 @@ class DialogScene(ui.Scene):
         if self.yoffset < 0: self.yoffset = 0
         if self.yoffset > self.scrollextent: self.yoffset = self.scrollextent
         self.frames.refresh()
-    def browse(self,path,filename=None,nofiles=False):
-        if nofiles: # For target dir setting case only
+    def newpath(self,path):
+        if self.scantype == SCAN_EXPORT:
             config.setState("targetDir",path)
+        elif self.scantype == SCAN_LUT:
+            config.setState("lutDir",path)
+        elif self.scantype == SCAN_VIDEOS:
+            config.setState("directory",path)
+        self.scanJob.join() # Wait for any previous job to complete
+        self.scanResults = [] # Delete all old results
+        self.reset()
+        self.path = path
+        self.scanJob.put(path)
+    def browse(self,path,filename=None):
         self.scanJob.join() # Wait for any previous job to complete
         self.scanResults = [] # Delete all old results
         self.reset()
@@ -212,16 +226,26 @@ class DialogScene(ui.Scene):
         self.startfile = filename
         self.prompt = "Choose a file to view"
         config.setState("directory",path)
-        self.nofiles = nofiles
-        self.scanJob.put((SCAN_VIDEOS,path))
+        self.scantype = SCAN_VIDEOS
+        self.scanJob.put(path)
+    def importLut(self):
+        self.scanJob.join() # Wait for any previous job to complete
+        self.scanResults = [] # Delete all old results
+        self.reset()
+        self.path = config.getState("lutDir")
+        if self.path == None:
+            self.path = os.path.expanduser("~")
+        self.prompt = "Select new LUTs to import"
+        self.scantype = SCAN_LUT
+        self.scanJob.put(self.path)
     def chooseExport(self):
         self.scanJob.join() # Wait for any previous job to complete
         self.scanResults = [] # Delete all old results
         self.reset()
         self.prompt = "Choose export target folder"
         self.path = config.getState("targetDir")
-        self.nofiles = True
-        self.scanJob.put((SCAN_EXPORT,self.path))
+        self.scantype = SCAN_EXPORT
+        self.scanJob.put(self.path)
     def reset(self):
         # Clear all old items
         self.svbo.reset()
@@ -246,8 +270,8 @@ class DialogScene(ui.Scene):
         self.focusmoved = False
     def scanFunction(self):
         while 1:
-            scantype,scandir = self.scanJob.get()
-            self.find(scantype,scandir)
+            scandir = self.scanJob.get()
+            self.find(scandir)
             self.scanJob.task_done()
             self.frames.refresh()
     def indexFile(self,filename):
@@ -259,9 +283,14 @@ class DialogScene(ui.Scene):
             t = r.firstFrame.thumb()
         r.close()
         return t
-    def find(self,scantype,root):
+    def find(self,root):
+        scantype = self.scantype
+        candidates = []
         try:
-            candidates = MlRaw.candidatesInDir(os.path.join(root,"dummy"))
+            if scantype==SCAN_VIDEOS:
+                candidates = MlRaw.candidatesInDir(os.path.join(root,"dummy"))
+            elif scantype==SCAN_LUT:
+                candidates=[f for f in os.listdir(root) if f.lower().endswith(".cube")]
         except:
             candidates = []
         try:
@@ -278,7 +307,25 @@ class DialogScene(ui.Scene):
                 if fullpath in self.thumbcache:
                     t = self.thumbcache[fullpath]
                 else:
-                    t = self.indexFile(fullpath)
+                    if scantype==SCAN_VIDEOS:
+                        t = self.indexFile(fullpath)
+                    elif scantype==SCAN_LUT:
+                        l = LUT.LutCube()
+                        l.load(fullpath)
+                        exists = False
+                        if l.dim()==1:
+                            for el in LUT1D:
+                                 if el[0].t == l.t: 
+                                    exists = True
+                        elif l.dim()==3:
+                            for el in LUT3D:
+                                 if el[0].t == l.t: 
+                                    exists = True
+                        if exists: continue
+                        t = np.zeros(shape=(90,160,3),dtype=np.uint16)*65535
+                        t[:,:,0] += np.linspace(0,65535,90*160).reshape(90,160)
+                        t[:,:,1] += np.linspace(0,65535*90,90*160).reshape(90,160)
+                        t[:,:,2] += 32768
                     if t != None:
                         self.thumbcache[fullpath] = t
                 if t != None:
@@ -305,7 +352,7 @@ class DialogScene(ui.Scene):
     def upFolder(self,x=0,y=0):
         up = os.path.split(self.path)[0]
         if len(up)>0 and up != self.path:
-            self.browse(up,nofiles=self.nofiles)
+            self.newpath(up)
     def scrollDrag(self,x,y):
         p = float(y)/float(self.scrollbar.size[1]*(1.0-self.scrollbar.perc))
         if p>1.0: p = 1.0
@@ -406,16 +453,23 @@ class DialogScene(ui.Scene):
                 if not isdir:
                     index,atlas,uv = self.addToAtlas(t)
                     class entry:
-                        def __init__(self,item,frames,nofiles):
+                        def __init__(self,fullpath,frames,browser):
                             self.frames = frames
-                            self.item = item
-                            self.nofiles = nofiles
+                            self.fullpath = fullpath
+                            self.browser = browser
                         def click(self,lx,ly):
-                            if not self.nofiles:
-                                self.frames.load(self.item)
+                            if self.browser.scantype==SCAN_VIDEOS:
+                                self.frames.load(self.fullpath)
                                 self.frames.toggleBrowser()
-                    e = entry(fullpath,self.frames,self.nofiles)
+                            elif self.browser.scantype==SCAN_LUT and self.item.opacity==1.0:
+                                self.frames.importLut([self.fullpath])
+                                self.item.opacity = 0.5
+                                self.frames.refresh()
+                            
+                    e = entry(fullpath,self.frames,self)
                     item = ui.Button(240,135,svbo=self.svbo,onclick=e.click)
+                    e.item = item
+                    item.fullpath = fullpath
                     item.edges = (1.0,1.0,.0,.0)
                     item.colour = (1.0,1.0,1.0,1.0)
                     # Work out how to scale the thumb to preserve original aspect ratio
@@ -431,12 +485,22 @@ class DialogScene(ui.Scene):
                     thumb.rectangle(t.shape[1]*tscale,t.shape[0]*tscale,rgba=(1.0,1.0,1.0,1.0),uv=uv,solid=0.0,tex=1,texture=atlas)
                     thumb.setPos(120-t.shape[1]*tscale*0.5,135*0.5-t.shape[0]*tscale*0.5)
                     item.children.append(thumb)
-                    meta = ui.Text(os.path.split(fullpath)[1],svbo=self.svbo)
+                    name = os.path.split(fullpath)[1]
+                    meta = ui.Text("",svbo=self.svbo)
                     meta.ignoreInput = True
                     meta.maxchars = 80
                     meta.setScale(0.25)
                     meta.colour = (1.0,1.0,1.0,1.0)
                     meta.setPos(10,115)
+                    meta.text = name
+                    while 1:
+                        meta.update()
+                        if meta.size[0]>220:
+                            name = name[:-1]
+                            meta.text = name+"..."
+                            if len(name)==0: break
+                        else:
+                            break
                     meta.update()
                     metabg = ui.Geometry(svbo=self.svbo)
                     metabg.rectangle(meta.size[0]+10,meta.size[1]+5,rgba=(0.05,0.05,0.05,0.5))
@@ -446,13 +510,12 @@ class DialogScene(ui.Scene):
                     self.thumbitems.append((fullpath,item))
                 else:
                     class folder:
-                        def __init__(self,item,browser,nofiles=False):
+                        def __init__(self,item,browser):
                             self.browser = browser
                             self.item = item
-                            self.nofiles = nofiles
                         def click(self,lx,ly):
-                            self.browser.browse(self.item,nofiles=self.nofiles)
-                    f = folder(fullpath,self,self.nofiles)
+                            self.browser.newpath(self.item)
+                    f = folder(fullpath,self)
                     item = ui.Button(240,60,svbo=self.svbo,onclick=f.click)
                     item.edges = (1.0,1.0,.02,.1)
                     item.colour = (0.7,0.7,0.7,1.0)

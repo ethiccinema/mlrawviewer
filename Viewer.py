@@ -464,7 +464,7 @@ class Viewer(GLCompute.GLCompute):
             if m==0:
                 self.toggleLooping()
             elif m==1:
-                self.importLut()
+                self.toggleLutImport()
 
         elif k==self.KEY_G:
             self.loadBalance()
@@ -564,9 +564,7 @@ class Viewer(GLCompute.GLCompute):
     def currentLut1D2(self):
         return self.setting_lut1d2
 
-    def importLut(self):
-        result = launchDialog("importLut")
-        filenames = result.split("\n")
+    def importLut(self,filenames):
         update1d = False
         update3d = False
         for f in filenames:
@@ -1477,6 +1475,23 @@ class Viewer(GLCompute.GLCompute):
             if not self.paused:
                 self.togglePlay()
             self.dialog.chooseExport()
+            self.dialog.hidden = False
+            self.display.hidden = True
+            self.demosaic.hidden = True
+            self.browser = True
+            self.setCursorVisible(True)
+        else:
+            self.dialog.hidden = True
+            self.display.hidden = False
+            self.demosaic.hidden = False
+            self.browser = False
+        self.refresh()
+
+    def toggleLutImport(self):
+        if not self.browser:
+            if not self.paused:
+                self.togglePlay()
+            self.dialog.importLut()
             self.dialog.hidden = False
             self.display.hidden = True
             self.demosaic.hidden = True
