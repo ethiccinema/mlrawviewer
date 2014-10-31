@@ -301,7 +301,27 @@ class DialogScene(ui.Scene):
             folders = []
         folders.sort()
         for d in folders:
-            self.scanResults.append((True,os.path.join(root,d),None))
+            totalcand = 0
+            if scantype==SCAN_EXPORT: totalcand += 1
+            scanned = 0
+            for dirpath,dirnames,filenames in os.walk(os.path.join(root,d)):
+                if scantype==SCAN_VIDEOS:
+                    mlv = [n for n in filenames if n.lower().endswith(".mlv")]
+                    raw = [n for n in filenames if n.lower().endswith(".raw")]
+                    dng = [n for n in filenames if n.lower().endswith(".dng")]
+                    totalcand += len(mlv) + len(raw) + len(dng)
+                if scantype==SCAN_LUT:
+                    cube = [n for n in filenames if n.lower().endswith(".cube")]
+                    totalcand += len(cube)
+                if totalcand>0: break
+                scanned += 1
+                if scanned>1000:
+                    totalcand += 1 # Bail out and show anyway
+                    break
+                #print dirpath,len(subcand),subcand
+            #print totalcand
+            if totalcand>0:
+                self.scanResults.append((True,os.path.join(root,d),None))
         candidates.sort()
         for name in candidates:
             try:
@@ -317,11 +337,11 @@ class DialogScene(ui.Scene):
                         exists = False
                         if l.dim()==1:
                             for el in LUT1D:
-                                 if el[0].t == l.t: 
+                                 if el[0].t == l.t:
                                     exists = True
                         elif l.dim()==3:
                             for el in LUT3D:
-                                 if el[0].t == l.t: 
+                                 if el[0].t == l.t:
                                     exists = True
                         if exists: continue
                         t = np.zeros(shape=(90,160,3),dtype=np.uint16)*65535
