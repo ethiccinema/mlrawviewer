@@ -233,7 +233,7 @@ class DialogScene(ui.Scene):
         self.scanResults = [] # Delete all old results
         self.reset()
         self.path = config.getState("lutDir")
-        if self.path == None:
+        if self.path == None or not os.path.exists(self.path):
             self.path = os.path.expanduser("~")
         self.prompt = "Select new LUTs to import"
         self.scantype = SCAN_LUT
@@ -242,8 +242,10 @@ class DialogScene(ui.Scene):
         self.scanJob.join() # Wait for any previous job to complete
         self.scanResults = [] # Delete all old results
         self.reset()
-        self.prompt = "Choose export target folder"
         self.path = config.getState("targetDir")
+        self.prompt = "Choose export target folder"
+        if self.path == None or not os.path.exists(self.path):
+            self.path = os.path.expanduser("~")
         self.scantype = SCAN_EXPORT
         self.scanJob.put(self.path)
     def reset(self):
@@ -370,7 +372,6 @@ class DialogScene(ui.Scene):
                 #print fi,fi.pos[1],self.focusindex
                 break
             count += 1
-        print
         self.frames.refresh()
     def prepareToRender(self):
         if not self.background:
@@ -465,7 +466,7 @@ class DialogScene(ui.Scene):
                                 self.frames.importLut([self.fullpath])
                                 self.item.opacity = 0.5
                                 self.frames.refresh()
-                            
+
                     e = entry(fullpath,self.frames,self)
                     item = ui.Button(240,135,svbo=self.svbo,onclick=e.click)
                     e.item = item

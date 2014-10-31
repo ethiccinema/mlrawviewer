@@ -43,6 +43,7 @@ from Display import *
 from Audio import *
 import LUT
 from Dialog import *
+from Prompt import *
 
 ENCODE_TYPE_MOV = 0
 ENCODE_TYPE_DNG = 1
@@ -96,6 +97,8 @@ class Viewer(GLCompute.GLCompute):
         self.demosaic = None
         self.dialog = None
         self.browser = False
+        self.prompt = None
+        self.asking = False
         #self.markLoad()
         # Shared settings
         #self.initFps()
@@ -276,6 +279,10 @@ class Viewer(GLCompute.GLCompute):
             self.dialog = DialogScene(self,size=(0,0))
             self.dialog.hidden = True
         self.scenes.append(self.dialog)
+        if self.prompt == None:
+            self.prompt = PromptScene(self,size=(0,0))
+            self.prompt.hidden = True
+        self.scenes.append(self.prompt)
         self.initWav()
         if self.raw:
             self.vidAspectHeight = float(self.raw.height())/(self.raw.width()) # multiply this number on width to give height in aspect
@@ -325,6 +332,8 @@ class Viewer(GLCompute.GLCompute):
                 self.display.setPosition(width/2 - aspectWidth/2, 0)
         self.dialog.setSize(width,height)
         self.dialog.setPosition(0,0)
+        self.prompt.setSize(width,height)
+        self.prompt.setPosition(0,0)
         self.renderScenes()
         if self.raw:
             self.drawnFrameNumber = self.playFrameNumber
@@ -385,6 +394,11 @@ class Viewer(GLCompute.GLCompute):
             """
 
     def key(self,k,m):
+        if self.asking:
+            # Defer processing to browser view
+            self.prompt.key(k,m)
+            # Standard handling not used
+            return
         if self.browser:
             # Defer processing to browser view
             if not self.dialog.key(k,m):
@@ -503,7 +517,6 @@ class Viewer(GLCompute.GLCompute):
 
         elif k==self.KEY_W:
             self.toggleChooseExport()
-            #self.askOutput()
 
         elif k==self.KEY_Z:
             if m==0:
@@ -654,10 +667,12 @@ class Viewer(GLCompute.GLCompute):
 
     def input2d(self,x,y,buttons):
         now = time.time()
-        if self.display != None and not self.display.hidden:
-            handled = self.display.input2d(x,y,buttons)
+        if self.prompt != None and not self.prompt.hidden:
+            handled = self.prompt.input2d(x,y,buttons)
         elif self.dialog != None and not self.dialog.hidden:
             handled = self.dialog.input2d(x,y,buttons)
+        elif self.display != None and not self.display.hidden:
+            handled = self.display.input2d(x,y,buttons)
         if (now - self.lastEventTime)>5.0:
             self.refresh()
         self.lastEventTime = now
@@ -922,17 +937,15 @@ class Viewer(GLCompute.GLCompute):
         except:
             pass
         if not exists:
-            self.askOutputFunction() # Synchronous
-            try:
-                exists = os.path.exists(self.outfilename)
-            except:
-                pass
-            if not exists:
-                return None
+            self.toggleChooseExport()
+            return
+
         rfn = os.path.splitext(os.path.split(fn)[1])[0]+ext
         i = 1
         name = rfn+"_%06d"%i
+        full = os.path.join(self.outfilename,name)
         #full = os.path.join(self.outfilename,name)
+        self.exporter.iq.join() # Wait for all queued jobs to be processed
         queuedfiles = [j[1][3] for j in self.exporter.jobs.items()]
         increment = True
         existing = os.listdir(self.outfilename)
@@ -943,13 +956,14 @@ class Viewer(GLCompute.GLCompute):
                     increment = True
                     break
             for queued in queuedfiles:
-                if queued.startswith(name):
+                if queued.startswith(full):
                     increment = True
                     break
             if not increment:
                 break
             i += 1
             name = rfn+"_%06d"%i
+            full = os.path.join(self.outfilename,name)
         full = os.path.join(self.outfilename,name)
         return full
 
@@ -1103,10 +1117,11 @@ class Viewer(GLCompute.GLCompute):
 
     def okToExit(self):
         if self.exporter.busy:
-            result = okToExitDialog()
-            return result
-        else:
-            return True
+            if not self.asking:
+                self.togglePrompt()
+                return False
+        return True
+
     def exit(self):
         self.exporter.end()
         self.audio.stop()
@@ -1329,22 +1344,6 @@ class Viewer(GLCompute.GLCompute):
         self.exporter.exportDng(self.raw.filename,outfile,self.wavname,self.marks[0][0],self.marks[1][0],self.audioOffset,rgbl=rgbl,preprocess=pp)
         self.refresh()
 
-    def askOutput(self):
-        """
-        Temporary way to set output target
-        """
-        askThread = threading.Thread(target=self.askOutputFunction)
-        askThread.daemon = True
-        askThread.start()
-
-    def askOutputFunction(self):
-        result = askOutputDialog(self.outfilename)
-        if not result:
-            return
-        if os.path.exists(result):
-            self.outfilename = result
-            config.setState("targetDir",result)
-
     def useWhitePoint(self,x,y):
         # Read from the current playFrame at x/y
         # Assume that is a neutral colour
@@ -1449,6 +1448,19 @@ class Viewer(GLCompute.GLCompute):
             self.setBrightness(l)
             self.refresh()
 
+    def togglePrompt(self):
+        if not self.asking:
+            if not self.paused:
+                self.togglePlay()
+            #self.prompt.ask()
+            self.prompt.hidden = False
+            self.asking = True
+            self.setCursorVisible(True)
+        else:
+            self.prompt.hidden = True
+            self.asking = False
+        self.refresh()
+
     def toggleBrowser(self):
         if not self.browser:
             if not self.paused:
@@ -1532,15 +1544,4 @@ def launchDialog(dialogtype,initial="None"):
     result = fromUtf8(p.stdout.read())[0].strip()
     #print "result",result
     p.wait()
-    return result
-
-def okToExitDialog():
-    result = launchDialog("okToExit")
-    if result=="True":
-        return True
-    else:
-        return False
-
-def askOutputDialog(initial):
-    result = launchDialog("chooseOutputDir",initial)
     return result

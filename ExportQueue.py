@@ -127,15 +127,24 @@ class ExportQueue(threading.Thread):
             elif ct==self.COMMAND_REMOVE_JOB:
                 ix = command[1]
                 #print "removing job",ix
-                if ix in self.jobs:
-                    del self.jobs[ix]
-                    del self.jobstatus[ix]
                 if self.currentjob == ix:
                     self.cancel = True # Terminate early
+                else:
+                    if ix in self.jobs:
+                        del self.jobs[ix]
+                        del self.jobstatus[ix]
             elif ct==self.COMMAND_REMOVE_ALL_JOBS:
-                self.jobs = {}
-                self.jobstatus = {}
                 self.cancel = True
+                remove = []
+                for k in self.jobs.keys():
+                    if k!=self.currentjob:
+                        remove.append(k)
+                for k in remove:
+                    try:
+                        del self.jobs[k]
+                        del self.jobstatus[k]
+                    except:
+                        pass
                 #print "removed all jobs"
             elif ct==self.COMMAND_PAUSE:
                 self.pauseState = True
@@ -144,6 +153,7 @@ class ExportQueue(threading.Thread):
             elif ct==self.COMMAND_END:
                 self.endflag = True
             once = False
+            self.iq.task_done()
 
     def cancelJob(self,ix):
         #print "requesting cancel of",ix
@@ -489,7 +499,7 @@ class ExportQueue(threading.Thread):
             if self.endflag or self.cancel:
                 break
         self.wq.join()
-	self.writer.join()
+        self.writer.join()
         self.jobstatus[jobindex] = 1.0
         print "DNG export to",repr(target),"finished"
         r.close()
@@ -714,7 +724,7 @@ class ExportQueue(threading.Thread):
             if self.endflag or self.cancel:
                 break
         self.dq.join()
-	self.writer.join()
+        self.writer.join()
         self.jobstatus[jobindex] = 1.0
         print "MOV export to",repr(movfile),"finished"
         r.close()
