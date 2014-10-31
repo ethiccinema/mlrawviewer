@@ -26,8 +26,6 @@ SOFTWARE.
 import sys,struct,os,math,time,datetime,subprocess,signal,threading,Queue,wave,zlib,array
 from threading import Thread
 
-import dialogs
-
 import multiprocessing
 import multiprocessing.queues
 from multiprocessing import Process

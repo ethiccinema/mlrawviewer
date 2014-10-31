@@ -1,7 +1,7 @@
-rm -rf dist/*
+#rm -rf dist/*
 #pyinstaller --log-level=DEBUG mlrawviewer.spec
-pyinstaller --onedir dialogs.py
-cp dist/dialogs/dialogs .
+#pyinstaller --onedir dialogs.py
+#cp dist/dialogs/dialogs .
 rm -rf dist/*
 pyinstaller mlrawviewer.spec
 cp Info.plist dist/mlrawviewer.app/Contents/
