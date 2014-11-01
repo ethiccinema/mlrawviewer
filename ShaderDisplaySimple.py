@@ -74,8 +74,8 @@ void main() {
         glEnableVertexAttribArray(self.vertex)
         texture.bindtex(True) # Use linear filter
         glUniform1i(self.uniforms["tex"], 0)
-        w = width
-        h = height
+        w = texture.width
+        h = texture.height
         if w>0 and h>0:
             glUniform4f(self.uniforms["rawres"], w, h, 1.0/float(w),1.0/float(h))
         glUniform1f(self.uniforms["time"], 0)

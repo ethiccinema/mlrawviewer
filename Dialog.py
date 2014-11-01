@@ -80,7 +80,7 @@ class DialogScene(ui.Scene):
     def __init__(self,frames,**kwds):
         super(DialogScene,self).__init__(**kwds)
         self.frames = frames
-        self.svbo = ui.SharedVbo()
+        self.svbo = ui.SharedVbo(size=4*1024*1024)
         self.thumbitems = []
         self.folderitems = []
         self.layoutsize = (0,0)
@@ -122,12 +122,10 @@ class DialogScene(ui.Scene):
             self.scroll(1,0)
         elif k==self.frames.KEY_RIGHT:
             self.scroll(-1,0)
-        elif k==self.frames.KEY_DOWN:
-            self.scroll(0,-1)
         elif k==self.frames.KEY_PAGE_UP:
-            self.scroll(0,3)
-        elif k==self.frames.KEY_PAGE_DOWN:
             self.scroll(0,-3)
+        elif k==self.frames.KEY_PAGE_DOWN:
+            self.scroll(0,3)
         elif k==self.frames.KEY_LEFT_SHIFT or k==self.frames.KEY_RIGHT_SHIFT:
             self.upFolder()
         elif k==self.frames.KEY_ENTER:
@@ -206,7 +204,7 @@ class DialogScene(ui.Scene):
         if self.yoffset < 0: self.yoffset = 0
         if self.yoffset > self.scrollextent: self.yoffset = self.scrollextent
         self.frames.refresh()
-    def newpath(self,path):
+    def newpath(self,path,filename=None):
         if self.scantype == SCAN_EXPORT:
             config.setState("targetDir",path)
         elif self.scantype == SCAN_LUT:
@@ -217,6 +215,7 @@ class DialogScene(ui.Scene):
         self.scanResults = [] # Delete all old results
         self.reset()
         self.path = path
+        self.startfile = filename
         self.scanJob.put(path)
     def browse(self,path,filename=None):
         self.scanJob.join() # Wait for any previous job to complete
@@ -374,7 +373,7 @@ class DialogScene(ui.Scene):
     def upFolder(self,x=0,y=0):
         up = os.path.split(self.path)[0]
         if len(up)>0 and up != self.path:
-            self.newpath(up)
+            self.newpath(up,os.path.split(self.path)[1])
     def scrollDrag(self,x,y):
         p = float(y)/float(self.scrollbar.size[1]*(1.0-self.scrollbar.perc))
         if p>1.0: p = 1.0
@@ -509,7 +508,7 @@ class DialogScene(ui.Scene):
                     name = os.path.split(fullpath)[1]
                     meta = ui.Text("",svbo=self.svbo)
                     meta.ignoreInput = True
-                    meta.maxchars = 80
+                    meta.maxchars = len(name)
                     meta.setScale(0.25)
                     meta.colour = (1.0,1.0,1.0,1.0)
                     meta.setPos(10,115)

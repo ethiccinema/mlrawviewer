@@ -201,20 +201,28 @@ class Viewer(GLCompute.GLCompute):
         if self.raw:
             self.raw.close()
         self.raw = raw
-        self.playFrame = self.raw.firstFrame
-        self.frameCache = {0:self.raw.firstFrame}
+        if self.raw.frames()>1:
+            self.raw.preloadFrame(1)
+            self.playFrame = self.raw.frame(1)
+            self.frameCache = {1:self.playFrame}
+            self.playFrameNumber = 1
+            self.nextFrameNumber = 1
+            self.neededFrame = 1
+        else:
+            self.playFrame = self.raw.firstFrame
+            self.frameCache = {0:self.raw.firstFrame}
+            self.playFrameNumber = 0
+            self.nextFrameNumber = 0
+            self.neededFrame = 0
         self.preloadingFrame = []
         self.preloadingFrames = []
         self.realStartTime = 0
         self.playTime = 0
-        self.playFrameNumber = 0
-        self.nextFrameNumber = 0
-        self.neededFrame = 0
         self.initFps()
         self.audioOffset = self.raw.getMeta("audioOffset_v1")
         if self.audioOffset == None: self.audioOffset = 0.0
         self.drawnFrameNumber = None
-        self.preloadFrame(1) # Immediately try to preload the next frame
+        self.preloadFrame(2) # Immediately try to preload the next frame
         self.indexing = True
         self.markLoad()
         self._init = False
@@ -306,6 +314,8 @@ class Viewer(GLCompute.GLCompute):
                 offset = self.playFrameNumber / self.fps
                 self.realStartTime = time.time() - offset
                 PLOG(PLOG_FRAME,"realStartTime set to %f"%self.realStartTime)
+            self.vidAspectHeight = float(self.raw.height())/(self.raw.width()) # multiply this number on width to give height in aspect
+            self.vidAspectWidth = float(self.raw.width())/(self.raw.height()) # multiply this number on height to give height in aspect
             aspectHeight = int((width*self.vidAspectHeight))
             aspectWidth = int((height*self.vidAspectWidth))
             if self.anamorphic == True:
