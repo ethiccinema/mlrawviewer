@@ -924,13 +924,8 @@ class Viewer(GLCompute.GLCompute):
                         time.sleep(0.003)
             else:
                 time.sleep(0.003)
-
-                """
-                if (now-self._last >= (1.0/self.fps)):
-                    self.redisplay()
-                else:
-                    time.sleep(0.001)
-                """
+        else:
+            time.sleep(0.01)
 
         if self.needsRefresh: # and self.paused:
             self.redisplay()

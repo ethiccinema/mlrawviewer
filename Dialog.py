@@ -38,6 +38,8 @@ import ExportQueue
 from ShaderText import *
 import MlRaw
 import LUT
+#if config.isWin():
+import psutil
 
 LUT1D = LUT.LUT1D
 LUT3D = LUT.LUT3D
