@@ -76,7 +76,7 @@ from Viewer import *
 def main():
     rmc = Viewer()
     if len(sys.argv)>1:
-        rmc.load(sys.argv[1])
+        rmc.load(os.path.abspath(sys.argv[1]))
     else:
         rmc.openBrowser()
     ret = rmc.run()
