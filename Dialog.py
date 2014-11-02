@@ -314,17 +314,17 @@ class DialogScene(ui.Scene):
         candidates = []
         folders = []
         if len(root)>0:
-                try:
-                    if scantype==SCAN_VIDEOS:
-                        candidates = MlRaw.candidatesInDir(os.path.join(root,"dummy"))
-                    elif scantype==SCAN_LUT:
-                        candidates=[f for f in os.listdir(root) if f.lower().endswith(".cube")]
-                except:
-                    pass
-                try:
-                    folders = [d for d in os.listdir(root) if os.path.isdir(os.path.join(root,d)) and d not in candidates and d[0]!='.' and d[0]!='$']
-                except:
-                    pass
+            try:
+                if scantype==SCAN_VIDEOS:
+                    candidates = MlRaw.candidatesInDir(os.path.join(root,"dummy"))
+                elif scantype==SCAN_LUT:
+                    candidates=[f for f in os.listdir(root) if f.lower().endswith(".cube")]
+            except:
+                pass
+            try:
+                folders = [d for d in os.listdir(root) if os.path.isdir(os.path.join(root,d)) and d not in candidates and d[0]!='.' and d[0]!='$']
+            except:
+                pass
         else:
             # Windows list drives
             if config.isWin():
@@ -374,7 +374,6 @@ class DialogScene(ui.Scene):
                 else:
                     if scantype==SCAN_VIDEOS:
                         t = self.indexFile(fullpath)
-		
                     elif scantype==SCAN_LUT:
                         l = LUT.LutCube()
                         l.load(fullpath)
@@ -416,11 +415,11 @@ class DialogScene(ui.Scene):
     def close(self,x=0,y=0):
         self.frames.toggleBrowser()
     def upFolder(self,x=0,y=0):
-	drive,path = os.path.split(self.path)
-	if (drive==self.path) and (len(drive)>0):
-		# We are on windows at the root of a drive. Must next list all drives
-		self.newpath("",drive)
-		return
+        drive,path = os.path.split(self.path)
+        if (drive==self.path) and (len(drive)>0) and (drive!="/"):
+		    # We are on windows at the root of a drive. Must next list all drives
+		    self.newpath("",drive)
+		    return
         up = os.path.split(self.path)[0]
         if len(up)>0 and up != self.path:
             self.newpath(up,os.path.split(self.path)[1])
