@@ -23,6 +23,8 @@ SOFTWARE.
 
 import zlib,os,sys,math,time,threading,Queue
 
+import scandir
+
 from Config import config
 
 import PerformanceLog
@@ -38,8 +40,8 @@ import ExportQueue
 from ShaderText import *
 import MlRaw
 import LUT
-#if config.isWin():
-import psutil
+if config.isWin():
+	import psutil
 
 LUT1D = LUT.LUT1D
 LUT3D = LUT.LUT3D
@@ -113,6 +115,7 @@ class DialogScene(ui.Scene):
         self.shownprompt = ""
         self.startfile = None
         self.scantype = 1
+        self.dircache = {}
     def key(self,k,m):
         if k==self.frames.KEY_BACKSPACE:
             self.close()
@@ -286,43 +289,82 @@ class DialogScene(ui.Scene):
             t = r.firstFrame.thumb()
         r.close()
         return t
+    def candidatesInTree(self,path):
+        cacheresults = self.dircache.get(path,None)
+        if cacheresults!=None:
+            return cacheresults
+        self.dircache[path] = (0,0)
+        for dirpath,dirnames,filenames in scandir.walk(path,topdown=False):
+            candvid = 0
+            candlut = 0
+            for sd in dirnames:
+                sv,sl = self.dircache.setdefault(os.path.join(dirpath,sd),(0,0))
+                candvid += sv
+                candlut += sl
+            mlv = [n for n in filenames if n.lower().endswith(".mlv")]
+            raw = [n for n in filenames if n.lower().endswith(".raw")]
+            dng = [n for n in filenames if n.lower().endswith(".dng")]
+            candvid += len(mlv) + len(raw) + len(dng)
+            cube = [n for n in filenames if n.lower().endswith(".cube")]
+            candlut += len(cube)
+            self.dircache[dirpath] = (candvid,candlut)
+        return self.dircache[path]
     def find(self,root):
         scantype = self.scantype
         candidates = []
-        try:
-            if scantype==SCAN_VIDEOS:
-                candidates = MlRaw.candidatesInDir(os.path.join(root,"dummy"))
-            elif scantype==SCAN_LUT:
-                candidates=[f for f in os.listdir(root) if f.lower().endswith(".cube")]
-        except:
-            candidates = []
-        try:
-            folders = [d for d in os.listdir(root) if os.path.isdir(os.path.join(root,d)) and d not in candidates and d[0]!='.' and d[0]!='$']
-        except:
-            folders = []
+        folders = []
+        if len(root)>0:
+                try:
+                    if scantype==SCAN_VIDEOS:
+                        candidates = MlRaw.candidatesInDir(os.path.join(root,"dummy"))
+                    elif scantype==SCAN_LUT:
+                        candidates=[f for f in os.listdir(root) if f.lower().endswith(".cube")]
+                except:
+                    pass
+                try:
+                    folders = [d for d in os.listdir(root) if os.path.isdir(os.path.join(root,d)) and d not in candidates and d[0]!='.' and d[0]!='$']
+                except:
+                    pass
+        else:
+            # Windows list drives
+            if config.isWin():
+                drives = [p.mountpoint for p in psutil.disk_partitions()]
+                drives.sort()
+                for d in drives:
+                    self.scanResults.append((True,d,None))
+                return
         folders.sort()
         for d in folders:
             totalcand = 0
             if scantype==SCAN_EXPORT: totalcand += 1
             scanned = 0
-            for dirpath,dirnames,filenames in os.walk(os.path.join(root,d)):
-                if scantype==SCAN_VIDEOS:
+            scanpath = os.path.join(root,d)
+            cacheresults = self.dircache.get(scanpath,None)
+            if cacheresults!=None:
+                candvid,candlut = cacheresults
+            else:
+                self.dircache[scanpath] = (0,0)
+                for dirpath,dirnames,filenames in scandir.walk(scanpath):
+                    # Bottom up so can prune subtrees we cached previously
+                    candvid = 0
+                    candlut = 0
+                    for sd in dirnames:
+                        sv,sl = self.candidatesInTree(os.path.join(scanpath,sd))
+                        candvid += sv
+                        candlut += sl
+                    del dirnames[:]
                     mlv = [n for n in filenames if n.lower().endswith(".mlv")]
                     raw = [n for n in filenames if n.lower().endswith(".raw")]
                     dng = [n for n in filenames if n.lower().endswith(".dng")]
-                    totalcand += len(mlv) + len(raw) + len(dng)
-                if scantype==SCAN_LUT:
+                    candvid += len(mlv) + len(raw) + len(dng)
                     cube = [n for n in filenames if n.lower().endswith(".cube")]
-                    totalcand += len(cube)
-                if totalcand>0: break
-                scanned += 1
-                if scanned>1000:
-                    totalcand += 1 # Bail out and show anyway
-                    break
-                #print dirpath,len(subcand),subcand
-            #print totalcand
-            if totalcand>0:
-                self.scanResults.append((True,os.path.join(root,d),None))
+                    candlut += len(cube)
+                    self.dircache[dirpath] = (candvid,candlut)
+                candvid,candlut = self.dircache[scanpath]
+            if scantype==SCAN_VIDEOS and candvid>0:
+                self.scanResults.append((True,scanpath,None))
+            elif scantype==SCAN_LUT and candlut>0:
+                self.scanResults.append((True,scanpath,None))
         candidates.sort()
         for name in candidates:
             try:
@@ -332,6 +374,7 @@ class DialogScene(ui.Scene):
                 else:
                     if scantype==SCAN_VIDEOS:
                         t = self.indexFile(fullpath)
+		
                     elif scantype==SCAN_LUT:
                         l = LUT.LutCube()
                         l.load(fullpath)
@@ -357,7 +400,7 @@ class DialogScene(ui.Scene):
             except:
                 import traceback
                 traceback.print_exc()
-                pass
+		continue
     def addToAtlas(self,thumbnail):
         atlas = None
         index = None
@@ -373,6 +416,11 @@ class DialogScene(ui.Scene):
     def close(self,x=0,y=0):
         self.frames.toggleBrowser()
     def upFolder(self,x=0,y=0):
+	drive,path = os.path.split(self.path)
+	if (drive==self.path) and (len(drive)>0):
+		# We are on windows at the root of a drive. Must next list all drives
+		self.newpath("",drive)
+		return
         up = os.path.split(self.path)[0]
         if len(up)>0 and up != self.path:
             self.newpath(up,os.path.split(self.path)[1])
@@ -549,6 +597,14 @@ class DialogScene(ui.Scene):
                     name.colour = (0.0,0.0,0.0,1.0)
                     name.size = (220,50)
                     n = os.path.split(fullpath)[1]
+                    if len(n)==0:
+                        n = os.path.splitdrive(fullpath)[0]
+                        try:
+                            import win32api
+                            vol = win32api.GetVolumeInformation(n+"\\")
+                            n += " ("+vol[0]+")"
+                        except:
+                            pass
                     name.text = n
                     while 1:
                         name.update()

@@ -487,6 +487,7 @@ class MLRAW(ImageSequence):
         self.indexfile.seek(-192,os.SEEK_END)
         footerdata = self.indexfile.read(192)
         self.footer = struct.unpack("4shhiiiiii",footerdata[:8*4])
+	if self.footer[0]!="RAWM": raise IOError()
         self.fps = float(self.footer[6])*0.001
         if self.footer>=23974 and self.footer<=23976:
             self.fpsnum = 24000
