@@ -203,7 +203,7 @@ class Scene(object):
                 #if ignore:
                 #    return None
             #if buttons[0]==0 and buttons[1]==0: return None
-            for d in self.drawables:
+            for d in reversed(self.drawables):
                 if d.ignoreInput: continue
                 if d.opacity == 0.0: continue
                 self.eventHandler = d.input2d(self.inputMatrix,x,y,buttons)
@@ -344,7 +344,7 @@ class Geometry(Drawable):
         handler = None
         # Try all children first
         if not self.hasPointerFocus:
-            for c in self.children:
+            for c in reversed(self.children):
                 handler = c.input2d(m,x,y,buttons)
                 if handler != None:
                     break

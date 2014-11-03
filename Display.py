@@ -210,7 +210,7 @@ class DisplayScene(ui.Scene):
         self.overlay = [self.iconBackground,self.progressBackground,self.progress,self.timestamp,self.update,self.balance,self.balanceHandle,self.brightness,self.brightnessHandle,self.mark,self.mdbg,self.metadata,self.exportq,self.coldata,self.ttbg,self.tooltip,self.histogram]
         self.overlay.extend(self.iconItems)
         self.overlay.extend(self.ciItems)
-        self.overlay.append(self.whitePicker) # So it is on the bottom
+        self.overlay.insert(0,self.whitePicker) # So it is on the bottom
         self.drawables.extend([self.display])
         self.drawables.extend(self.overlay)
         self.timeline = ui.Timeline()
