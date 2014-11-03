@@ -10,7 +10,7 @@ single and multi-file versions. It can also play CinemaDNG file sets.
 It can act as a front end to ffmpeg for encoding raw files into another video
 format such as ProRes.
 
-The program is written in python, and makes use of OpenGL for image processing in order to be 
+The program is written in python, and makes use of OpenGL for image processing in order to be
 able to display videos at their intended frame rate. This also depends on you having
 good file read speed in your computer.
 
@@ -64,7 +64,19 @@ loaded (GLFW backend only).
 Usage (gui)
 -----------
 
+Browser:
+
+If opened without a file, a browser is shown allowing you to choose one.
+Clicking a folder will open that folder.
+Clicking the up arrow or presing the SHIFT key will go to the parent folder.
+Clicking a video or pressing the ENTER key will open that video in the viewer.
+Clicking the close icon or pressing the BACKSPACE key will close the browser (or go back to the viewer)
+
+Viewer:
+
 The timeline bar can be clicked to jump to anywhere in the current file.
+
+At the top left is the file metadata. Clicking this or pressing BACKSPACE goes to the browser.
 
 State icons along the left are as follows:
 
@@ -97,6 +109,22 @@ To select the second 1D LUT, use Shift-Z/X keys.
 
 Keys
 ----
+
+ESCAPE - Close application. If exporting you will be asked first if exporting should be cancelled.
+
+In browser:
+
+SHIFT - Go up to parent folder
+
+ENTER - Open file
+
+CURSORS or PAGE UP/DOWN - Change focus
+
+BACKSPACE - Go back to viewer
+
+In viewer:
+
+BACKSPACE - Open browser
 
 SPACE - Pause/Unpause playback
 
