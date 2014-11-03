@@ -194,7 +194,11 @@ class Demosaicer(ui.Drawable):
                         self.rgbUploadTex.update(frameData.rgbimage)
                         PLOG(PLOG_GPU,"RGB texture upload returned for frame %d"%frameNumber)
                         self.rgbFrameUploaded = frameNumber
-                    newrgb = (rgb[0]/frameData.rawwbal[0],1.0,rgb[2]/frameData.rawwbal[2])
+                    wbalred = frameData.rawwbal[0]
+                    wbalblue = frameData.rawwbal[0]
+                    if wbalred<0.01: wbalred=0.01 # Avoid divide by zero
+                    if wbalblue<0.01: wbalblue=0.01
+                    newrgb = (rgb[0]/wbalred,1.0,rgb[2]/wbalblue)
                     self.shaderQuality.demosaicPass(self.rgbUploadTex,self.luttex,frameData.black,balance=(newrgb[0],newrgb[1],newrgb[2],balance[3]),white=frameData.white,tonemap=tone,colourMatrix=self.settings.setting_colourMatrix,recover=0.0,lut1d1=self.lut1d1tex,lut1d2=self.lut1d2tex)
             else:
                 # Fast decode for full speed viewing
