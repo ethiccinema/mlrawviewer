@@ -141,8 +141,9 @@ class Viewer(GLCompute.GLCompute):
     def openBrowser(self,initFolder=None):
         if initFolder==None:
             initFolder = config.getState("directory")
-            if not os.path.exists(initFolder):
-                initFolder = None
+            if initFolder != None:
+                if not os.path.exists(initFolder):
+                    initFolder = None
             if initFolder == None:
                 initFolder = '~'
             initFolder = os.path.expanduser(initFolder)

@@ -51,5 +51,7 @@
 	</array>
 	<key>LSBackgroundOnly</key>
 	<string>1</string>
+    <key>NSHighResolutionCapable</key>
+    <true/>
 </dict>
 </plist>
