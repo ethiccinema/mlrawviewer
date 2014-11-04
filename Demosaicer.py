@@ -195,7 +195,7 @@ class Demosaicer(ui.Drawable):
                         PLOG(PLOG_GPU,"RGB texture upload returned for frame %d"%frameNumber)
                         self.rgbFrameUploaded = frameNumber
                     wbalred = frameData.rawwbal[0]
-                    wbalblue = frameData.rawwbal[0]
+                    wbalblue = frameData.rawwbal[2]
                     if wbalred<0.01: wbalred=0.01 # Avoid divide by zero
                     if wbalblue<0.01: wbalblue=0.01
                     newrgb = (rgb[0]/wbalred,1.0,rgb[2]/wbalblue)
