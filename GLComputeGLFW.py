@@ -358,16 +358,24 @@ class GLCompute(object):
     def onScroll(self,x,y):
         pass
     def __mousefunc(self,window,button,action,mods):
+        fw,fh = glfw.glfwGetFramebufferSize(window)
+        ww,wh = glfw.glfwGetWindowSize(window)
         x,y = glfw.glfwGetCursorPos(window)
+        sx = int(x * float(fw)/float(ww))
+        sy = int(y * float(fh)/float(wh))
         if action==glfw.GLFW_PRESS: state = self.BUTTON_DOWN
         else: action = self.BUTTON_UP
         if button==glfw.GLFW_MOUSE_BUTTON_LEFT: button = self.BUTTON_LEFT
         elif button==glfw.GLFW_MOUSE_BUTTON_RIGHT: button = self.BUTTON_RIGHT
         else: return # Don't support middle button
         self.buttons[button] = action
-        self.input2d(x,y,self.buttons)
+        self.input2d(sx,sy,self.buttons)
     def __motionfunc(self,window,x,y):
-        self.input2d(x,y,self.buttons)
+        fw,fh = glfw.glfwGetFramebufferSize(window)
+        ww,wh = glfw.glfwGetWindowSize(window)
+        sx = int(x * float(fw)/float(ww))
+        sy = int(y * float(fh)/float(wh))
+        self.input2d(sx,sy,self.buttons)
     def input2d(self,x,y,buttons):
         pass
     def setCursorVisible(self,visible):
