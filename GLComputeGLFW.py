@@ -268,7 +268,7 @@ class GLCompute(object):
                 return
             #print "next job",time.time()
         glBindFramebuffer(GL_FRAMEBUFFER, 0)
-        w,h = glfw.glfwGetWindowSize(self.backgroundWindow)
+        w,h = glfw.glfwGetFramebufferSize(self.backgroundWindow)
         #print "bgdraw",w,h
         glViewport(0,0,w,h)
         glClearColor(1.0,1.0,0.0,1.0)
@@ -292,9 +292,9 @@ class GLCompute(object):
         self.onFboDraw()
         glBindFramebuffer(GL_FRAMEBUFFER, 0)
         if self._isFull:
-            w,h = glfw.glfwGetWindowSize(self.glfwFullscreenWindow)
+            w,h = glfw.glfwGetFramebufferSize(self.glfwFullscreenWindow)
         else:
-            w,h = glfw.glfwGetWindowSize(self.glfwWindow)
+            w,h = glfw.glfwGetFramebufferSize(self.glfwWindow)
         self.width = w
         self.height = h
         glViewport(0,0,w,h)

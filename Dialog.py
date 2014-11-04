@@ -336,9 +336,11 @@ class DialogScene(ui.Scene):
         folders.sort()
         for d in folders:
             totalcand = 0
-            if scantype==SCAN_EXPORT: totalcand += 1
             scanned = 0
             scanpath = os.path.join(root,d)
+            if scantype==SCAN_EXPORT:
+                self.scanResults.append((True,scanpath,None))
+                continue
             cacheresults = self.dircache.get(scanpath,None)
             if cacheresults!=None:
                 candvid,candlut = cacheresults
