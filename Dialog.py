@@ -92,6 +92,7 @@ class DialogScene(ui.Scene):
         self.layoutwidth = 1
         self.atlases = []
         self.scanJob = Queue.Queue()
+        self.scanJobCancel = False
         self.scanResults = []
         self.scanThread = threading.Thread(target=self.scanFunction)
         self.scanThread.daemon = True
@@ -116,6 +117,46 @@ class DialogScene(ui.Scene):
         self.startfile = None
         self.scantype = 1
         self.dircache = {}
+        self.skippaths = {}
+        self.initSkippaths()
+    def initSkippaths(self):
+        if config.isWin():
+            self.skippaths = {
+                "Windows":True,
+           }
+        elif config.isMac():
+            self.skippaths = {
+                "/Applications":True,
+                "/Extra":True,
+                "/Library":True,
+                "/Network":True,
+                "/System":True,
+                "/boot":True,
+                "/dev":True,
+                "/etc":True,
+                "/lib":True,
+                "/proc":True,
+                "/run":True,
+                "/proc":True,
+                "/sys":True,
+                "/tmp":True,
+                "/var":True,
+                "/usr":True,
+            }
+        else:
+            self.skippaths = {
+                "/boot":True,
+                "/dev":True,
+                "/etc":True,
+                "/lib":True,
+                "/proc":True,
+                "/run":True,
+                "/proc":True,
+                "/sys":True,
+                "/tmp":True,
+                "/var":True,
+                "/usr":True,
+            }
     def key(self,k,m):
         if k==self.frames.KEY_BACKSPACE:
             self.close()
@@ -278,6 +319,7 @@ class DialogScene(ui.Scene):
         while 1:
             scandir = self.scanJob.get()
             self.find(scandir)
+            self.scanJobCancel = False
             self.scanJob.task_done()
             self.frames.refresh()
     def indexFile(self,filename):
@@ -290,6 +332,8 @@ class DialogScene(ui.Scene):
         r.close()
         return t
     def candidatesInTree(self,path):
+        if path in self.skippaths:
+            return (0,0)
         cacheresults = self.dircache.get(path,None)
         if cacheresults!=None:
             return cacheresults
@@ -308,8 +352,12 @@ class DialogScene(ui.Scene):
             cube = [n for n in filenames if n.lower().endswith(".cube")]
             candlut += len(cube)
             self.dircache[dirpath] = (candvid,candlut)
+            if self.scanJobCancel:
+                del self.dircache[path]
+                return None
         return self.dircache[path]
     def find(self,root):
+        if root in self.skippaths: return
         scantype = self.scantype
         candidates = []
         folders = []
@@ -338,6 +386,7 @@ class DialogScene(ui.Scene):
             totalcand = 0
             scanned = 0
             scanpath = os.path.join(root,d)
+            if scanpath in self.skippaths: continue
             if scantype==SCAN_EXPORT:
                 self.scanResults.append((True,scanpath,None))
                 continue
@@ -351,7 +400,11 @@ class DialogScene(ui.Scene):
                     candvid = 0
                     candlut = 0
                     for sd in dirnames:
-                        sv,sl = self.candidatesInTree(os.path.join(scanpath,sd))
+                        svsl = self.candidatesInTree(os.path.join(scanpath,sd))
+                        if svsl == None or self.scanJobCancel:
+                            del self.dircache[scanpath]
+                            return # Cancelled early
+                        sv,sl = svsl
                         candvid += sv
                         candlut += sl
                     del dirnames[:]
@@ -398,10 +451,12 @@ class DialogScene(ui.Scene):
                 if t != None:
                     self.scanResults.append((False,fullpath,t))
                     self.frames.refresh()
+                if self.scanJobCancel:
+                    return
             except:
                 import traceback
                 traceback.print_exc()
-		continue
+                continue
     def addToAtlas(self,thumbnail):
         atlas = None
         index = None
