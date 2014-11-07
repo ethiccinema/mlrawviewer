@@ -145,16 +145,28 @@ class DialogScene(ui.Scene):
             }
         else:
             self.skippaths = {
+                "/bin":True,
                 "/boot":True,
+                "/cdrom":True,
                 "/dev":True,
                 "/etc":True,
                 "/lib":True,
+                "/lib32":True,
+                "/lib64":True,
+                "/libx32":True,
+                "/lost+found":True,
                 "/proc":True,
                 "/run":True,
                 "/proc":True,
                 "/sys":True,
+                "/sbin":True,
+                "/srv":True,
                 "/tmp":True,
                 "/var":True,
+                "/usr":True,
+                "/usr":True,
+                "/usr":True,
+                "/usr":True,
                 "/usr":True,
             }
     def key(self,k,m):
@@ -250,6 +262,11 @@ class DialogScene(ui.Scene):
         if self.yoffset < 0: self.yoffset = 0
         if self.yoffset > self.scrollextent: self.yoffset = self.scrollextent
         self.frames.refresh()
+    def prepareForNewJob(self):
+        self.scanJobCancel = True
+        self.scanJob.join() # Wait for any previous job to complete
+        self.scanJobCancel = False
+        self.scanResults = [] # Delete all old results
     def newpath(self,path,filename=None):
         if self.scantype == SCAN_EXPORT:
             config.setState("targetDir",path)
@@ -257,15 +274,13 @@ class DialogScene(ui.Scene):
             config.setState("lutDir",path)
         elif self.scantype == SCAN_VIDEOS:
             config.setState("directory",path)
-        self.scanJob.join() # Wait for any previous job to complete
-        self.scanResults = [] # Delete all old results
+        self.prepareForNewJob()
         self.reset()
         self.path = path
         self.startfile = filename
         self.scanJob.put(path)
     def browse(self,path,filename=None):
-        self.scanJob.join() # Wait for any previous job to complete
-        self.scanResults = [] # Delete all old results
+        self.prepareForNewJob()
         self.reset()
         self.path = path
         self.startfile = filename
@@ -274,8 +289,7 @@ class DialogScene(ui.Scene):
         self.scantype = SCAN_VIDEOS
         self.scanJob.put(path)
     def importLut(self):
-        self.scanJob.join() # Wait for any previous job to complete
-        self.scanResults = [] # Delete all old results
+        self.prepareForNewJob()
         self.reset()
         self.path = config.getState("lutDir")
         if self.path == None or not os.path.exists(self.path):
@@ -284,7 +298,6 @@ class DialogScene(ui.Scene):
         self.scantype = SCAN_LUT
         self.scanJob.put(self.path)
     def chooseExport(self):
-        self.scanJob.join() # Wait for any previous job to complete
         self.scanResults = [] # Delete all old results
         self.reset()
         self.path = config.getState("targetDir")
@@ -317,8 +330,13 @@ class DialogScene(ui.Scene):
         self.focusmoved = False
     def scanFunction(self):
         while 1:
+            self.scanJobCancel = False
             scandir = self.scanJob.get()
-            self.find(scandir)
+            try:
+                self.find(scandir)
+            except:
+                import traceback
+                traceback.print_exc()
             self.scanJobCancel = False
             self.scanJob.task_done()
             self.frames.refresh()
@@ -348,7 +366,8 @@ class DialogScene(ui.Scene):
             mlv = [n for n in filenames if n.lower().endswith(".mlv")]
             raw = [n for n in filenames if n.lower().endswith(".raw")]
             dng = [n for n in filenames if n.lower().endswith(".dng")]
-            candvid += len(mlv) + len(raw) + len(dng)
+            candvid += len(mlv) + len(raw)
+            if len(dng)>1: candvid += 1
             cube = [n for n in filenames if n.lower().endswith(".cube")]
             candlut += len(cube)
             self.dircache[dirpath] = (candvid,candlut)
@@ -382,44 +401,23 @@ class DialogScene(ui.Scene):
                     self.scanResults.append((True,d,None))
                 return
         folders.sort()
+        deepscan = []
         for d in folders:
-            totalcand = 0
-            scanned = 0
             scanpath = os.path.join(root,d)
             if scanpath in self.skippaths: continue
             if scantype==SCAN_EXPORT:
-                self.scanResults.append((True,scanpath,None))
+                self.scanResults.append((True,scanpath,None,candvid))
                 continue
             cacheresults = self.dircache.get(scanpath,None)
             if cacheresults!=None:
                 candvid,candlut = cacheresults
+                if scantype==SCAN_VIDEOS and candvid>0:
+                    self.scanResults.append((True,scanpath,None,candvid))
+                elif scantype==SCAN_LUT and candlut>0:
+                    self.scanResults.append((True,scanpath,None,candlut))
             else:
-                self.dircache[scanpath] = (0,0)
-                for dirpath,dirnames,filenames in scandir.walk(scanpath):
-                    # Bottom up so can prune subtrees we cached previously
-                    candvid = 0
-                    candlut = 0
-                    for sd in dirnames:
-                        svsl = self.candidatesInTree(os.path.join(scanpath,sd))
-                        if svsl == None or self.scanJobCancel:
-                            del self.dircache[scanpath]
-                            return # Cancelled early
-                        sv,sl = svsl
-                        candvid += sv
-                        candlut += sl
-                    del dirnames[:]
-                    mlv = [n for n in filenames if n.lower().endswith(".mlv")]
-                    raw = [n for n in filenames if n.lower().endswith(".raw")]
-                    dng = [n for n in filenames if n.lower().endswith(".dng")]
-                    candvid += len(mlv) + len(raw) + len(dng)
-                    cube = [n for n in filenames if n.lower().endswith(".cube")]
-                    candlut += len(cube)
-                    self.dircache[dirpath] = (candvid,candlut)
-                candvid,candlut = self.dircache[scanpath]
-            if scantype==SCAN_VIDEOS and candvid>0:
-                self.scanResults.append((True,scanpath,None))
-            elif scantype==SCAN_LUT and candlut>0:
-                self.scanResults.append((True,scanpath,None))
+                deepscan.append(scanpath)
+                self.scanResults.append((True,scanpath,None,None))
         candidates.sort()
         for name in candidates:
             try:
@@ -449,7 +447,7 @@ class DialogScene(ui.Scene):
                     if t != None:
                         self.thumbcache[fullpath] = t
                 if t != None:
-                    self.scanResults.append((False,fullpath,t))
+                    self.scanResults.append((False,fullpath,t,None))
                     self.frames.refresh()
                 if self.scanJobCancel:
                     return
@@ -457,6 +455,33 @@ class DialogScene(ui.Scene):
                 import traceback
                 traceback.print_exc()
                 continue
+        # All essential folders and thumbs are now on screen. Can peacefully deepscan directories
+        # So any non-relevant ones czn be ignored in future
+        for scanpath in deepscan:
+            self.dircache[scanpath] = (0,0)
+            for dirpath,dirnames,filenames in scandir.walk(scanpath):
+                # Bottom up so can prune subtrees we cached previously
+                candvid = 0
+                candlut = 0
+                for sd in dirnames:
+                    svsl = self.candidatesInTree(os.path.join(scanpath,sd))
+                    if svsl == None or self.scanJobCancel:
+                        print "cancelled",svsl,self.scanJobCancel
+                        del self.dircache[scanpath]
+                        return # Cancelled early
+                    sv,sl = svsl
+                    candvid += sv
+                    candlut += sl
+                del dirnames[:]
+                mlv = [n for n in filenames if n.lower().endswith(".mlv")]
+                raw = [n for n in filenames if n.lower().endswith(".raw")]
+                dng = [n for n in filenames if n.lower().endswith(".dng")]
+                candvid += len(mlv) + len(raw)
+                if len(dng)>1: candvid += 1
+                cube = [n for n in filenames if n.lower().endswith(".cube")]
+                candlut += len(cube)
+                self.dircache[dirpath] = (candvid,candlut)
+
     def addToAtlas(self,thumbnail):
         atlas = None
         index = None
@@ -570,27 +595,36 @@ class DialogScene(ui.Scene):
 
         if len(self.scanResults)>0:
             self.svbo.bind()
+            start = time.time()
+            class entry:
+                def __init__(self,fullpath,frames,browser):
+                    self.frames = frames
+                    self.fullpath = fullpath
+                    self.browser = browser
+                def click(self,lx,ly):
+                    if self.browser.scantype==SCAN_VIDEOS:
+                        self.browser.scanJobCancel = True
+                        self.frames.load(self.fullpath)
+                        self.frames.toggleBrowser()
+                    elif self.browser.scantype==SCAN_LUT and self.item.opacity==1.0:
+                        self.frames.importLut([self.fullpath])
+                        self.item.opacity = 0.5
+                        self.frames.refresh()
+            class folder:
+                def __init__(self,item,browser):
+                    self.browser = browser
+                    self.item = item
+                def click(self,lx,ly):
+                    self.browser.newpath(self.item)
             while 1:
                 try:
                     ft = self.scanResults.pop()
                 except:
                     break
-                isdir,fullpath,t = ft
+                isdir,fullpath,t,cand = ft
+                print fullpath,cand
                 if not isdir:
                     index,atlas,uv = self.addToAtlas(t)
-                    class entry:
-                        def __init__(self,fullpath,frames,browser):
-                            self.frames = frames
-                            self.fullpath = fullpath
-                            self.browser = browser
-                        def click(self,lx,ly):
-                            if self.browser.scantype==SCAN_VIDEOS:
-                                self.frames.load(self.fullpath)
-                                self.frames.toggleBrowser()
-                            elif self.browser.scantype==SCAN_LUT and self.item.opacity==1.0:
-                                self.frames.importLut([self.fullpath])
-                                self.item.opacity = 0.5
-                                self.frames.refresh()
 
                     e = entry(fullpath,self.frames,self)
                     item = ui.Button(240,135,svbo=self.svbo,onclick=e.click)
@@ -635,12 +669,6 @@ class DialogScene(ui.Scene):
                     item.children.append(meta)
                     self.thumbitems.append((fullpath,item))
                 else:
-                    class folder:
-                        def __init__(self,item,browser):
-                            self.browser = browser
-                            self.item = item
-                        def click(self,lx,ly):
-                            self.browser.newpath(self.item)
                     f = folder(fullpath,self)
                     item = ui.Button(240,60,svbo=self.svbo,onclick=f.click)
                     item.edges = (1.0,1.0,.02,.1)
@@ -661,12 +689,18 @@ class DialogScene(ui.Scene):
                             n += " ("+vol[0]+")"
                         except:
                             pass
-                    name.text = n
+                    if cand!=None:
+                        name.text = n+" (%d)"%cand
+                    else:
+                        name.text = n
                     while 1:
                         name.update()
                         if name.size[0]>220:
                             n = n[:-1]
-                            name.text = n+"..."
+                            if cand!=None:
+                                name.text = n+" (%d)..."%cand
+                            else:
+                                name.text = n+"..."
                             if len(n)==0: break
                         else:
                             break

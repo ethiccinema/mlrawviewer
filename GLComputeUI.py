@@ -224,7 +224,10 @@ class Geometry(Drawable):
     def __init__(self,svbo,**kwds):
         super(Geometry,self).__init__(**kwds)
         global shaders
-        self.shader = shaders.setdefault("text",ShaderText(FONT))
+        self.shader = shaders.get("text",None)
+        if self.shader == None:
+            self.shader = ShaderText(FONT)
+            shaders["text"] = self.shader
         self.geometry = None
         self.matrix = Matrix4x4()
         self.colour = (1.0,1.0,1.0,1.0)
