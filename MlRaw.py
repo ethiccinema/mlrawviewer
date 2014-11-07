@@ -314,8 +314,8 @@ class Frame:
             # That gives R,G1,G2,B values. Make 1 pixel from those
             h = 8*(self.height/8)
             bayer = np.fromstring(self.rawdata[:self.height*self.width*14/8],dtype=np.uint16).reshape(self.height,(self.width*7)/8)[:h,:].astype(np.uint16) # Clip to height divisible by 8
-            r1 = bayer[::8,::7]
-            r2 = bayer[::8,1::7]
+            r1 = bayer[2::8,::7]
+            r2 = bayer[2::8,1::7]
             b1 = bayer[1::8,::7]
             b2 = bayer[1::8,1::7]
             nrgb = np.zeros(shape=(self.height/8,self.width/8,3),dtype=np.uint16)+self.black
@@ -334,9 +334,14 @@ class Frame:
             self.convert()
             ri = np.array(self.rawimage,dtype=np.uint16).reshape(self.height,self.width)
             nrgb = np.zeros(shape=(self.height/8,self.width/8,3),dtype=np.uint16)+self.black
-            nrgb[:,:,0] = ri[::8,::8][:nrgb.shape[0],:nrgb.shape[1]]
-            nrgb[:,:,1] = ri[::8,1::8][:nrgb.shape[0],:nrgb.shape[1]]
-            nrgb[:,:,2] = ri[1::8,1::8][:nrgb.shape[0],:nrgb.shape[1]]
+            if self.cfa==0:
+                nrgb[:,:,0] = ri[::8,0::8][:nrgb.shape[0],:nrgb.shape[1]]
+                nrgb[:,:,1] = ri[::8,1::8][:nrgb.shape[0],:nrgb.shape[1]]
+                nrgb[:,:,2] = ri[1::8,1::8][:nrgb.shape[0],:nrgb.shape[1]]
+            else:
+                nrgb[:,:,1] = ri[::8,::8][:nrgb.shape[0],:nrgb.shape[1]]
+                nrgb[:,:,2] = ri[1::8,::8][:nrgb.shape[0],:nrgb.shape[1]]
+                nrgb[:,:,0] = ri[::8,1::8][:nrgb.shape[0],:nrgb.shape[1]]
             #nrgb[:,:,0] = self.rawimage
             #nrgb[:,:,1] = ((r1&0x3)<<12) | (r2>>4)
             #nrgb[:,:,2] = ((b1&0x3)<<12) | (b2>>4)

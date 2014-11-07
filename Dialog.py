@@ -456,7 +456,8 @@ class DialogScene(ui.Scene):
                 traceback.print_exc()
                 continue
         # All essential folders and thumbs are now on screen. Can peacefully deepscan directories
-        # So any non-relevant ones czn be ignored in future
+        # So any non-relevant ones can be ignored in future
+        deepscan.append(os.path.split(root)[0])
         for scanpath in deepscan:
             self.dircache[scanpath] = (0,0)
             for dirpath,dirnames,filenames in scandir.walk(scanpath):
@@ -622,7 +623,6 @@ class DialogScene(ui.Scene):
                 except:
                     break
                 isdir,fullpath,t,cand = ft
-                print fullpath,cand
                 if not isdir:
                     index,atlas,uv = self.addToAtlas(t)
 

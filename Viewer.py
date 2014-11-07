@@ -235,15 +235,28 @@ class Viewer(GLCompute.GLCompute):
         self.refresh()
 
     def drop(self,objects):
+        if self.asking: return
         # Drag and drop from the system! Not drop-frames
         fn = objects[0]
-        print fn
-        if fn.lower().endswith(".wav"):
+        isdir = os.path.isdir(fn)
+        dngs = []
+        if isdir:
+            dngs = [f for f in os.listdir(fn) if f.lower().endswith(".dng")]
+        if isdir and len(dngs)==0:
+            if not self.browser:
+                self.toggleBrowser(fn)
+            else:
+                self.dialog.newpath(fn)
+        elif fn.lower().endswith(".wav"):
             self.loadWav(fn)
+            if self.browser:
+                self.toggleBrowser()
         else:
             r = MlRaw.loadRAWorMLV(fn)
             if r:
                 self.loadSet(r,fn)
+            if self.browser:
+                self.toggleBrowser()
 
     def loadWav(self,wavname):
         self.audio.stop()
@@ -1467,11 +1480,14 @@ class Viewer(GLCompute.GLCompute):
             self.asking = False
         self.refresh()
 
-    def toggleBrowser(self):
+    def toggleBrowser(self,path=None):
         if not self.browser:
             if not self.paused:
                 self.togglePlay()
-            self.dialog.browse(*os.path.split(self.raw.filename))
+            if path==None:
+                self.dialog.browse(*os.path.split(self.raw.filename))
+            else:
+                self.dialog.browse(path)
             self.dialog.hidden = False
             self.display.hidden = True
             self.demosaic.hidden = True

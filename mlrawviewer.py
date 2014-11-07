@@ -75,10 +75,21 @@ from Viewer import *
 
 def main():
     rmc = Viewer()
+    arg = None
+    isfile = True
     if len(sys.argv)>1:
-        rmc.load(os.path.abspath(sys.argv[1]))
+        arg = os.path.abspath(sys.argv[1])
+        if not os.path.exists(arg):
+            arg = None
+        elif os.path.isdir(arg):
+            isfile = False
+            dngs = [f for f in os.listdir(arg) if f.lower().endswith(".dng")]
+            if len(dngs)>0:
+                isfile = True
+    if arg and isfile:
+        rmc.load(os.path.abspath(arg))
     else:
-        rmc.openBrowser()
+        rmc.openBrowser(arg)
     ret = rmc.run()
     PerformanceLog.PLOG_PRINT()
     return ret
