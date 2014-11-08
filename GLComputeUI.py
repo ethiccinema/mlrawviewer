@@ -220,6 +220,8 @@ class Scene(object):
                     self.eventHandler.hasPointerFocus = False
                 self.eventHandler = newEventHandler
 
+STENCIL_VALUE = 1
+
 class Geometry(Drawable):
     def __init__(self,svbo,**kwds):
         super(Geometry,self).__init__(**kwds)
@@ -313,6 +315,7 @@ class Geometry(Drawable):
         self.setVab(vertices)
         self.texture = texture
     def render(self,scene,matrix,opacity):
+        global STENCIL_VALUE
         PLOG(PLOG_CPU,"Geometry render %d,%d"%self.pos)
         self.updateMatrix()
         m = self.matrix.copy()
@@ -322,19 +325,21 @@ class Geometry(Drawable):
             PLOG(PLOG_CPU,"Geometry render draw %d,%d"%self.pos)
             if self.clip:
                 glEnable(GL_STENCIL_TEST)
-                glStencilFunc(GL_ALWAYS, 1, 0xFF);
+                glStencilFunc(GL_ALWAYS, STENCIL_VALUE, 0xFF);
                 glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);
                 glStencilMask(0xFF);
             self.shader.draw(self.vab,self.texture,m,self.colour,finalopacity,self.edges)
             PLOG(PLOG_CPU,"Geometry render children %d,%d"%self.pos)
         if self.clip:
-            glStencilFunc(GL_EQUAL, 1, 0xFF)
+            glStencilFunc(GL_EQUAL, STENCIL_VALUE, 0xFF)
             glStencilMask(0x00);
         for c in self.children:
             c.render(scene,m,finalopacity) # Relative to parent
         if self.clip:
             glDisable(GL_STENCIL_TEST)
             glStencilMask(0xFF);
+        STENCIL_VALUE += 1
+        if STENCIL_VALUE>255: STENCIL_VALUE=1
         PLOG(PLOG_CPU,"Geometry render done %d,%d"%self.pos)
     def input2d(self,matrix,x,y,buttons):
         # Update matrix

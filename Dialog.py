@@ -379,7 +379,7 @@ class DialogScene(ui.Scene):
                     lastrawfile.seek(-192,os.SEEK_END)
                     footer = lastrawfile.read(4)
                     lastrawfile.close()
-                    if footer=="RAWM": 
+                    if footer=="RAWM":
                         rawcount += 1
                 except:
                     pass
@@ -409,6 +409,10 @@ class DialogScene(ui.Scene):
                 del self.dircache[path]
                 return None
         return self.dircache[path]
+    def thumbsForFolder(self,folder):
+        cached = [n for n in self.thumbcache.keys() if n.startswith(folder)]
+        results = [self.thumbcache[n] for n in cached]
+        return results
     def find(self,root):
         if root in self.skippaths: return
         scantype = self.scantype
@@ -440,18 +444,19 @@ class DialogScene(ui.Scene):
             scanpath = os.path.join(root,d)
             if scanpath in self.skippaths: continue
             if scantype==SCAN_EXPORT:
-                self.scanResults.append((True,scanpath,None,candvid))
+                self.scanResults.append((True,scanpath,[],candvid))
                 continue
             cacheresults = self.dircache.get(scanpath,None)
             if cacheresults!=None:
                 candvid,candlut = cacheresults
                 if scantype==SCAN_VIDEOS and candvid>0:
-                    self.scanResults.append((True,scanpath,None,candvid))
+                    thumbs = self.thumbsForFolder(scanpath)
+                    self.scanResults.append((True,scanpath,thumbs,candvid))
                 elif scantype==SCAN_LUT and candlut>0:
-                    self.scanResults.append((True,scanpath,None,candlut))
+                    self.scanResults.append((True,scanpath,[],candlut))
             else:
                 deepscan.append(scanpath)
-                self.scanResults.append((True,scanpath,None,None))
+                self.scanResults.append((True,scanpath,[],None))
         self.frames.refresh()
         candidates.sort()
         for name in candidates:
@@ -514,6 +519,7 @@ class DialogScene(ui.Scene):
                 cube = [n for n in filenames if n.lower().endswith(".cube")]
                 candlut += len(cube)
                 self.dircache[dirpath] = (candvid,candlut)
+        # Now load one thumbnails for every folder in the tree. Update the scan results
 
     def addToAtlas(self,thumbnail):
         atlas = None
@@ -701,16 +707,32 @@ class DialogScene(ui.Scene):
                     item.children.append(meta)
                     self.thumbitems.append((fullpath,item))
                 else:
+                    thumbs = []
+                    for thumb in t:
+                        thumbs.append((thumb,self.addToAtlas(thumb)))
+                        #index,atlas,uv = self.addToAtlas(t)
                     f = folder(fullpath,self)
                     item = ui.Button(240,60,svbo=self.svbo,onclick=f.click)
                     item.edges = (1.0,1.0,.02,.1)
                     item.colour = (0.7,0.7,0.7,1.0)
                     item.rectangle(240,60,rgba=(1.0,1.0,1.0,1.0))
+                    item.clip = True
+                    if len(thumbs)>0:
+                        ti,(index,atlas,uv) = thumbs[0]
+                        tscale = 240.0/ti.shape[1]
+                        newy = ti.shape[0]*tscale
+                        if newy>135:
+                            tscale = 135.0/ti.shape[0]
+                        #tscale *= 0.95
+                        thumb = ui.Geometry(svbo=self.svbo)
+                        thumb.rectangle(ti.shape[1]*tscale,ti.shape[0]*tscale,rgba=(1.0,1.0,1.0,1.0),uv=uv,solid=0.0,tex=1,texture=atlas)
+                        thumb.setPos(0,30-0.5*ti.shape[0])
+                        item.children.append(thumb)
                     name = ui.Text("",svbo=self.svbo)
                     name.ignoreInput = True
                     name.maxchars = 80
                     name.setScale(0.35)
-                    name.colour = (0.0,0.0,0.0,1.0)
+                    name.colour = (1.0,1.0,1.0,1.0)
                     name.size = (220,50)
                     n = os.path.split(fullpath)[1]
                     if len(n)==0:
@@ -737,6 +759,10 @@ class DialogScene(ui.Scene):
                         else:
                             break
                     name.setPos(120-name.size[0]/2,32-name.size[1]/2)
+                    namebg = ui.Geometry(svbo=self.svbo)
+                    namebg.rectangle(name.size[0]+10,name.size[1]+5,rgba=(0.05,0.05,0.05,0.5))
+                    namebg.setPos(120-(name.size[0]+10)/2,32-(name.size[1]+5)/2)
+                    item.children.append(namebg)
                     item.children.append(name)
                     self.folderitems.append((fullpath,item))
                 item.fp = fullpath
