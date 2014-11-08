@@ -291,16 +291,19 @@ class Frame:
                 self.rgbimage = demosaic12(self.rawdata,self.width,self.height,self.black,byteSwap=0,cfa=self.cfa)
         else:
             self.rgbimage = np.zeros(self.width*self.height*3,dtype=np.uint16).tostring()
-    def thumb(self):
+    def thumb(self,balance=None,brightness=None):
         """
         Try to make a thumbnail from the data we have
         """
+        if balance==None: balance = (2.0,1.0,1.5) # Reasonable default
+        if brightness==None: brightness = 1.0 # Reasonable default
+        brightness *= (2.0**self.bitsPerSample)/(self.white-self.black)
         PLOG(PLOG_CPU,"Frame thumb gen starts")
         if self.rgbimage!=None:
             # Subsample the rgbimage at about 1/8th size
             nrgb = self.rgbimage.reshape((self.height,self.width,3)).astype(np.float32)
             # Random brightness and colour balance
-            ssnrgb = ((64.0/65536.0)*np.array([2.0,1.0,2.0]))*nrgb[::8,::8,:]
+            ssnrgb = (((brightness*6.0)/65536.0)*np.array(balance))*nrgb[::8,::8,:]
             # Tone map
             ssnrgb = ssnrgb/(1.0 + ssnrgb)
             # Map to 16bit uint range
@@ -323,7 +326,7 @@ class Frame:
             nrgb[:,:,1] = ((r1&0x3)<<12) | (r2>>4)
             nrgb[:,:,2] = ((b1&0x3)<<12) | (b2>>4)
             # Random brightness and colour balance
-            ssnrgb = ((64.0/65536.0)*np.array([2.0,1.0,1.5]))*(nrgb.astype(np.float32)-self.black)
+            ssnrgb = (((brightness*6.0)/(2.0**14))*np.array(balance))*(nrgb.astype(np.float32)-self.black)
             ssnrgb = np.clip(ssnrgb,0.0,1000000.0)
             # Tone map
             ssnrgb = ssnrgb/(1.0 + ssnrgb)
@@ -346,7 +349,7 @@ class Frame:
             #nrgb[:,:,1] = ((r1&0x3)<<12) | (r2>>4)
             #nrgb[:,:,2] = ((b1&0x3)<<12) | (b2>>4)
             # Random brightness and colour balance
-            ssnrgb = ((64.0/65536.0)*np.array([2.0,1.0,1.5]))*(nrgb.astype(np.float32)-self.black)
+            ssnrgb = (((brightness*6.0)/65536.0)*np.array(balance))*(nrgb.astype(np.float32)-self.black)
             ssnrgb = np.clip(ssnrgb,0.0,1000000.0)
             # Tone map
             ssnrgb = ssnrgb/(1.0 + ssnrgb)

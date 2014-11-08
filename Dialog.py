@@ -80,6 +80,13 @@ class ScrollBar(ui.Button):
             self.dragging = False
             return None
 
+def isNumber(string):
+    try:
+        number = int(string)
+        return True
+    except ValueError:
+        return False
+
 class DialogScene(ui.Scene):
     def __init__(self,frames,**kwds):
         super(DialogScene,self).__init__(**kwds)
@@ -158,6 +165,7 @@ class DialogScene(ui.Scene):
                 "/proc":True,
                 "/run":True,
                 "/proc":True,
+                "/selinux":True,
                 "/sys":True,
                 "/sbin":True,
                 "/srv":True,
@@ -342,13 +350,40 @@ class DialogScene(ui.Scene):
             self.frames.refresh()
     def indexFile(self,filename):
         r = MlRaw.loadRAWorMLV(filename,preindex=False)
+        balance = r.getMeta("balance_v1")
+        brightness = r.getMeta("brightness_v1")
         if r.frames()>1:
             r.preloadFrame(1)
-            t = r.nextFrame()[1].thumb()
+            t = r.nextFrame()[1].thumb(balance,brightness)
         else:
-            t = r.firstFrame.thumb()
+            t = r.firstFrame.thumb(balance,brightness)
         r.close()
         return t
+    def filterVids(self,root,filenames):
+        candvid = 0
+        mlv = [n for n in filenames if n.lower().endswith(".mlv")]
+        raw = [n for n in filenames if n.lower().endswith(".raw")]
+        rawcount = 0
+        for r in raw:
+            base = r[:-2]
+            rset = [n for n in filenames if n[:-2]==base and isNumber(n[-2:])]
+            rset.insert(0,r)
+            rset.sort()
+            if len(rset)>0:
+                lastraw = rset[-1]
+                try:
+                    lastrawfile = file(os.path.join(root,lastraw),'rb')
+                    lastrawfile.seek(-192,os.SEEK_END)
+                    footer = lastrawfile.read(4)
+                    lastrawfile.close()
+                    if footer=="RAWM": 
+                        rawcount += 1
+                except:
+                    pass
+        dng = [n for n in filenames if n.lower().endswith(".dng")]
+        candvid += len(mlv) + rawcount
+        if len(dng)>1: candvid += 1
+        return candvid
     def candidatesInTree(self,path):
         if path in self.skippaths:
             return (0,0)
@@ -363,11 +398,7 @@ class DialogScene(ui.Scene):
                 sv,sl = self.dircache.setdefault(os.path.join(dirpath,sd),(0,0))
                 candvid += sv
                 candlut += sl
-            mlv = [n for n in filenames if n.lower().endswith(".mlv")]
-            raw = [n for n in filenames if n.lower().endswith(".raw")]
-            dng = [n for n in filenames if n.lower().endswith(".dng")]
-            candvid += len(mlv) + len(raw)
-            if len(dng)>1: candvid += 1
+            candvid += self.filterVids(dirpath,filenames)
             cube = [n for n in filenames if n.lower().endswith(".cube")]
             candlut += len(cube)
             self.dircache[dirpath] = (candvid,candlut)
@@ -418,6 +449,7 @@ class DialogScene(ui.Scene):
             else:
                 deepscan.append(scanpath)
                 self.scanResults.append((True,scanpath,None,None))
+        self.frames.refresh()
         candidates.sort()
         for name in candidates:
             try:
@@ -455,6 +487,7 @@ class DialogScene(ui.Scene):
                 import traceback
                 traceback.print_exc()
                 continue
+        self.frames.refresh()
         # All essential folders and thumbs are now on screen. Can peacefully deepscan directories
         # So any non-relevant ones can be ignored in future
         deepscan.append(os.path.split(root)[0])
@@ -474,11 +507,7 @@ class DialogScene(ui.Scene):
                     candvid += sv
                     candlut += sl
                 del dirnames[:]
-                mlv = [n for n in filenames if n.lower().endswith(".mlv")]
-                raw = [n for n in filenames if n.lower().endswith(".raw")]
-                dng = [n for n in filenames if n.lower().endswith(".dng")]
-                candvid += len(mlv) + len(raw)
-                if len(dng)>1: candvid += 1
+                candvid += self.filterVids(dirpath,filenames)
                 cube = [n for n in filenames if n.lower().endswith(".cube")]
                 candlut += len(cube)
                 self.dircache[dirpath] = (candvid,candlut)
