@@ -154,6 +154,8 @@ class Viewer(GLCompute.GLCompute):
 
     def load(self,newname):
         print "Loading",repr(newname)
+        if self.dialog:
+            self.dialog.removeThumb(newname)
         try:
             r = MlRaw.loadRAWorMLV(newname)
         except:
@@ -174,6 +176,8 @@ class Viewer(GLCompute.GLCompute):
         while not found:
             newname = os.path.join(path,fl[newOne])
             print "Loading",repr(newname)
+            if self.dialog:
+                self.dialog.removeThumb(newname)
             try:
                 r = MlRaw.loadRAWorMLV(newname)
                 found = True

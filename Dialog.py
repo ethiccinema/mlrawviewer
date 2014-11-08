@@ -336,6 +336,9 @@ class DialogScene(ui.Scene):
         self.focusitem = None
         self.focusindex = 0
         self.focusmoved = False
+    def removeThumb(self,filename):
+        if filename in self.thumbcache:
+            del self.thumbcache[filename]
     def scanFunction(self):
         while 1:
             self.scanJobCancel = False
