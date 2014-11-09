@@ -134,7 +134,14 @@ class DialogScene(ui.Scene):
     def initSkippaths(self):
         if config.isWin():
             self.skippaths = {
-                "Windows":True,
+	        "\Boot":True,
+	        "\NVIDIA":True,
+	        "\Intel":True,
+	        "\Windows":True,
+	        "\System Volume Information":True,
+	        "\Program Files":True,
+	        "\Program Files (x86)":True,
+	        "\ProgramData":True,
            }
         elif config.isMac():
             self.skippaths = {
@@ -403,7 +410,10 @@ class DialogScene(ui.Scene):
             candvid += 1
         return candvid
     def candidatesInTree(self,path):
-        if path in self.skippaths:
+        pathnodrive = os.path.splitdrive(path)[1]
+	print pathnodrive
+        if pathnodrive in self.skippaths:
+	    print "skipping",pathnodrive
             return (0,0)
         cacheresults = self.dircache.get(path,None)
         if cacheresults!=None:
@@ -429,7 +439,9 @@ class DialogScene(ui.Scene):
         results = [self.thumbcache[n] for n in cached]
         return results
     def find(self,root):
-        if root in self.skippaths: return
+        pathnodrive = os.path.splitdrive(root)[1]
+	print pathnodrive
+        if pathnodrive in self.skippaths: return
         scantype = self.scantype
         candidates = []
         folders = []
@@ -451,13 +463,15 @@ class DialogScene(ui.Scene):
                 drives = [p.mountpoint for p in psutil.disk_partitions()]
                 drives.sort()
                 for d in drives:
-                    self.scanResults.append((True,d,None))
+                    self.scanResults.append((True,d,[],None))
                 return
         folders.sort()
         deepscan = []
         for d in folders:
             scanpath = os.path.join(root,d)
-            if scanpath in self.skippaths: continue
+            pathnodrive = os.path.splitdrive(scanpath)[1]
+	    print pathnodrive
+            if pathnodrive in self.skippaths: continue
             if scantype==SCAN_EXPORT:
                 self.scanResults.append((True,scanpath,[],candvid))
                 continue
@@ -537,7 +551,9 @@ class DialogScene(ui.Scene):
         vids = self.vidcache.keys()
         for d in folders:
             scanpath = os.path.join(root,d)
-            if scanpath in self.skippaths: continue
+            pathnodrive = os.path.splitdrive(scanpath)[1]
+	    print pathnodrive
+            if pathnodrive in self.skippaths: continue
             cacheresults = self.dircache.get(scanpath,None)
             if cacheresults!=None:
                 candvid,candlut = cacheresults
@@ -567,9 +583,9 @@ class DialogScene(ui.Scene):
     def upFolder(self,x=0,y=0):
         drive,path = os.path.split(self.path)
         if (drive==self.path) and (len(drive)>0) and (drive!="/"):
-		    # We are on windows at the root of a drive. Must next list all drives
-		    self.newpath("",drive)
-		    return
+            # We are on windows at the root of a drive. Must next list all drives
+            self.newpath("",drive)
+            return
         up = os.path.split(self.path)[0]
         if len(up)>0 and up != self.path:
             self.newpath(up,os.path.split(self.path)[1])
