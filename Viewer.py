@@ -273,9 +273,10 @@ class Viewer(GLCompute.GLCompute):
 
     def windowName(self):
         if self.raw:
-            return "MlRawViewer v"+config.versionString()+" - "+self.raw.description()
+            ud = self.raw.description().decode("Latin-1")
+            return u"MlRawViewer v"+config.versionString()+u" - "+unicode(ud)
         else:
-            return "MlRawViewer v"+config.versionString()
+            return u"MlRawViewer v"+config.versionString()
 
     def init(self):
         if self._init: return
