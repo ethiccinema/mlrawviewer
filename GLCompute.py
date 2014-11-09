@@ -300,6 +300,12 @@ class Texture:
         self.atlasfw = newfw
         return len(self.atlas)-1
 
+    def atlasempty(self):
+        self.atlas = []
+        self.atlasuh = 0 # Atlas is full down to this row
+        self.atlasfh = 0 # Atlas is being filled down to here
+        self.atlasfw = 0 # Atlas is being filled along to here
+
     def update(self,rgbadata=None,xoff=0,yoff=0,width=None,height=None):
         w = width
         if (w==None):

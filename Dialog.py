@@ -98,6 +98,7 @@ class DialogScene(ui.Scene):
         self.layoutcount = 0
         self.layoutwidth = 1
         self.atlases = []
+        self.atlaspool = []
         self.scanJob = Queue.Queue()
         self.scanJobCancel = False
         self.scanResults = []
@@ -210,6 +211,10 @@ class DialogScene(ui.Scene):
             self.scroll(0,-3)
         elif k==self.frames.KEY_PAGE_DOWN:
             self.scroll(0,3)
+        elif k==self.frames.KEY_J:
+            self.siblingFolder(-1)
+        elif k==self.frames.KEY_K:
+            self.siblingFolder(1)
         elif k==self.frames.KEY_LEFT_SHIFT or k==self.frames.KEY_RIGHT_SHIFT:
             self.upFolder()
         elif k==self.frames.KEY_ENTER:
@@ -339,8 +344,7 @@ class DialogScene(ui.Scene):
         self.title = None
         self.thumbitems = []
         self.folderitems = []
-        for atlas in self.atlases:
-            atlas.free()
+        self.atlaspool = self.atlases
         self.atlases = []
         self.layoutcount = 0
         self.layoutsize = None
@@ -411,9 +415,7 @@ class DialogScene(ui.Scene):
         return candvid
     def candidatesInTree(self,path):
         pathnodrive = os.path.splitdrive(path)[1]
-	print pathnodrive
         if pathnodrive in self.skippaths:
-	    print "skipping",pathnodrive
             return (0,0)
         cacheresults = self.dircache.get(path,None)
         if cacheresults!=None:
@@ -437,10 +439,12 @@ class DialogScene(ui.Scene):
     def thumbsForFolder(self,folder):
         cached = [n for n in self.thumbcache.keys() if n.startswith(folder)]
         results = [self.thumbcache[n] for n in cached]
-        return results
+        if len(results)>2: # Keep memory consumption down
+            return random.sample(results,2)
+        else:
+            return results
     def find(self,root):
         pathnodrive = os.path.splitdrive(root)[1]
-	print pathnodrive
         if pathnodrive in self.skippaths: return
         scantype = self.scantype
         candidates = []
@@ -470,7 +474,6 @@ class DialogScene(ui.Scene):
         for d in folders:
             scanpath = os.path.join(root,d)
             pathnodrive = os.path.splitdrive(scanpath)[1]
-	    print pathnodrive
             if pathnodrive in self.skippaths: continue
             if scantype==SCAN_EXPORT:
                 self.scanResults.append((True,scanpath,[],candvid))
@@ -527,7 +530,8 @@ class DialogScene(ui.Scene):
         self.frames.refresh()
         # All essential folders and thumbs are now on screen. Can peacefully deepscan directories
         # So any non-relevant ones can be ignored in future
-        deepscan.append(os.path.split(root)[0])
+        deepscan.append(root)
+        #deepscan.append(os.path.split(root)[0])
         for scanpath in deepscan:
             self.dircache[scanpath] = (0,0)
             for dirpath,dirnames,filenames in scandir.walk(scanpath):
@@ -547,24 +551,53 @@ class DialogScene(ui.Scene):
                 cube = [n for n in filenames if n.lower().endswith(".cube")]
                 candlut += len(cube)
                 self.dircache[dirpath] = (candvid,candlut)
-        # Now we have the full tree from here, load one new thumbnail for every folder in the root. Update the scan results
+
+        # Now we have the full tree from here, load two new thumbnails for every folder in the root. Update the scan results
         vids = self.vidcache.keys()
         for d in folders:
             scanpath = os.path.join(root,d)
             pathnodrive = os.path.splitdrive(scanpath)[1]
-	    print pathnodrive
             if pathnodrive in self.skippaths: continue
             cacheresults = self.dircache.get(scanpath,None)
             if cacheresults!=None:
                 candvid,candlut = cacheresults
                 if scantype==SCAN_VIDEOS and candvid>0:
                     thumbcands = [n for n in vids if n.startswith(scanpath) and n not in self.thumbcache] # Vids in the tree that are not cached
-                    if len(thumbcands)>0:
-                        newfile = random.choice(thumbcands)
-                        newthumb = self.indexFile(newfile)
-                        self.thumbcache[newfile] = newthumb
-                        thumbs = self.thumbsForFolder(scanpath)
+                    for repeat in range(2):
+                        thumbcands = [n for n in vids if n.startswith(scanpath) and n not in self.thumbcache] # Vids in the tree that are not cached
+                        if len(thumbcands)>0:
+                            newfile = random.choice(thumbcands)
+                            try:
+                                newthumb = self.indexFile(newfile)
+                                self.thumbcache[newfile] = newthumb
+                            except:
+                                pass
+                    thumbs = self.thumbsForFolder(scanpath)
+                    if len(thumbs)>0:
                         self.scanResults.append((True,scanpath,thumbs,candvid))
+                    if self.scanJobCancel:
+                        return
+   
+        # Finally scan parent dir to be ready to go up 
+        scanpath = os.path.split(root)[0]
+        self.dircache[scanpath] = (0,0)
+        for dirpath,dirnames,filenames in scandir.walk(scanpath):
+            # Bottom up so can prune subtrees we cached previously
+            candvid = 0
+            candlut = 0
+            for sd in dirnames:
+                svsl = self.candidatesInTree(os.path.join(scanpath,sd))
+                if svsl == None or self.scanJobCancel:
+                    del self.dircache[scanpath]
+                    return # Cancelled early
+                sv,sl = svsl
+                candvid += sv
+                candlut += sl
+            del dirnames[:]
+            candvid += self.filterVids(dirpath,filenames)
+            cube = [n for n in filenames if n.lower().endswith(".cube")]
+            candlut += len(cube)
+            self.dircache[dirpath] = (candvid,candlut)
 
     def addToAtlas(self,thumbnail):
         atlas = None
@@ -573,7 +606,11 @@ class DialogScene(ui.Scene):
             atlas = self.atlases[-1]
             index = atlas.atlasadd(thumbnail.flatten(),thumbnail.shape[1],thumbnail.shape[0])
         if index == None: # Atlas is full or there isn't one yet
-            atlas = GLCompute.Texture((1024,1024),rgbadata=np.zeros(shape=(1024,1024,3),dtype=np.uint16),hasalpha=False,mono=False,sixteen=True,mipmap=False)
+            if len(self.atlaspool)>0:
+                atlas = self.atlaspool.pop()
+                atlas.atlasempty()
+            else:
+                atlas = GLCompute.Texture((1024,1024),rgbadata=np.zeros(shape=(1024,1024,3),dtype=np.uint16),hasalpha=False,mono=False,sixteen=True,mipmap=False)
             self.atlases.append(atlas)
             index = atlas.atlasadd(thumbnail.flatten(),thumbnail.shape[1],thumbnail.shape[0])
         uv = atlas.atlas[index]
@@ -589,6 +626,21 @@ class DialogScene(ui.Scene):
         up = os.path.split(self.path)[0]
         if len(up)>0 and up != self.path:
             self.newpath(up,os.path.split(self.path)[1])
+    def siblingFolder(self,direction):
+        # Try to change to the next or previous sibling folder for faster navigation
+        parent = os.path.split(self.path)[0]
+        grandparent = os.path.split(parent)[0]
+        if grandparent in self.dircache: # Ok, it is cached
+            siblings = [n for n in self.dircache.keys() if os.path.split(n)[0]==parent and n!=self.path and self.dircache[n][0]>0]
+            siblings.append(self.path) # In case this dir has no candidates
+        else:
+            siblings = [os.path.join(parent,n) for n in os.listdir(parent) if os.path.isdir(os.path.join(parent,n))]
+        siblings.sort()
+        thisdir = siblings.index(self.path)
+        targetdir = (thisdir+direction)%len(siblings)
+        target = siblings[targetdir]
+        if target==self.path: return # Do nothing
+        self.newpath(target,self.path)
     def scrollDrag(self,x,y):
         p = float(y)/float(self.scrollbar.size[1]*(1.0-self.scrollbar.perc))
         if p>1.0: p = 1.0
@@ -686,7 +738,6 @@ class DialogScene(ui.Scene):
 
         if len(self.scanResults)>0:
             self.svbo.bind()
-            start = time.time()
             class entry:
                 def __init__(self,fullpath,frames,browser):
                     self.frames = frames
@@ -817,16 +868,18 @@ class DialogScene(ui.Scene):
                     item.name.setPos(120-item.name.size[0]/2,32-item.name.size[1]/2)
                     item.namebg.rectangle(item.name.size[0]+20,item.name.size[1]+10,rgba=(0.05,0.05,0.05,0.5))
                     item.namebg.setPos(120-(item.name.size[0]+20)/2,32-(item.name.size[1]+10)/2)
-                    if len(thumbs)>0 and item.thumb1==None:
-                        thumb = self.makeThumb(thumbs)
-                        item.thumb1 = thumb
-                        item.children.append(thumb)
-                        thumb = self.makeThumb(thumbs)
-                        item.thumb2 = thumb
-                        item.children.append(thumb)
+                    item.children = []
+                    if len(thumbs)>0: 
+                        if item.thumb1==None:
+                            thumb = self.makeThumb(thumbs)
+                            item.thumb1 = thumb
+                            thumb = self.makeThumb(thumbs)
+                            item.thumb2 = thumb
+                        item.children.append(item.thumb1)
+                        item.children.append(item.thumb2)
                         item.children.append(item.namebg)
                         item.children.append(item.name)
-                    elif len(thumbs)==0:
+                    else:
                         item.children.append(item.namebg)
                         item.children.append(item.name)
                     if additem:
@@ -859,10 +912,12 @@ class DialogScene(ui.Scene):
                     item.thumb1 = item.thumb2
                     item.thumb2 = self.makeThumb(item.thumbs)
                     item.children.insert(1,item.thumb2)
-                item.thumb1.setPos(0,-(t1p)*(item.thumb1.size[1]-60))
+                t1y = -(t1p)*(item.thumb1.size[1]-60)
+                t2y = -(t2p)*(item.thumb2.size[1]-60)
+                item.thumb1.setPos(0,t1y)
                 item.thumb2.opacity = (t2p*4.0)
                 if item.thumb2.opacity>1.0: item.thumb2.opacity = 1.0
-                item.thumb2.setPos(0,-(t2p)*(item.thumb2.size[1]-60))
+                item.thumb2.setPos(0,t2y)
     def layout(self):
         if self.size != self.layoutsize or self.layoutcount != len(self.thumbitems)+len(self.folderitems):
             y = 0
