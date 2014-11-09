@@ -144,16 +144,22 @@ class DialogScene(ui.Scene):
                 "/Network":True,
                 "/System":True,
                 "/boot":True,
+                "/bin":True,
                 "/dev":True,
+                "/cores":True,
                 "/etc":True,
                 "/lib":True,
+                "/net":True,
                 "/proc":True,
                 "/run":True,
                 "/proc":True,
+                "/private":True,
                 "/sys":True,
+                "/sbin":True,
                 "/tmp":True,
                 "/var":True,
                 "/usr":True,
+                "/Volumes/OS":True,
             }
         else:
             self.skippaths = {
