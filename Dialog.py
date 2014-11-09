@@ -124,6 +124,7 @@ class DialogScene(ui.Scene):
         self.startfile = None
         self.scantype = 1
         self.dircache = {}
+        self.vidcache = {}
         self.skippaths = {}
         self.initSkippaths()
         self.timeline = ui.Timeline()
@@ -369,6 +370,7 @@ class DialogScene(ui.Scene):
     def filterVids(self,root,filenames):
         candvid = 0
         mlv = [n for n in filenames if n.lower().endswith(".mlv")]
+        for n in mlv: self.vidcache[os.path.join(root,n)] = True
         raw = [n for n in filenames if n.lower().endswith(".raw")]
         rawcount = 0
         for r in raw:
@@ -385,11 +387,14 @@ class DialogScene(ui.Scene):
                     lastrawfile.close()
                     if footer=="RAWM":
                         rawcount += 1
+                        self.vidcache[os.path.join(root,r)] = True
                 except:
                     pass
         dng = [n for n in filenames if n.lower().endswith(".dng")]
         candvid += len(mlv) + rawcount
-        if len(dng)>1: candvid += 1
+        if len(dng)>1:
+            self.vidcache[root] = True # This dir is possible CDNG
+            candvid += 1
         return candvid
     def candidatesInTree(self,path):
         if path in self.skippaths:
@@ -522,7 +527,22 @@ class DialogScene(ui.Scene):
                 cube = [n for n in filenames if n.lower().endswith(".cube")]
                 candlut += len(cube)
                 self.dircache[dirpath] = (candvid,candlut)
-        # Now load one thumbnails for every folder in the tree. Update the scan results
+        # Now we have the full tree from here, load one new thumbnail for every folder in the root. Update the scan results
+        vids = self.vidcache.keys()
+        for d in folders:
+            scanpath = os.path.join(root,d)
+            if scanpath in self.skippaths: continue
+            cacheresults = self.dircache.get(scanpath,None)
+            if cacheresults!=None:
+                candvid,candlut = cacheresults
+                if scantype==SCAN_VIDEOS and candvid>0:
+                    thumbcands = [n for n in vids if n.startswith(scanpath) and n not in self.thumbcache] # Vids in the tree that are not cached
+                    if len(thumbcands)>0:
+                        newfile = random.choice(thumbcands)
+                        newthumb = self.indexFile(newfile)
+                        self.thumbcache[newfile] = newthumb
+                        thumbs = self.thumbsForFolder(scanpath)
+                        self.scanResults.append((True,scanpath,thumbs,candvid))
 
     def addToAtlas(self,thumbnail):
         atlas = None
@@ -667,10 +687,11 @@ class DialogScene(ui.Scene):
                     self.browser.newpath(self.item)
             while 1:
                 try:
-                    ft = self.scanResults.pop()
+                    ft = self.scanResults.pop(0)
                 except:
                     break
                 isdir,fullpath,t,cand = ft
+                additem = True
                 if not isdir:
                     index,atlas,uv = self.addToAtlas(t)
 
@@ -721,30 +742,32 @@ class DialogScene(ui.Scene):
                     for thumb in t:
                         thumbs.append((thumb,self.addToAtlas(thumb)))
                         #index,atlas,uv = self.addToAtlas(t)
-                    f = folder(fullpath,self)
-                    item = ui.Button(240,60,svbo=self.svbo,onclick=f.click)
-                    item.edges = (1.0,1.0,.02,.1)
-                    item.colour = (0.7,0.7,0.7,1.0)
-                    item.rectangle(240,60,rgba=(1.0,1.0,1.0,1.0))
-                    item.clip = True
-                    item.thumbs = thumbs
-                    item.thumb1 = None
-                    item.thumb2 = None
-                    name = ui.Text("",svbo=self.svbo)
-                    name.ignoreInput = True
-                    name.maxchars = 80
-                    name.setScale(0.35)
-                    if len(thumbs)>0:
-                        thumb = self.makeThumb(thumbs)
-                        item.thumb1 = thumb
-                        item.children.append(thumb)
-                        thumb = self.makeThumb(thumbs)
-                        item.thumb2 = thumb
-                        item.children.append(thumb)
-                        name.colour = (1.0,1.0,1.0,1.0)
-                    else:
-                        name.colour = (0.0,0.0,0.0,1.0)
-                    name.size = (220,50)
+                    # Check if its already visible
+                    item = None
+                    for folderpath,existingitem in self.folderitems:
+                        if folderpath==fullpath:
+                            item=existingitem
+                            item.thumbs = thumbs
+                            additem = False
+                    if item==None:
+                        f = folder(fullpath,self)
+                        item = ui.Button(240,60,svbo=self.svbo,onclick=f.click)
+                        item.edges = (1.0,1.0,.02,.1)
+                        item.colour = (0.0,0.0,0.0,1.0)
+                        item.rectangle(240,60,rgba=(0.0,0.0,0.0,1.0))
+                        item.clip = True
+                        item.thumbs = thumbs
+                        item.thumb1 = None
+                        item.thumb2 = None
+                        name = ui.Text("",svbo=self.svbo)
+                        name.ignoreInput = True
+                        name.maxchars = 80
+                        name.setScale(0.35)
+                        name.size = (220,50)
+                        item.name = name
+                        item.name.colour = (1.0,1.0,1.0,1.0)
+                        item.namebg = ui.Geometry(svbo=self.svbo)
+                        item.namebg.edges = (1.0,1.0,.1,.4)
                     n = os.path.split(fullpath)[1]
                     if len(n)==0:
                         n = os.path.splitdrive(fullpath)[0]
@@ -755,30 +778,40 @@ class DialogScene(ui.Scene):
                         except:
                             pass
                     if cand!=None:
-                        name.text = n+" (%d)"%cand
+                        item.name.text = n+" (%d)"%cand
                     else:
-                        name.text = n
+                        item.name.text = n
                     while 1:
-                        name.update()
-                        if name.size[0]>220:
+                        item.name.update()
+                        if item.name.size[0]>220:
                             n = n[:-1]
                             if cand!=None:
-                                name.text = n+" (%d)..."%cand
+                                item.name.text = n+" (%d)..."%cand
                             else:
-                                name.text = n+"..."
+                                item.name.text = n+"..."
                             if len(n)==0: break
                         else:
                             break
-                    name.setPos(120-name.size[0]/2,32-name.size[1]/2)
-                    namebg = ui.Geometry(svbo=self.svbo)
-                    namebg.rectangle(name.size[0]+10,name.size[1]+5,rgba=(0.05,0.05,0.05,0.5))
-                    namebg.setPos(120-(name.size[0]+10)/2,32-(name.size[1]+5)/2)
-                    if len(thumbs)>0:
-                        item.children.append(namebg)
-                    item.children.append(name)
-                    self.folderitems.append((fullpath,item))
+                    item.name.setPos(120-item.name.size[0]/2,32-item.name.size[1]/2)
+                    item.namebg.rectangle(item.name.size[0]+20,item.name.size[1]+10,rgba=(0.05,0.05,0.05,0.5))
+                    item.namebg.setPos(120-(item.name.size[0]+20)/2,32-(item.name.size[1]+10)/2)
+                    if len(thumbs)>0 and item.thumb1==None:
+                        thumb = self.makeThumb(thumbs)
+                        item.thumb1 = thumb
+                        item.children.append(thumb)
+                        thumb = self.makeThumb(thumbs)
+                        item.thumb2 = thumb
+                        item.children.append(thumb)
+                        item.children.append(item.namebg)
+                        item.children.append(item.name)
+                    elif len(thumbs)==0:
+                        item.children.append(item.namebg)
+                        item.children.append(item.name)
+                    if additem:
+                        self.folderitems.append((fullpath,item))
                 item.fp = fullpath
-                self.items.children.append(item)
+                if additem:
+                    self.items.children.append(item)
                 #item.setScale(0.5)
             self.folderitems.sort()
             self.thumbitems.sort()
@@ -798,7 +831,7 @@ class DialogScene(ui.Scene):
         t1p = prog*0.5+0.5
         t2p = prog*0.5
         for fullpath,item in self.folderitems:
-            if item.thumb1:
+            if item.thumb1 and len(item.thumbs)>0:
                 if swap:
                     del item.children[0]
                     item.thumb1 = item.thumb2
