@@ -122,6 +122,8 @@ CURSORS or PAGE UP/DOWN - Change focus
 
 BACKSPACE - Go back to viewer
 
+J/K - Jump to sibling folders of currently shown folder
+
 In viewer:
 
 BACKSPACE - Open browser
