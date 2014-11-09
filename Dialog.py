@@ -21,7 +21,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
-import zlib,os,sys,math,time,threading,Queue
+import zlib,os,sys,math,time,threading,Queue,random
 
 import scandir
 
@@ -126,6 +126,10 @@ class DialogScene(ui.Scene):
         self.dircache = {}
         self.skippaths = {}
         self.initSkippaths()
+        self.timeline = ui.Timeline()
+        self.folderAnimation = ui.Animation(self.timeline,1.0)
+        self.folderAnimation.setTarget(1.0,10.0,0.0,ui.Animation.SMOOTH)
+        self.lastRefresh = time.time()
     def initSkippaths(self):
         if config.isWin():
             self.skippaths = {
@@ -508,7 +512,6 @@ class DialogScene(ui.Scene):
                 for sd in dirnames:
                     svsl = self.candidatesInTree(os.path.join(scanpath,sd))
                     if svsl == None or self.scanJobCancel:
-                        print "cancelled",svsl,self.scanJobCancel
                         del self.dircache[scanpath]
                         return # Cancelled early
                     sv,sl = svsl
@@ -562,6 +565,13 @@ class DialogScene(ui.Scene):
                 break
             count += 1
         self.frames.refresh()
+    def makeThumb(self,thumbs):
+        ti,(index,atlas,uv) = random.choice(thumbs)
+        tscale = 240.0/ti.shape[1]
+        thumb = ui.Geometry(svbo=self.svbo)
+        thumb.size = (ti.shape[1]*tscale,ti.shape[0]*tscale)
+        thumb.rectangle(thumb.size[0],thumb.size[1],rgba=(1.0,1.0,1.0,1.0),uv=uv,solid=0.0,tex=1,texture=atlas)
+        return thumb
     def prepareToRender(self):
         if not self.background:
             self.background = ui.Geometry(svbo=self.svbo)
@@ -717,22 +727,23 @@ class DialogScene(ui.Scene):
                     item.colour = (0.7,0.7,0.7,1.0)
                     item.rectangle(240,60,rgba=(1.0,1.0,1.0,1.0))
                     item.clip = True
-                    if len(thumbs)>0:
-                        ti,(index,atlas,uv) = thumbs[0]
-                        tscale = 240.0/ti.shape[1]
-                        newy = ti.shape[0]*tscale
-                        if newy>135:
-                            tscale = 135.0/ti.shape[0]
-                        #tscale *= 0.95
-                        thumb = ui.Geometry(svbo=self.svbo)
-                        thumb.rectangle(ti.shape[1]*tscale,ti.shape[0]*tscale,rgba=(1.0,1.0,1.0,1.0),uv=uv,solid=0.0,tex=1,texture=atlas)
-                        thumb.setPos(0,30-0.5*ti.shape[0])
-                        item.children.append(thumb)
+                    item.thumbs = thumbs
+                    item.thumb1 = None
+                    item.thumb2 = None
                     name = ui.Text("",svbo=self.svbo)
                     name.ignoreInput = True
                     name.maxchars = 80
                     name.setScale(0.35)
-                    name.colour = (1.0,1.0,1.0,1.0)
+                    if len(thumbs)>0:
+                        thumb = self.makeThumb(thumbs)
+                        item.thumb1 = thumb
+                        item.children.append(thumb)
+                        thumb = self.makeThumb(thumbs)
+                        item.thumb2 = thumb
+                        item.children.append(thumb)
+                        name.colour = (1.0,1.0,1.0,1.0)
+                    else:
+                        name.colour = (0.0,0.0,0.0,1.0)
                     name.size = (220,50)
                     n = os.path.split(fullpath)[1]
                     if len(n)==0:
@@ -762,7 +773,8 @@ class DialogScene(ui.Scene):
                     namebg = ui.Geometry(svbo=self.svbo)
                     namebg.rectangle(name.size[0]+10,name.size[1]+5,rgba=(0.05,0.05,0.05,0.5))
                     namebg.setPos(120-(name.size[0]+10)/2,32-(name.size[1]+5)/2)
-                    item.children.append(namebg)
+                    if len(thumbs)>0:
+                        item.children.append(namebg)
                     item.children.append(name)
                     self.folderitems.append((fullpath,item))
                 item.fp = fullpath
@@ -773,6 +785,29 @@ class DialogScene(ui.Scene):
             self.svbo.upload()
         self.frames.svbo.bind()
         self.layout()
+        # Animation of folder thumbs
+        self.lastRefresh = time.time()
+        self.timeline.setNow(self.lastRefresh)
+        prog = self.folderAnimation.progress()
+        swap = False
+        if prog>=1.0:
+            self.folderAnimation.targval = 0.0
+            self.folderAnimation.setTarget(1.0,10.0,0.0,ui.Animation.SMOOTH)
+            swap = True
+        prog = self.folderAnimation.progress()
+        t1p = prog*0.5+0.5
+        t2p = prog*0.5
+        for fullpath,item in self.folderitems:
+            if item.thumb1:
+                if swap:
+                    del item.children[0]
+                    item.thumb1 = item.thumb2
+                    item.thumb2 = self.makeThumb(item.thumbs)
+                    item.children.insert(1,item.thumb2)
+                item.thumb1.setPos(0,-(t1p)*(item.thumb1.size[1]-60))
+                item.thumb2.opacity = (t2p*4.0)
+                if item.thumb2.opacity>1.0: item.thumb2.opacity = 1.0
+                item.thumb2.setPos(0,-(t2p)*(item.thumb2.size[1]-60))
     def layout(self):
         if self.size != self.layoutsize or self.layoutcount != len(self.thumbitems)+len(self.folderitems):
             y = 0

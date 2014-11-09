@@ -856,8 +856,14 @@ class Viewer(GLCompute.GLCompute):
         if self.wasExporting and not self.exporter.busy:
             self.wasExporting = False
 
-        if self.userIdleTime()>5.0 and self.userIdleTime()<7.0:
+        if (self.userIdleTime()>5.0 and self.userIdleTime()<7.0) or self.browser:
             self.refresh()
+
+        now = time.time()
+        if self.browser and (now-self.dialog.lastRefresh)>0.10:
+           self.refresh()
+        elif self.browser:
+           time.sleep(0.01)
 
         if self.raw:
             if self.display.isDirty():
@@ -869,7 +875,6 @@ class Viewer(GLCompute.GLCompute):
             if not self.needsRefresh and self.paused and not wrongFrame:
                 time.sleep(0.016) # Sleep for one 60FPS frame -> Avoid burning idle function
             if not self.paused and self.raw.indexingStatus()==1.0:
-                now = time.time()
                 elapsed = now - self.realStartTime # Since before first frame drawn
                 neededFrame = int(self.fps*elapsed)
                 # Is it time for a new frame?
