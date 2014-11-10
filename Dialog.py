@@ -476,6 +476,10 @@ class DialogScene(ui.Scene):
             pathnodrive = os.path.splitdrive(scanpath)[1]
             if pathnodrive in self.skippaths: continue
             if scantype==SCAN_EXPORT:
+                candvid = None
+                cacheresults = self.dircache.get(scanpath,None)
+                if cacheresults!=None:
+                    candvid,candlut = cacheresults
                 self.scanResults.append((True,scanpath,[],candvid))
                 continue
             cacheresults = self.dircache.get(scanpath,None)
