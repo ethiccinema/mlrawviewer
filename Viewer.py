@@ -1026,7 +1026,7 @@ class Viewer(GLCompute.GLCompute):
         """
         fn = self.raw.filename
         path,name = os.path.split(fn) # Correct for files and CDNG dirs
-        fl = self.candidatesInDir(fn)
+        fl = MlRaw.candidatesInDir(fn)
         c = self.setting_rgb
         rgbl = (c[0],c[1],c[2],self.setting_brightness)
         if self.setting_encodeType[0] == ENCODE_TYPE_DNG:
