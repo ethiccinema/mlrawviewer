@@ -1,4 +1,4 @@
-import threading,Queue
+import threading,Queue,time
 
 noAudio = True
 try:
@@ -38,7 +38,7 @@ class Audio(object):
         stream = None
         while 1:
             if self.commands.empty() and dataBuffer != None and stream != None:
-                bufSize = 1024 * frameSize
+                bufSize = 4 * 1024 * frameSize
                 left = len(dataBuffer)-bufferOffset
                 if left<bufSize:
                     try:

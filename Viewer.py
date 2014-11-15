@@ -263,6 +263,7 @@ class Viewer(GLCompute.GLCompute):
                 self.toggleBrowser()
 
     def loadWav(self,wavname):
+        print "Loading WAV",wavname
         self.audio.stop()
         self.wav = None
         self.wavname = wavname
@@ -545,7 +546,10 @@ class Viewer(GLCompute.GLCompute):
             self.loadNewRawSet(1)
 
         elif k==self.KEY_W:
-            self.toggleChooseExport()
+            if m==0:
+                self.toggleChooseExport()
+            elif m==1:
+                self.toggleChooseWav()
 
         elif k==self.KEY_Z:
             if m==0:
@@ -1114,7 +1118,7 @@ class Viewer(GLCompute.GLCompute):
             self.raw.setMeta("wavfile_v1",self.wavname)
         else:
             wavname = self.raw.getMeta("wavfile_v1")
-        #print "trying to load wavfile",wavname
+            self.wavname = wavname
         try:
             self.wav = wave.open(wavname,'r')
         except:
@@ -1143,6 +1147,8 @@ class Viewer(GLCompute.GLCompute):
             now = time.time()
             offset = now - self.realStartTime
             self.startAudio(offset)
+        else:
+            self.refresh()
 
     def okToExit(self):
         if self.exporter.busy:
@@ -1519,6 +1525,27 @@ class Viewer(GLCompute.GLCompute):
             if not self.paused:
                 self.togglePlay()
             self.dialog.chooseExport()
+            self.dialog.hidden = False
+            self.display.hidden = True
+            self.demosaic.hidden = True
+            self.browser = True
+            self.setCursorVisible(True)
+        else:
+            self.dialog.hidden = True
+            self.display.hidden = False
+            self.demosaic.hidden = False
+            self.browser = False
+        self.refresh()
+
+    def toggleChooseWav(self):
+        if not self.browser:
+            if not self.paused:
+                self.togglePlay()
+            if self.wavname != None:
+                self.dialog.chooseWav(*os.path.split(self.wavname))
+            else:
+                self.dialog.chooseWav(os.path.split(self.raw.filename)[0])
+
             self.dialog.hidden = False
             self.display.hidden = True
             self.demosaic.hidden = True

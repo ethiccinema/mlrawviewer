@@ -21,7 +21,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
-import zlib,os,sys,math,time,threading,Queue,random
+import zlib,os,sys,math,time,threading,Queue,random,wave
 
 import scandir
 
@@ -51,6 +51,7 @@ programpath = os.path.abspath(os.path.split(sys.argv[0])[0])
 SCAN_VIDEOS = 1
 SCAN_EXPORT = 2
 SCAN_LUT = 3
+SCAN_WAV = 4
 
 class ScrollBar(ui.Button):
     def __init__(self,width,height,onclick,**kwds):
@@ -305,6 +306,8 @@ class DialogScene(ui.Scene):
             config.setState("lutDir",path)
         elif self.scantype == SCAN_VIDEOS:
             config.setState("directory",path)
+        elif self.scantype == SCAN_WAV:
+            config.setState("directory",path)
         self.prepareForNewJob()
         self.reset()
         self.path = path
@@ -319,6 +322,18 @@ class DialogScene(ui.Scene):
         config.setState("directory",path)
         self.scantype = SCAN_VIDEOS
         self.scanJob.put(path)
+    def chooseWav(self,path,filename=None):
+        if path == None or not os.path.exists(path):
+            path = os.path.expanduser("~")
+        self.prepareForNewJob()
+        self.reset()
+        self.path = path
+        self.startfile = filename
+        self.prompt = "Choose a WAV file for current video"
+        config.setState("directory",path)
+        self.scantype = SCAN_WAV
+        self.scanJob.put(path)
+        print path,filename
     def importLut(self):
         self.prepareForNewJob()
         self.reset()
@@ -416,22 +431,26 @@ class DialogScene(ui.Scene):
     def candidatesInTree(self,path):
         pathnodrive = os.path.splitdrive(path)[1]
         if pathnodrive in self.skippaths:
-            return (0,0)
+            return (0,0,0)
         cacheresults = self.dircache.get(path,None)
         if cacheresults!=None:
             return cacheresults
-        self.dircache[path] = (0,0)
+        self.dircache[path] = (0,0,0)
         for dirpath,dirnames,filenames in scandir.walk(path,topdown=False):
             candvid = 0
             candlut = 0
+            candwav = 0
             for sd in dirnames:
-                sv,sl = self.dircache.setdefault(os.path.join(dirpath,sd),(0,0))
+                sv,sl,sw = self.dircache.setdefault(os.path.join(dirpath,sd),(0,0,0))
                 candvid += sv
                 candlut += sl
+                candwav += sw
             candvid += self.filterVids(dirpath,filenames)
             cube = [n for n in filenames if n.lower().endswith(".cube")]
             candlut += len(cube)
-            self.dircache[dirpath] = (candvid,candlut)
+            wav = [n for n in filenames if n.lower().endswith(".wav")]
+            candwav += len(wav)
+            self.dircache[dirpath] = (candvid,candlut,candwav)
             if self.scanJobCancel:
                 del self.dircache[path]
                 return None
@@ -443,6 +462,29 @@ class DialogScene(ui.Scene):
             return random.sample(results,2)
         else:
             return results
+    def wavInfo(self,fullpath):
+        w = wave.open(fullpath,'r')
+        channels,width,framerate,nframe,comptype,compname = w.getparams()
+        toread = 160*1000
+        if toread>nframe: toread=nframe
+        wavdata = w.readframes(toread)
+        if width==2:
+            wa = np.fromstring(wavdata,dtype=np.uint16)
+            wa = wa.reshape(-1,channels)
+        elif width == 3:
+            a = np.empty((toread,channels,4),dtype=np.uint8)
+            raw = np.fromstring(wavdata,dtype=np.uint8)
+            a[:,:,:width] = raw.reshape(-1,channels,width)
+            a[:,:,width:] = (a[:,:,width-1:width]>>7)*255
+            wa = a.view('<i4').reshape(a.shape[:-1])
+        t = np.zeros(shape=(90,160,3),dtype=np.uint16)
+        if toread>0:
+            end = toread/1000
+            for i in range(45):
+                t[i,:end+1,0] = 65535*(wa[::1000,0]/256 > (-32767+i*65536/45))
+            for i in range(45):
+                t[45+i,:end+1,1] = 65535*(wa[::1000,1]/256 < (-32767+i*65536/45))
+        return t
     def find(self,root):
         pathnodrive = os.path.splitdrive(root)[1]
         if pathnodrive in self.skippaths: return
@@ -455,6 +497,8 @@ class DialogScene(ui.Scene):
                     candidates = MlRaw.candidatesInDir(os.path.join(root,"dummy"))
                 elif scantype==SCAN_LUT:
                     candidates=[f for f in os.listdir(root) if f.lower().endswith(".cube")]
+                elif scantype==SCAN_WAV:
+                    candidates=[f for f in os.listdir(root) if f.lower().endswith(".wav")]
             except:
                 pass
             try:
@@ -479,17 +523,19 @@ class DialogScene(ui.Scene):
                 candvid = None
                 cacheresults = self.dircache.get(scanpath,None)
                 if cacheresults!=None:
-                    candvid,candlut = cacheresults
+                    candvid,candlut,candwav = cacheresults
                 self.scanResults.append((True,scanpath,[],candvid))
                 continue
             cacheresults = self.dircache.get(scanpath,None)
             if cacheresults!=None:
-                candvid,candlut = cacheresults
+                candvid,candlut,candwav = cacheresults
                 if scantype==SCAN_VIDEOS and candvid>0:
                     thumbs = self.thumbsForFolder(scanpath)
                     self.scanResults.append((True,scanpath,thumbs,candvid))
                 elif scantype==SCAN_LUT and candlut>0:
                     self.scanResults.append((True,scanpath,[],candlut))
+                elif scantype==SCAN_WAV and candwav>0:
+                    self.scanResults.append((True,scanpath,[],candwav))
             else:
                 deepscan.append(scanpath)
                 self.scanResults.append((True,scanpath,[],None))
@@ -503,6 +549,8 @@ class DialogScene(ui.Scene):
                 else:
                     if scantype==SCAN_VIDEOS:
                         t = self.indexFile(fullpath)
+                    elif scantype==SCAN_WAV:
+                        t = self.wavInfo(fullpath)
                     elif scantype==SCAN_LUT:
                         l = LUT.LutCube()
                         l.load(fullpath)
@@ -537,24 +585,28 @@ class DialogScene(ui.Scene):
         deepscan.append(root)
         #deepscan.append(os.path.split(root)[0])
         for scanpath in deepscan:
-            self.dircache[scanpath] = (0,0)
+            self.dircache[scanpath] = (0,0,0)
             for dirpath,dirnames,filenames in scandir.walk(scanpath):
                 # Bottom up so can prune subtrees we cached previously
                 candvid = 0
                 candlut = 0
+                candwav = 0
                 for sd in dirnames:
                     svsl = self.candidatesInTree(os.path.join(scanpath,sd))
                     if svsl == None or self.scanJobCancel:
                         del self.dircache[scanpath]
                         return # Cancelled early
-                    sv,sl = svsl
+                    sv,sl,sw = svsl
                     candvid += sv
                     candlut += sl
+                    candwav += sw
                 del dirnames[:]
                 candvid += self.filterVids(dirpath,filenames)
                 cube = [n for n in filenames if n.lower().endswith(".cube")]
                 candlut += len(cube)
-                self.dircache[dirpath] = (candvid,candlut)
+                wav = [n for n in filenames if n.lower().endswith(".wav")]
+                candwav += len(wav)
+                self.dircache[dirpath] = (candvid,candlut,candwav)
 
         # Now we have the full tree from here, load two new thumbnails for every folder in the root. Update the scan results
         vids = self.vidcache.keys()
@@ -564,7 +616,7 @@ class DialogScene(ui.Scene):
             if pathnodrive in self.skippaths: continue
             cacheresults = self.dircache.get(scanpath,None)
             if cacheresults!=None:
-                candvid,candlut = cacheresults
+                candvid,candlut,candwav = cacheresults
                 if scantype==SCAN_VIDEOS and candvid>0:
                     thumbcands = [n for n in vids if n.startswith(scanpath) and n not in self.thumbcache] # Vids in the tree that are not cached
                     for repeat in range(2):
@@ -581,27 +633,31 @@ class DialogScene(ui.Scene):
                         self.scanResults.append((True,scanpath,thumbs,candvid))
                     if self.scanJobCancel:
                         return
-   
-        # Finally scan parent dir to be ready to go up 
+
+        # Finally scan parent dir to be ready to go up
         scanpath = os.path.split(root)[0]
-        self.dircache[scanpath] = (0,0)
+        self.dircache[scanpath] = (0,0,0)
         for dirpath,dirnames,filenames in scandir.walk(scanpath):
             # Bottom up so can prune subtrees we cached previously
             candvid = 0
             candlut = 0
+            candwav = 0
             for sd in dirnames:
                 svsl = self.candidatesInTree(os.path.join(scanpath,sd))
                 if svsl == None or self.scanJobCancel:
                     del self.dircache[scanpath]
                     return # Cancelled early
-                sv,sl = svsl
+                sv,sl,sw = svsl
                 candvid += sv
                 candlut += sl
+                candwav += sw
             del dirnames[:]
             candvid += self.filterVids(dirpath,filenames)
             cube = [n for n in filenames if n.lower().endswith(".cube")]
             candlut += len(cube)
-            self.dircache[dirpath] = (candvid,candlut)
+            wav = [n for n in filenames if n.lower().endswith(".wav")]
+            candwav += len(wav)
+            self.dircache[dirpath] = (candvid,candlut,candwav)
 
     def addToAtlas(self,thumbnail):
         atlas = None
@@ -752,6 +808,10 @@ class DialogScene(ui.Scene):
                         self.browser.scanJobCancel = True
                         self.frames.load(self.fullpath)
                         self.frames.toggleBrowser()
+                    elif self.browser.scantype==SCAN_WAV:
+                        self.browser.scanJobCancel = True
+                        self.frames.loadWav(self.fullpath)
+                        self.frames.toggleChooseWav()
                     elif self.browser.scantype==SCAN_LUT and self.item.opacity==1.0:
                         self.frames.importLut([self.fullpath])
                         self.item.opacity = 0.5
@@ -873,7 +933,7 @@ class DialogScene(ui.Scene):
                     item.namebg.rectangle(item.name.size[0]+20,item.name.size[1]+10,rgba=(0.05,0.05,0.05,0.5))
                     item.namebg.setPos(120-(item.name.size[0]+20)/2,32-(item.name.size[1]+10)/2)
                     item.children = []
-                    if len(thumbs)>0: 
+                    if len(thumbs)>0:
                         if item.thumb1==None:
                             thumb = self.makeThumb(thumbs)
                             item.thumb1 = thumb

@@ -365,6 +365,8 @@ class DisplayScene(ui.Scene):
         r = self.frames.raw
         f = self.frames.playFrame
         s = os.path.split(r.filename)[1]+"\n"
+        if self.frames.wavname != None:
+            s += os.path.split(self.frames.wavname)[1]+" (%+0.02fs)\n"%self.frames.audioOffset
         s += r.make()+" "+r.model()
         if f.lens != None:
             s += ", "+f.lens[0]+"\n"
