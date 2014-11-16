@@ -451,36 +451,36 @@ class Viewer(GLCompute.GLCompute):
             self.jump(-1)
 
 
-        elif k==self.KEY_ZERO:
+        elif k==self.KEY_ZERO or k==self.KEY_KPZERO:
             self.toggleStripes()
 
-        elif k==self.KEY_ONE:
+        elif k==self.KEY_ONE or k==self.KEY_KPONE:
             if m==0:
                 self.changeWhiteBalance(2.0, 1.0, 2.0, "WhiteFluro")  # ~WhiteFluro
             elif m==1:
                 self.deleteLut1D()
-        elif k==self.KEY_TWO:
+        elif k==self.KEY_TWO or k==self.KEY_KPTWO:
             self.changeWhiteBalance(2.0, 1.0, 1.5, "Daylight")    # ~Daylight
-        elif k==self.KEY_THREE:
+        elif k==self.KEY_THREE or k==self.KEY_KPTHREE:
             if m==0:
                 self.changeWhiteBalance(2.5, 1.0, 1.5, "Cloudy ")     # ~Cloudy
             elif m==1:
                 self.deleteLut3D()
 
-        elif k==self.KEY_FOUR:
+        elif k==self.KEY_FOUR or k==self.KEY_KPFOUR:
             self.changeWhiteBalance(self.setting_rgb[0]*0.99, self.setting_rgb[1], self.setting_rgb[2], "red-")
-        elif k==self.KEY_SEVEN:
+        elif k==self.KEY_SEVEN or k==self.KEY_KPSEVEN:
             self.changeWhiteBalance(self.setting_rgb[0]*(1.0/0.99), self.setting_rgb[1], self.setting_rgb[2], "red+")
-        elif k==self.KEY_SIX:
+        elif k==self.KEY_SIX or k==self.KEY_KPSIX:
             self.changeWhiteBalance(self.setting_rgb[0], self.setting_rgb[1], self.setting_rgb[2]*0.99, "blue-")
-        elif k==self.KEY_NINE:
+        elif k==self.KEY_NINE or k==self.KEY_KPNINE:
             self.changeWhiteBalance(self.setting_rgb[0], self.setting_rgb[1], self.setting_rgb[2]*(1.0/0.99), "blue+")
 
         # Green control is now done by modifying R/B/brightness together
-        elif k==self.KEY_FIVE:
+        elif k==self.KEY_FIVE or k==self.KEY_KPFIVE:
             self.changeWhiteBalance(self.setting_rgb[0]*(1.0/0.99), self.setting_rgb[1], self.setting_rgb[2]*(1.0/0.99), "green-")
             self.scaleBrightness(0.99)
-        elif k==self.KEY_EIGHT:
+        elif k==self.KEY_EIGHT or k==self.KEY_KPEIGHT:
             self.changeWhiteBalance(self.setting_rgb[0]*0.99, self.setting_rgb[1], self.setting_rgb[2]*0.99, "green+")
             self.scaleBrightness(1.0/0.99)
 

@@ -66,6 +66,17 @@ class GLCompute(object):
     KEY_EIGHT = glfw.GLFW_KEY_8
     KEY_NINE = glfw.GLFW_KEY_9
 
+    KEY_KPZERO = glfw.GLFW_KEY_KP_0
+    KEY_KPONE = glfw.GLFW_KEY_KP_1
+    KEY_KPTWO = glfw.GLFW_KEY_KP_2
+    KEY_KPTHREE = glfw.GLFW_KEY_KP_3
+    KEY_KPFOUR = glfw.GLFW_KEY_KP_4
+    KEY_KPFIVE = glfw.GLFW_KEY_KP_5
+    KEY_KPSIX = glfw.GLFW_KEY_KP_6
+    KEY_KPSEVEN = glfw.GLFW_KEY_KP_7
+    KEY_KPEIGHT = glfw.GLFW_KEY_KP_8
+    KEY_KPNINE = glfw.GLFW_KEY_KP_9
+
     KEY_A = glfw.GLFW_KEY_A
     KEY_B = glfw.GLFW_KEY_B
     KEY_C = glfw.GLFW_KEY_C
