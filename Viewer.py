@@ -44,7 +44,7 @@ from Audio import *
 import LUT
 from Dialog import *
 from Prompt import *
-
+from FindStartTone import FindStartTone
 ENCODE_TYPE_MOV = 0
 ENCODE_TYPE_DNG = 1
 ENCODE_TYPE_MAX = 2
@@ -538,7 +538,10 @@ class Viewer(GLCompute.GLCompute):
         elif k==self.KEY_V:
             self.slideAudio(-0.5)
         elif k==self.KEY_B:
-            self.slideAudio(-(1.0/float(self.fps)))
+            if m==0:
+                self.slideAudio(-(1.0/float(self.fps)))
+            elif m==1:
+                self.findBeep()
         elif k==self.KEY_N:
             if m==0:
                 self.slideAudio(1.0/(float(self.fps)))
@@ -1121,11 +1124,15 @@ class Viewer(GLCompute.GLCompute):
         if not self.wavname:
             return
         fullwav = os.path.join(os.path.split(self.raw.filename)[0],self.wavname)
+        print self.wavname,fullwav
+        #return
         metawavname = None
         if not os.path.exists(fullwav):
             metawavname = self.raw.getMeta("wavfile_v1")
             self.wavname = metawavname
-            fullwav = os.path.join(os.path.split(self.raw.filename)[0],self.wavname)
+            print self.wavname
+            if metawavname != None: 
+                fullwav = os.path.join(os.path.split(self.raw.filename)[0],self.wavname)
         self.wav = None
         if os.path.exists(fullwav):
             relwave = os.path.relpath(fullwav,os.path.split(self.raw.filename)[0])
@@ -1155,6 +1162,22 @@ class Viewer(GLCompute.GLCompute):
             wavdata = pad + wavdata
             start=0
         self.audio.play(wavdata[start:])
+    def findBeep(self):
+        channels,width,framerate,nframe,comptype,compname = self.wav.getparams()
+        maxscan = int(60.0*framerate)
+        if nframe>maxscan: nframe=maxscan 
+        self.wav.setpos(0)
+        wavdata = self.wav.readframes(nframe)
+        startSample,mag = FindStartTone(wavdata,framerate,channels,width,12000.0,0.01,60.0)
+        print "12kHz beep found at",startSample,"out of",nframe
+        self.audioOffset = float(startSample)/float(framerate)
+        self.raw.setMeta("audioOffset_v1",self.audioOffset)
+        if not self.paused:
+            now = time.time()
+            offset = now - self.realStartTime
+            self.startAudio(offset)
+        else:
+            self.refresh()
     def slideAudio(self,slideBy):
         self.audioOffset += slideBy
         self.raw.setMeta("audioOffset_v1",self.audioOffset)
