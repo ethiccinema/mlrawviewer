@@ -187,16 +187,19 @@ class Viewer(GLCompute.GLCompute):
         self.loadSet(r,newname)
 
     def loadSet(self,raw,newname):
-        self.wavname = newname[:-3]+"WAV"
-
-        # Hack to load any WAV file we find in a DNG dir
-        if os.path.isdir(newname) or newname.lower().endswith(".dng"):
-            wavdir = os.path.split(newname)[0]
-            if os.path.isdir(newname):
-                wavdir = newname
-            wavfiles = [w for w in os.listdir(wavdir) if w.lower().endswith(".wav")]
-            if len(wavfiles)>0:
-                self.wavname = os.path.join(wavdir,wavfiles[0])
+        metawavname = raw.getMeta("wavfile_v1")
+        if metawavname == None:
+            self.wavname = newname[:-3]+"WAV"
+            # Hack to load any WAV file we find in a DNG dir
+            if os.path.isdir(newname) or newname.lower().endswith(".dng"):
+                wavdir = os.path.split(newname)[0]
+                if os.path.isdir(newname):
+                    wavdir = newname
+                wavfiles = [w for w in os.listdir(wavdir) if w.lower().endswith(".wav")]
+                if len(wavfiles)>0:
+                    self.wavname = os.path.join(wavdir,wavfiles[0])
+        else:
+            self.wavname = metawavname
         self.colourUndoStack = []
         self.colourRedoStack = []
         self.audio.stop()
@@ -263,10 +266,11 @@ class Viewer(GLCompute.GLCompute):
                 self.toggleBrowser()
 
     def loadWav(self,wavname):
-        print "Loading WAV",wavname
         self.audio.stop()
         self.wav = None
         self.wavname = wavname
+        print "Loading WAV",self.wavname
+        self.audioOffset = 0.0
         self.initWav()
         if not self.paused:
             self.togglePlay() # Pause..
@@ -536,7 +540,10 @@ class Viewer(GLCompute.GLCompute):
         elif k==self.KEY_B:
             self.slideAudio(-(1.0/float(self.fps)))
         elif k==self.KEY_N:
-            self.slideAudio(1.0/(float(self.fps)))
+            if m==0:
+                self.slideAudio(1.0/(float(self.fps)))
+            elif m==1:
+                self.resetAudio()
         elif k==self.KEY_M:
             self.slideAudio(0.5)
 
@@ -1105,24 +1112,35 @@ class Viewer(GLCompute.GLCompute):
             self.indexing = False
             # Do other events here
             self.initWav() # WAV file may have been written
-            self.startAudio()
+            if not self.paused:
+               self.startAudio()
 
     def initWav(self):
         if self.wav != None: # Already loaded
             return
         if not self.wavname:
             return
-        if os.path.exists(self.wavname):
-            wavname = self.wavname
-            # Update the raw file metadata to point to this wav file
-            self.raw.setMeta("wavfile_v1",self.wavname)
-        else:
-            wavname = self.raw.getMeta("wavfile_v1")
-            self.wavname = wavname
-        try:
-            self.wav = wave.open(wavname,'r')
-        except:
-            self.wav = None
+        fullwav = os.path.join(os.path.split(self.raw.filename)[0],self.wavname)
+        metawavname = None
+        if not os.path.exists(fullwav):
+            metawavname = self.raw.getMeta("wavfile_v1")
+            self.wavname = metawavname
+            fullwav = os.path.join(os.path.split(self.raw.filename)[0],self.wavname)
+        self.wav = None
+        if os.path.exists(fullwav):
+            relwave = os.path.relpath(fullwav,os.path.split(self.raw.filename)[0])
+            self.wavname = relwave
+            if not metawavname or (metawavname and relwave!=metawavname):
+                # Update the raw file metadata to point to this wav file
+                self.raw.setMeta("wavfile_v1",self.wavname)
+            try:
+                self.wav = wave.open(fullwav,'r')
+            except EOFError:
+                pass
+            except:
+                print "Could not open WAV file",fullwav
+                import traceback
+                traceback.print_exc()
     def startAudio(self,startTime=0.0):
         if not self.setting_dropframes: return
         if not self.wav: return
@@ -1142,14 +1160,15 @@ class Viewer(GLCompute.GLCompute):
         self.raw.setMeta("audioOffset_v1",self.audioOffset)
         #if self.audioOffset <= 0.0:
         #    self.audioOffset = 0.0
-        print "Audio offset = %.02f seconds"%self.audioOffset
         if not self.paused:
             now = time.time()
             offset = now - self.realStartTime
             self.startAudio(offset)
         else:
             self.refresh()
-
+    def resetAudio(self):
+        vidpos = float(self.currentFrameNumber())/self.raw.fps # In seconds
+        self.slideAudio(vidpos)
     def okToExit(self):
         if self.exporter.busy:
             if not self.asking:
@@ -1420,9 +1439,10 @@ class Viewer(GLCompute.GLCompute):
         if self.raw.whiteBalance != None:
             self.setting_rgb = self.raw.whiteBalance
         newbalance = self.raw.getMeta("balance_v1")
-        if newbalance != None: self.setting_rgb = newbalance
-        #else:
-        #    self.setting_rgb = (2.0, 1.0, 1.5)
+        if newbalance != None: 
+            self.setting_rgb = newbalance
+        else:
+            self.setting_rgb = (2.0, 1.0, 1.5)
         self.setting_brightness = self.raw.brightness
         newbrightness = self.raw.getMeta("brightness_v1")
         if newbrightness != None: self.setting_brightness = newbrightness
@@ -1469,7 +1489,7 @@ class Viewer(GLCompute.GLCompute):
         Save current colour balance and brightness
         globally for matching takes
         """
-        config.setState("balance",(self.setting_rgb,self.setting_brightness))
+        config.setState("balance",(self.setting_rgb,self.setting_brightness,self.setting_tonemap,self.setting_lut1d1,self.setting_lut3d,self.setting_lut1d2))
 
     def loadBalance(self):
         """
@@ -1477,11 +1497,26 @@ class Viewer(GLCompute.GLCompute):
         """
         rgbl = config.getState("balance")
         if rgbl != None:
-            rgb,l = rgbl
-            r,g,b = rgb
-            self.changeWhiteBalance(r,g,b,"Shared")
-            self.setBrightness(l)
-            self.refresh()
+            if len(rgbl)==2:    
+                rgb,l = rgbl
+                r,g,b = rgb
+                self.changeWhiteBalance(r,g,b,"Shared")
+                self.setBrightness(l)
+                self.refresh()
+            elif len(rgbl)==6:
+                rgb,l,tm,l1d1,l3d,l1d2 = rgbl
+                r,g,b = rgb
+                self.changeWhiteBalance(r,g,b,"Shared")
+                self.setBrightness(l)
+                self.setting_tonemap = tm%9
+                self.raw.setMeta("tonemap_v1",self.setting_tonemap)
+                self.setting_lut1d1 = l1d1
+                self.raw.setMeta("lut1d1_v1",l1d1)
+                self.setting_lut3d = l3d
+                self.raw.setMeta("lut3d_v1",l3d)
+                self.setting_lut1d2 = l1d2
+                self.raw.setMeta("lut1d2_v1",l1d2)
+                self.refresh()
 
     def togglePrompt(self):
         if not self.asking:
@@ -1541,10 +1576,12 @@ class Viewer(GLCompute.GLCompute):
         if not self.browser:
             if not self.paused:
                 self.togglePlay()
-            if self.wavname != None:
-                self.dialog.chooseWav(*os.path.split(self.wavname))
+            root = os.path.split(self.raw.filename)[0]
+            if self.wavname != None: 
+                full = os.path.join(root,self.wavname)
+                self.dialog.chooseWav(*os.path.split(full))
             else:
-                self.dialog.chooseWav(os.path.split(self.raw.filename)[0])
+                self.dialog.chooseWav(root)
 
             self.dialog.hidden = False
             self.display.hidden = True

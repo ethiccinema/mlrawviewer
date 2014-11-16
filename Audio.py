@@ -16,6 +16,7 @@ class Audio(object):
         self.playThread = threading.Thread(target=self.audioLoop)
         self.playThread.daemon = True
         self.commands = Queue.Queue(1)
+        self.currentParams = None
         if not noAudio:
             self.playThread.start()
     def init(self,sampleRate,sampleWidth,channels):
@@ -60,16 +61,19 @@ class Audio(object):
                 commandType,commandData = command
                 if commandType==Audio.INIT:
                     # print "Init",commandData
-                    if stream == None:
+                    if stream == None or commandData != self.currentParams:
+                        if stream != None: stream.close()
                         try:
                             sampleRate,sampleWidth,chn = commandData
                             fmt = pa.get_format_from_width(sampleWidth)
                             stream = pa.open(format=fmt,channels=chn,rate=sampleRate,output=True,start=False)
                             frameSize = sampleWidth * chn
+                            self.currentParams = commandData
                         except:
                             import traceback
                             traceback.print_exc()
                             stream = None
+                            self.currentParams = None
                     if stream != None:
                         stream.start_stream()
                 if commandType==Audio.PLAY:
