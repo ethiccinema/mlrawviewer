@@ -68,13 +68,13 @@ void main() {
         myclass = self.__class__
         super(ShaderHistogram,self).__init__(myclass.vertex_src,myclass.fragment_src,["rawtex","rawres"],**kwds)
         self.svbo = None
-	self.normalsvbo = None
+        self.normalsvbo = None
         self.samples = 0
-	self.uploaded = False
+        self.uploaded = False
     def prepare(self,normalsvbo,histsvbo,width,height):
         if self.svbo==None:
             self.normalsvbo = normalsvbo
-	    self.svbo = histsvbo
+            self.svbo = histsvbo
             self.svbobase = self.svbo.allocate(width*height)
             flatva = np.empty(shape=(width*height,9),dtype=np.float32)
             flatva[:,:3] = 0.0
@@ -93,15 +93,15 @@ void main() {
             xinc = 1.0/float(width)
             v[:,:,:,0] = va0[:,:,:,0]*xinc+xinc*0.5
             v[:,:,:,1] = va1[:,:,:,0]*yinc+yinc*0.5
+            vf = v.flatten()
             self.svbo.update(v.flatten(),self.svbobase)
             self.samples = width*height
-            
 
     def draw(self,width,height,texture):
         self.use()
         self.blend(False)
         self.svbo.bind()
-	if not self.uploaded:
+        if not self.uploaded:
             self.svbo.upload()
             self.uploaded = True
         glVertexAttribPointer(self.vertex,3,GL_FLOAT,GL_FALSE,0,self.svbo.vboOffset(self.svbobase))
@@ -115,7 +115,7 @@ void main() {
         glClear(GL_COLOR_BUFFER_BIT)
         glEnable(GL_BLEND)
         glBlendFunc(GL_ONE,GL_ONE)
-        glDrawArrays(GL_POINTS, 0, self.samples)
+        glDrawArrays(GL_POINTS, 0, self.samples*3)
         glDisable(GL_BLEND)
         self.normalsvbo.bind()
 
