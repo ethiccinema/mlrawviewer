@@ -6,7 +6,7 @@ def FindStartTone(sampleData,sampleFrequency,channels,width,toneFrequency,toneDu
     # Return a list of candidates for the tone position in the given sameple data
     ms = sampleFrequency*maxdur
     sw = width
-    ch = channels 
+    ch = channels
     nf = len(sampleData)/(width*channels)
     if sw==2:
         wa = np.fromstring(sampleData,dtype=np.int16)
@@ -22,7 +22,7 @@ def FindStartTone(sampleData,sampleFrequency,channels,width,toneFrequency,toneDu
     if wa.shape[0]>ms:
         wa = wa[:ms]
 
-    isf = 1.0/float(sampleFrequency) 
+    isf = 1.0/float(sampleFrequency)
     itf = 1.0/float(toneFrequency)
     toneSamples = itf/isf # Number of samples for 1 wavelength of the tone
     # Generate a sin and cos wave at the tone frequency matching the supplied data
@@ -35,10 +35,11 @@ def FindStartTone(sampleData,sampleFrequency,channels,width,toneFrequency,toneDu
     anc = wa*c
     cmans = np.cumsum(ans)
     cmanc = np.cumsum(anc)
-    mag = cmans*cmans+cmanc*cmanc
     window = int(toneSamples*256) # 8 waves long accumulation
-    rolling = mag[window:]-mag[:-window]
-    cmroll = np.cumsum(rolling)
+    rs = cmans[window:]-cmans[:-window]
+    rc = cmanc[window:]-cmanc[:-window]
+    mag = rs*rs+rc*rc
+    cmroll = np.cumsum(mag)
     lpfcr = cmroll[1000:]-cmroll[:-1000]
     am = lpfcr.argmax()
     return am,math.sqrt(lpfcr[am])
@@ -49,7 +50,7 @@ def generateTestData(sampleRate=48000.0,dur=10.0,toneLength=0.08,toneFreq=12000.
     tl = float(toneLength)
     ttf = float(toneFreq)
     dur = float(dur)
-    to = float(toneOffset) 
+    to = float(toneOffset)
     tamp = float(toneAmp)
     phaseoff = float(phaseOff)
     namp = float(noiseAmp)
@@ -67,7 +68,7 @@ def writeWav(data,sf,name):
     wav = wave.open(name,'wb')
     wav.setparams((1,2,int(sf),data.shape[0],"NONE",""))
     wav.writeframes(data.tostring())
-    wav.close()    
+    wav.close()
 
 if __name__ == '__main__':
     if len(sys.argv[1])>0:
@@ -92,7 +93,7 @@ if __name__ == '__main__':
         test = test.tostring()
 
     sample = FindStartTone(test,sf,ch,sw,tf,tl)
-    print sample
+    print sample,float(sample[0])/float(sf)
 
 
 
