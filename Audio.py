@@ -19,14 +19,14 @@ class Audio(object):
         self.currentParams = None
         if not noAudio:
             self.playThread.start()
-    def init(self,sampleRate,sampleWidth,channels):
+    def init(self,sampleRate,sampleWidth,channels,samples):
         global noAudio
         if not noAudio:
-            self.commands.put((Audio.INIT,(sampleRate,sampleWidth,channels)))
-    def play(self,data):
+            self.commands.put((Audio.INIT,(sampleRate,sampleWidth,channels,samples)))
+    def play(self,offset):
         global noAudio
         if not noAudio:
-            self.commands.put((Audio.PLAY,data))
+            self.commands.put((Audio.PLAY,offset))
     def stop(self):
         global noAudio
         if not noAudio:
@@ -37,22 +37,37 @@ class Audio(object):
         bufferOffset = 0
         frameSize = 0
         stream = None
+        started = False
         while 1:
-            if self.commands.empty() and dataBuffer != None and stream != None:
-                bufSize = 1 * 1024 * frameSize
+            if self.commands.empty() and dataBuffer != None and stream != None and bufferOffset<len(dataBuffer) and started:
+                bufSize = 8 * 1024 * frameSize
                 left = len(dataBuffer)-bufferOffset
-                if left<bufSize:
+                if bufferOffset<0:
+                    try:
+                        stream.write("\0"*(-bufferOffset),exception_on_underflow=True)
+                    except:
+                        import traceback
+                        traceback.print_exc()
+                        print "Audio underflow"
+                        stream = None
+                        dataBuffer = None
+                    bufferOffset = 0
+                elif left<bufSize:
                     try:
                         stream.write(dataBuffer[bufferOffset:],exception_on_underflow=True)
                     except:
+                        import traceback
+                        traceback.print_exc()
                         print "Audio underflow"
                         stream = None
-                    dataBuffer = None
+                    bufferOffset = len(dataBuffer)
                 else:
                     newoffset = bufferOffset+bufSize
                     try:
                         stream.write(dataBuffer[bufferOffset:newoffset],exception_on_underflow=True)
                     except:
+                        import traceback
+                        traceback.print_exc()
                         print "Audio underflow"
                         stream = None
                     bufferOffset = newoffset
@@ -60,11 +75,11 @@ class Audio(object):
                 command = self.commands.get()
                 commandType,commandData = command
                 if commandType==Audio.INIT:
-                    # print "Init",commandData
+                    #print "Init",commandData[:3],len(commandData[3])
                     if stream == None or commandData != self.currentParams:
                         if stream != None: stream.close()
                         try:
-                            sampleRate,sampleWidth,chn = commandData
+                            sampleRate,sampleWidth,chn,dataBuffer = commandData
                             fmt = pa.get_format_from_width(sampleWidth)
                             stream = pa.open(format=fmt,channels=chn,rate=sampleRate,output=True,start=False)
                             frameSize = sampleWidth * chn
@@ -74,16 +89,19 @@ class Audio(object):
                             traceback.print_exc()
                             stream = None
                             self.currentParams = None
-                    if stream != None:
-                        stream.start_stream()
                 if commandType==Audio.PLAY:
-                    # print "Play",len(commandData)
-                    dataBuffer = commandData
-                    bufferOffset = 0
+                    # print "Play",commandData,len(dataBuffer)
+                    bufferOffset = commandData
+                    if stream == None:
+                        fmt = pa.get_format_from_width(sampleWidth)
+                        stream = pa.open(format=fmt,channels=chn,rate=sampleRate,output=True,start=False)
+                    if stream != None and not started:
+                        stream.start_stream()
+                        started = True
                 elif commandType==Audio.STOP:
                     # print "Stop"
-                    if stream != None:
+                    if stream != None and started:
                         stream.stop_stream()
-                        dataBuffer = None
+                        started = False
 
 

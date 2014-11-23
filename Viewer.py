@@ -88,6 +88,8 @@ class Viewer(GLCompute.GLCompute):
         self.audio = Audio()
         self.wavname = None # wavfilename
         self.wav = None
+        self.wavdata = None
+        self.wavstarted = False
         self.indexing = True
         #self.audioOffset = self.raw.getMeta("audioOffset_v1")
         #if self.audioOffset == None: self.audioOffset = 0.0
@@ -202,10 +204,11 @@ class Viewer(GLCompute.GLCompute):
             self.wavname = metawavname
         self.colourUndoStack = []
         self.colourRedoStack = []
-        self.audio.stop()
+        self.stopAudio()
         if self.demosaic:
             self.demosaic.free() # Release textures
         self.wav = None
+        self.wavdata = None
         if self.raw:
             self.raw.close()
         self.raw = raw
@@ -266,7 +269,7 @@ class Viewer(GLCompute.GLCompute):
                 self.toggleBrowser()
 
     def loadWav(self,wavname):
-        self.audio.stop()
+        self.stopAudio()
         self.wav = None
         self.wavname = wavname
         print "Loading WAV",self.wavname
@@ -389,7 +392,7 @@ class Viewer(GLCompute.GLCompute):
         self.realStartTime = now - frameToJumpTo / self.fps
         self.neededFrame = int(frameToJumpTo)
         self.nextFrameNumber = int(frameToJumpTo) # For non-frame dropping case
-        self.audio.stop()
+        self.stopAudio()
         if not self.paused:
             offset = now - self.realStartTime
             self.startAudio(offset)
@@ -405,7 +408,7 @@ class Viewer(GLCompute.GLCompute):
         self.realStartTime -= framesToJumpBy / self.fps
         self.neededFrame += int(framesToJumpBy)
         self.nextFrameNumber += int(framesToJumpBy) # For non-frame dropping case
-        self.audio.stop()
+        self.stopAudio()
         if not self.paused:
             now = time.time()
             offset = now - self.realStartTime
@@ -778,7 +781,7 @@ class Viewer(GLCompute.GLCompute):
         self.paused = not self.paused
         if self.paused:
             #self.jump(-1) # Redisplay the current frame in high quality
-            self.audio.stop()
+            self.stopAudio()
             self.refresh()
         else:
             if self.playFrameNumber >= (self.raw.frames()-1):
@@ -818,7 +821,7 @@ class Viewer(GLCompute.GLCompute):
             self.realStartTime = time.time() - offset
             self.startAudio(offset)
         else:
-            self.audio.stop()
+            self.stopAudio()
         self.refresh()
     def toggleFpsOverride(self):
         fo = self.setting_fpsOverride
@@ -903,7 +906,7 @@ class Viewer(GLCompute.GLCompute):
                         self.playFrameNumber = 0
                         self.nextFrameNumber = 0
                         self.realStartTime = now
-                        self.audio.stop()
+                        self.stopAudio()
                         self.startAudio()
                     else:
                         neededFrame = self.raw.frames()-1
@@ -1131,9 +1134,10 @@ class Viewer(GLCompute.GLCompute):
             metawavname = self.raw.getMeta("wavfile_v1")
             self.wavname = metawavname
             print self.wavname
-            if metawavname != None: 
+            if metawavname != None:
                 fullwav = os.path.join(os.path.split(self.raw.filename)[0],self.wavname)
         self.wav = None
+        self.wavdata = None
         if os.path.exists(fullwav):
             relwave = os.path.relpath(fullwav,os.path.split(self.raw.filename)[0])
             self.wavname = relwave
@@ -1148,26 +1152,34 @@ class Viewer(GLCompute.GLCompute):
                 print "Could not open WAV file",fullwav
                 import traceback
                 traceback.print_exc()
+    def stopAudio(self):
+        #print "stopAudio",self.wavstarted
+        if self.wavstarted:
+            self.wavstarted = False
+            self.audio.stop()
     def startAudio(self,startTime=0.0):
+        #print "startAudio",startTime,self.wavstarted
         if not self.setting_dropframes: return
         if not self.wav: return
+        if self.wavstarted: return
         channels,width,framerate,nframe,comptype,compname = self.wav.getparams()
-        self.audio.init(framerate,width,channels)
-        self.wav.setpos(0)
-        wavdata = self.wav.readframes(nframe)
+        if self.wavdata == None:
+            self.wav.setpos(0)
+            self.wavdata = self.wav.readframes(nframe)
+            self.audio.init(framerate,width,channels,self.wavdata)
         startTime += self.audioOffset
         start = int(startTime*framerate)*channels*width
-        if start<0:
-            pad = "\0"*(-start)
-            wavdata = pad + wavdata
-            start=0
-        self.audio.play(wavdata[start:])
+        self.audio.play(start)
+        self.wavstarted = True
     def findBeep(self):
         channels,width,framerate,nframe,comptype,compname = self.wav.getparams()
         maxscan = int(60.0*framerate)
-        if nframe>maxscan: nframe=maxscan 
-        self.wav.setpos(0)
-        wavdata = self.wav.readframes(nframe)
+        if nframe>maxscan: nframe=maxscan
+        if self.wavdata != None:
+            self.wav.setpos(0)
+            wavdata = self.wav.readframes(nframe)
+        else:
+            wavdata = self.wavdata
         startSample,mag = FindStartTone(wavdata,framerate,channels,width,12000.0,0.01,60.0)
         print "12kHz beep found at",startSample,"out of",nframe
         self.audioOffset = float(startSample)/float(framerate)
@@ -1201,7 +1213,7 @@ class Viewer(GLCompute.GLCompute):
 
     def exit(self):
         self.exporter.end()
-        self.audio.stop()
+        self.stopAudio()
 
     # Settings interface to the scene
     def brightness(self):

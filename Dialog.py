@@ -107,6 +107,7 @@ class DialogScene(ui.Scene):
         self.scanThread.daemon = True
         self.scanThread.start()
         self.thumbcache = {}
+        self.thumbcachewav = {}
         self.yoffset = 0
         self.title = None
         self.path = ""
@@ -568,7 +569,7 @@ class DialogScene(ui.Scene):
                         t[:,:,0] += np.linspace(0,65535,90*160).reshape(90,160)
                         t[:,:,1] += np.linspace(0,65535*90,90*160).reshape(90,160)
                         t[:,:,2] += 32768
-                    if t != None:
+                    if t != None and scantype==SCAN_VIDEOS:
                         self.thumbcache[fullpath] = t
                 if t != None:
                     self.scanResults.append((False,fullpath,t,None))
