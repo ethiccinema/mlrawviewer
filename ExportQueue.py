@@ -21,7 +21,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
-import sys,os,threading,Queue,time,math,subprocess,wave,multiprocessing
+import sys,os,threading,Queue,time,math,subprocess,multiprocessing,wave
+
+import wavext
 
 try:
     import OpenGL
@@ -370,8 +372,9 @@ class ExportQueue(threading.Thread):
 
     def tempEncoderWav(self,wavfile,fps,tempname,inframe,outframe,audioOffset):
         wav = wave.open(wavfile,'r')
-        tempwav = wave.open(tempname,'w')
+        tempwav = wavext.wavext(tempname)
         tempwav.setparams(wav.getparams())
+        tempwav.setextra(wavext.bext())
         channels,width,framerate,nframe,comptype,compname = wav.getparams()
         frameCount = int(framerate * float(outframe-inframe+1)/float(fps))
         startFrame = int((audioOffset+(float(inframe)/float(fps)))*framerate)
@@ -437,6 +440,7 @@ class ExportQueue(threading.Thread):
         fps,fpsnum,fpsden = self.fpsParts(r)
         rgbl,dummy = self.rgblOverride(r,rgbl)
         wavfile = self.wavOverride(r,wavfile)
+        wavfile = os.path.join(os.path.split(filename)[0],wavfile)
         if os.path.exists(wavfile):
             d = file(wavfile,'rb').read()
             rhead = os.path.splitext(os.path.split(filename)[1])[0]
@@ -597,6 +601,7 @@ class ExportQueue(threading.Thread):
         if lut1d2 != None:
             print "Exporting using 1D LUT2",lut1d2.name()
         wavfile = self.wavOverride(r,wavfile)
+        wavfile = os.path.join(os.path.split(filename)[0],wavfile)
         if os.path.exists(wavfile):
             tempwavname = movfile[:-4] + ".WAV"
             self.tempEncoderWav(wavfile,fps,tempwavname,startFrame,endFrame,audioOffset)
