@@ -374,7 +374,7 @@ class ExportQueue(threading.Thread):
         wav = wave.open(wavfile,'r')
         tempwav = wavext.wavext(tempname)
         tempwav.setparams(wav.getparams())
-        tempwav.setextra(wavext.bext())
+        tempwav.setextra((wavext.bext(),wavext.ixml()))
         channels,width,framerate,nframe,comptype,compname = wav.getparams()
         frameCount = int(framerate * float(outframe-inframe+1)/float(fps))
         startFrame = int((audioOffset+(float(inframe)/float(fps)))*framerate)

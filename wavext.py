@@ -1,6 +1,6 @@
 import wave,struct
 from wave import WAVE_FORMAT_PCM
- 
+
 def bext(description="",originator="",
         originatorReference="",
         originationDate="",
@@ -14,11 +14,22 @@ def bext(description="",originator="",
         maxMomentaryLoudness=0,
         maxShortTermLoudness=0,
         codingHistory=""):
+    size = 256+32+32+10+8+10+64+10+180+len(codingHistory)
     block = struct.pack("<4sI256s32s32s10s8sIIH64sHHHHH180s",
-            "bext",256+32+32+10+8+10+64+10+180+len(codingHistory),description,originator,originatorReference,originationDate,
+            "bext",size,description,originator,originatorReference,originationDate,
              originationTime,timeReference&0xFFFFFFFF,timeReference>>32,version,UMID,loudnessValue,loudnessRange,maxTruePeakLevel,
              maxMomentaryLoudness,maxShortTermLoudness,"\0"*180)
-    return block+codingHistory
+    bextblock = block+codingHistory
+    return bextblock
+
+def ixml(project="MlRawViewer",tape=1,scene=1,shot=1,take=1,angle="ms",fpsn=25000,fpsd=1000):
+    blockdata = '<?xml version="1.0" encoding="UTF-8"?><BWFXML><IXML_VERSION>1.5</IXML_VERSION><PROJECT>%s</PROJECT><NOTE></NOTE><CIRCLED>FALSE</CIRCLED><BLACKMAGIC-KEYWORDS></BLACKMAGIC-KEYWORDS><TAPE>%d</TAPE><SCENE>%d</SCENE><BLACKMAGIC-SHOT>%d</BLACKMAGIC-SHOT><TAKE>%d</TAKE><BLACKMAGIC-ANGLE>%s</BLACKMAGIC-ANGLE><SPEED><MASTER_SPEED>%d/%d</MASTER_SPEED><CURRENT_SPEED>%d/%d</CURRENT_SPEED><TIMECODE_RATE>%d/%d</TIMECODE_RATE><TIMECODE_FLAG>NDF</TIMECODE_FLAG></SPEED></BWFXML>'%(project,tape,scene,shot,take,angle,fpsn,fpsd,fpsn,fpsd,fpsn,fpsd)
+    #padding = 8-len(blockdata)%8
+    #blockdata += ' '*padding
+    block = struct.pack("<4sI","iXML",len(blockdata))+blockdata
+    print len(block),len(blockdata)
+    print blockdata
+    return block
 
 class wavext(wave.Wave_write):
     """
@@ -36,7 +47,7 @@ class wavext(wave.Wave_write):
         Provide a sequence of blocks to be inserted to the wave
         """
         self._blocks = blocks
-        self._blocklenght = 0
+        self._blocklength = 0
         for b in blocks:
             self._blocklength += len(b)
 
@@ -74,6 +85,6 @@ class wavext(wave.Wave_write):
 if __name__ == '__main__':
     w = wavext("test.wav")
     w.setparams((2,2,48000,0,"NONE",""))
-    w.setextra((bext(),))
+    w.setextra((bext(),ixml()))
     w.writeframes("".join("\0"+chr(c%128) for c in range(1000)))
     w.close()
