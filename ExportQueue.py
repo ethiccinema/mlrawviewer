@@ -257,7 +257,7 @@ class ExportQueue(threading.Thread):
         #print "FPS parts:",fps,fpsnum,fpsden
         return fps,fpsnum,fpsden
 
-    def setDngHeader(self,r,d,bits,frame,rgbl,ljpeg=False):
+    def setDngHeader(self,r,d,bits,frame,rgbl,ljpeg=False,date=None):
         d.stripTotal = 3000000
         d.bo = "<" # Little endian
         # Prepopulate DNG with basic set of tags for a single image
@@ -342,6 +342,11 @@ class ExportQueue(threading.Thread):
             atm(e,DNG.Tag.ActiveArea,area)
             at(e,DNG.Tag.BaselineExposureOffset,(ev,1000000)) # Not yet used by dcraw-based tools :-(
         fps,fpsnum,fpsden = self.fpsParts(r)
+        if date != None:
+            se,mi,ho,da,mo,ye = date
+            atm(e,DNG.Tag.TimeCodes,[0,se%10|(se/10)<<4,mi%10|(mi/10)<<4,ho%10|(ho/10)<<4,0,0,0,0])
+        else:
+            atm(e,DNG.Tag.TimeCodes,[0,0,0,0,0,0,0,0])
         at(e,DNG.Tag.FrameRate,(fpsnum,fpsden))
         exif = DNG.DNG.IFD(d)
         d.ifds[0].EXIF_IFD = exif
@@ -370,11 +375,18 @@ class ExportQueue(threading.Thread):
             se,mi,ho,da,mo,ye = frame.rtc[1:7]
             atm(e,DNG.Tag.DateTimeOriginal,"%04d:%02d:%02d %02d:%02d:%02d\0"%(ye+1900,mo,da,ho,mi,se))
 
-    def tempEncoderWav(self,wavfile,fps,tempname,inframe,outframe,audioOffset):
+    def tempEncoderWav(self,wavfile,fps,tempname,inframe,outframe,audioOffset,dt=None):
         wav = wave.open(wavfile,'r')
         tempwav = wavext.wavext(tempname)
         tempwav.setparams(wav.getparams())
-        tempwav.setextra((wavext.bext(),wavext.ixml()))
+        if dt!=None:
+            se,mi,ho,da,mo,ye = dt
+            od = "%04d:%02d:%02d"%(ye+1900,mo,da)
+            ot = "%02d:%02d:%02d"%(ho,mi,se)
+            bext = wavext.bext(originationDate=od,originationTime=ot)
+        else:
+            bext = wavext.bext()
+        tempwav.setextra((bext,wavext.ixml()))
         channels,width,framerate,nframe,comptype,compname = wav.getparams()
         frameCount = int(framerate * float(outframe-inframe+1)/float(fps))
         startFrame = int((audioOffset+(float(inframe)/float(fps)))*framerate)
@@ -441,11 +453,6 @@ class ExportQueue(threading.Thread):
         rgbl,dummy = self.rgblOverride(r,rgbl)
         wavfile = self.wavOverride(r,wavfile)
         wavfile = os.path.join(os.path.split(filename)[0],wavfile)
-        if os.path.exists(wavfile):
-            d = file(wavfile,'rb').read()
-            rhead = os.path.splitext(os.path.split(filename)[1])[0]
-            outwavname = os.path.join(dngdir, rhead + ".WAV")
-            self.tempEncoderWav(wavfile,fps,outwavname,startFrame,endFrame,audioOffset)
         targfile = os.path.splitext(os.path.split(r.filename)[1])[0]
         target = os.path.join(target,targfile)
         print "DNG export to",repr(target),"started"
@@ -460,12 +467,26 @@ class ExportQueue(threading.Thread):
         r.preloadFrame(startFrame+1) # Preload one ahead
         ljpeg = True
         if bits == 14: jpeg = False
+        wavneeded = False
+        if os.path.exists(wavfile):
+            wavneeded = True
+        wavmade = False
         for i in range(endFrame-startFrame+1):
             self.processCommands(block=False)
             f = r.frame(startFrame+i)
             f.writeljpeg = ljpeg
             d = DNG.DNG()
-            self.setDngHeader(r,d,bits,f,rgbl,ljpeg)
+
+            if f.rtc != None:
+                date = f.rtc[1:7]
+            else:
+                date = (0,0,0,0,0,0)
+            if wavneeded and not wavmade:
+                rhead = os.path.splitext(os.path.split(filename)[1])[0]
+                outwavname = os.path.join(dngdir, rhead + ".WAV")
+                self.tempEncoderWav(wavfile,fps,outwavname,startFrame,endFrame,audioOffset,date)
+                wavmade = True
+            self.setDngHeader(r,d,bits,f,rgbl,ljpeg,date)
             ifd = d.FULL_IFD
             if ((startFrame+i+1)<r.frames()):
                 r.preloadFrame(startFrame+i+1)

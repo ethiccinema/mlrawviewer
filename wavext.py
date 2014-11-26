@@ -27,8 +27,6 @@ def ixml(project="MlRawViewer",tape=1,scene=1,shot=1,take=1,angle="ms",fpsn=2500
     #padding = 8-len(blockdata)%8
     #blockdata += ' '*padding
     block = struct.pack("<4sI","iXML",len(blockdata))+blockdata
-    print len(block),len(blockdata)
-    print blockdata
     return block
 
 class wavext(wave.Wave_write):

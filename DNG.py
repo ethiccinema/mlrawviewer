@@ -153,6 +153,7 @@ class Tag:
     PreviewColorSpace = (50970,Type.Long)
     PreviewDateTime = (50971,Type.Ascii)
     NoiseProfile = (51041,Type.Double)
+    TimeCodes = (51043,Type.Byte)
     FrameRate = (51044,Type.Srational)
     OpcodeList1 = (51008,Type.Undefined)
     OpcodeList2 = (51009,Type.Undefined)
