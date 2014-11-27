@@ -49,8 +49,6 @@ class Audio(object):
                         import traceback
                         traceback.print_exc()
                         print "Audio underflow"
-                        stream = None
-                        dataBuffer = None
                     bufferOffset = 0
                 elif left<bufSize:
                     try:
@@ -59,7 +57,7 @@ class Audio(object):
                         import traceback
                         traceback.print_exc()
                         print "Audio underflow"
-                        stream = None
+                        started = False
                     bufferOffset = len(dataBuffer)
                 else:
                     newoffset = bufferOffset+bufSize
@@ -70,6 +68,7 @@ class Audio(object):
                         traceback.print_exc()
                         print "Audio underflow"
                         stream = None
+                        started = False
                     bufferOffset = newoffset
             else:
                 command = self.commands.get()
