@@ -454,7 +454,8 @@ class ExportQueue(threading.Thread):
         fps,fpsnum,fpsden = self.fpsParts(r)
         rgbl,dummy = self.rgblOverride(r,rgbl)
         wavfile = self.wavOverride(r,wavfile)
-        wavfile = os.path.join(os.path.split(filename)[0],wavfile)
+        if wavfile != None:
+            wavfile = os.path.join(os.path.split(filename)[0],wavfile)
         targfile = os.path.splitext(os.path.split(r.filename)[1])[0]
         target = os.path.join(target,targfile)
         print "DNG export to",repr(target),"started"
@@ -470,8 +471,9 @@ class ExportQueue(threading.Thread):
         ljpeg = True
         if bits == 14: jpeg = False
         wavneeded = False
-        if os.path.exists(wavfile):
-            wavneeded = True
+        if wavfile != None:
+            if os.path.exists(wavfile):
+                wavneeded = True
         wavmade = False
         for i in range(endFrame-startFrame+1):
             self.processCommands(block=False)
@@ -624,10 +626,11 @@ class ExportQueue(threading.Thread):
         if lut1d2 != None:
             print "Exporting using 1D LUT2",lut1d2.name()
         wavfile = self.wavOverride(r,wavfile)
-        wavfile = os.path.join(os.path.split(filename)[0],wavfile)
-        if os.path.exists(wavfile):
-            tempwavname = movfile[:-4] + ".WAV"
-            self.tempEncoderWav(wavfile,fps,tempwavname,startFrame,endFrame,audioOffset)
+        if wavfile != None:
+            wavfile = os.path.join(os.path.split(filename)[0],wavfile)
+            if os.path.exists(wavfile):
+                tempwavname = movfile[:-4] + ".WAV"
+                self.tempEncoderWav(wavfile,fps,tempwavname,startFrame,endFrame,audioOffset)
         fw = r.width()
         fh = r.height()
         aa = r.activeArea
