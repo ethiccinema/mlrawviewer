@@ -47,7 +47,8 @@ from Prompt import *
 from FindStartTone import FindStartTone
 ENCODE_TYPE_MOV = 0
 ENCODE_TYPE_DNG = 1
-ENCODE_TYPE_MAX = 2
+ENCODE_TYPE_MKV = 2
+ENCODE_TYPE_MAX = 3
 
 LUT1D = LUT.LUT1D
 LUT3D = LUT.LUT3D
@@ -114,6 +115,11 @@ class Viewer(GLCompute.GLCompute):
         self.setting_preprocess = config.getState("preprocess")
         if self.setting_preprocess == None:
 	        self.setting_preprocess = False
+	        
+        self.setting_rotate = config.getState("rotate")
+        if self.setting_rotate == None:
+            self.setting_rotate = False
+	        
         #self.updateColourMatrix()
         if self.setting_loop == None: self.setting_loop = True
         self.setting_encodeType = config.getState("encodeType")
@@ -527,8 +533,11 @@ class Viewer(GLCompute.GLCompute):
 
         # Mark management
         elif k==self.KEY_R:
-            self.markReset()
-            self.refresh()
+            if m==0:
+                self.toggleRotate()
+            elif m==1:
+                self.markReset()
+                self.refresh()
         elif k==self.KEY_P:
             self.markNext()
         elif k==self.KEY_U:
@@ -1029,13 +1038,24 @@ class Viewer(GLCompute.GLCompute):
             self.setting_encodeType = (newEncodeType,) # Could be more params here
         elif newEncodeType == ENCODE_TYPE_DNG:
             self.setting_encodeType = (newEncodeType,) # Could be more params here
+        elif newEncodeType == ENCODE_TYPE_MKV:
+            self.setting_encodeType = (newEncodeType,) # Could be more params here
         config.setState("encodeType",self.setting_encodeType)
         self.refresh()
+        
+    def toggleRotate(self):
+        self.setting_rotate = not self.setting_rotate
+        config.setState("rotate",self.setting_rotate)
+        self.refresh()
+        #print "toggle rotation %r" % (self.setting_rotate)
+        
     def addEncoding(self):
         if self.setting_encodeType[0] == ENCODE_TYPE_DNG:
             self.dngExport()
         elif self.setting_encodeType[0] == ENCODE_TYPE_MOV:
             self.movExport()
+        elif self.setting_encodeType[0] == ENCODE_TYPE_MKV:
+            self.mkvExport()
     def addEncodingAll(self):
         """
         Magic button for some workflows?
@@ -1089,6 +1109,27 @@ class Viewer(GLCompute.GLCompute):
                 if self.setting_preprocess:
                     pp = ExportQueue.ExportQueue.PREPROCESS_ALL
                 self.exporter.exportMov(filename,outfile,wavfilename,0,None,0.0,rgbl=rgbl,tm=self.setting_tonemap,matrix=self.setting_colourMatrix,preprocess=pp)
+        elif self.setting_encodeType[0] == ENCODE_TYPE_MKV:
+            for cand in fl:
+                filename = os.path.join(path,cand)
+                outfile = self.checkoutfile(filename)
+                if outfile==None: return # No directory set
+                wavname = os.path.splitext(filename)[0]+".WAV"
+                if os.path.isdir(filename):
+                    wavdir = filename
+                else:
+                    wavdir = os.path.split(filename)[0]
+                #print filename,wavdir,wavname
+                wavnames = [w for w in os.listdir(wavdir) if w.lower().endswith(".wav")]
+                if os.path.isdir(filename) and len(wavnames)>0:
+                    wavfilename = os.path.join(wavdir,wavnames[0])
+                else:
+                    wavfilename = wavname # Expect this to be extracted by indexing of MLV with SND
+                #print filename,outfile,wavfilename
+                pp = ExportQueue.ExportQueue.PREPROCESS_NONE
+                if self.setting_preprocess:
+                    pp = ExportQueue.ExportQueue.PREPROCESS_ALL
+                self.exporter.exportMov(filename,outfile,wavfilename,0,None,0.0,rgbl=rgbl,tm=self.setting_tonemap,matrix=self.setting_colourMatrix,preprocess=pp)
                 # Hmmm, colour matrix should be in the raw file.. shouldn't be a parameter?
         self.refresh()
 
@@ -1110,6 +1151,17 @@ class Viewer(GLCompute.GLCompute):
         if self.setting_preprocess:
             pp = ExportQueue.ExportQueue.PREPROCESS_ALL
         self.exporter.exportMov(self.raw.filename,outfile,self.wavname,self.marks[0][0],self.marks[1][0],self.audioOffset,rgbl=rgbl,tm=self.setting_tonemap,matrix=self.setting_colourMatrix,preprocess=pp)
+        self.refresh()
+        
+    def mkvExport(self):
+        outfile = self.checkoutfile(self.raw.filename)
+        if outfile==None: return # No directory set
+        c = self.setting_rgb
+        rgbl = (c[0],c[1],c[2],self.setting_brightness)
+        pp = ExportQueue.ExportQueue.PREPROCESS_NONE
+        if self.setting_preprocess:
+            pp = ExportQueue.ExportQueue.PREPROCESS_ALL
+        self.exporter.exportMkv(self.raw.filename,outfile,self.wavname,self.marks[0][0],self.marks[1][0],self.audioOffset,rgbl=rgbl,tm=self.setting_tonemap,matrix=self.setting_colourMatrix,preprocess=pp)
         self.refresh()
 
     def handleIndexing(self):

@@ -123,7 +123,7 @@ class DisplayScene(ui.Scene):
         self.quality = self.newIcon(0,0,128,128,5,self.qualityClick,"Quality of preview debayering - Bilinear or AMaZE (Key:Q)")
         self.quality.colour = (0.5,0.5,0.5,0.5) # Quite transparent white
         self.quality.setScale(0.25)
-        self.stripes = self.newIcon(0,0,128,128,22,self.stripesClick,"Status of stripe correction (X means active) - (Key:0)")
+        self.stripes = self.newIcon(0,0,128,128,23,self.stripesClick,"Status of stripe correction (X means active) - (Key:0)")
         self.stripes.colour = (0.5,0.5,0.5,0.5) # Quite transparent white
         self.stripes.setScale(0.25)
         self.drop = self.newIcon(0,30,128,128,7,self.dropClick,"Drop-frames to keep frame rate (clock) or show all frames (Key:F)")
@@ -135,35 +135,38 @@ class DisplayScene(ui.Scene):
         self.mapping = self.newIcon(0,90,128,128,11,self.mappingClick,"Curve: sRGB,R709,Linear,LOG,HDR,S-Log,S-Log2,Log-C,C-Log (Key:T)")
         self.mapping.colour = (0.5,0.5,0.5,0.5) # Quite transparent white
         self.mapping.setScale(0.25)
-        self.update = self.newIcon(0,0,128,128,30,self.updateClick,"New version of MlRawViewer is available. Click to download")
+        self.update = self.newIcon(0,0,128,128,31,self.updateClick,"New version of MlRawViewer is available. Click to download")
         self.update.colour = (0.5,0.1,0.0,0.5)
         self.update.setScale(0.5)
-        self.loop = self.newIcon(0,0,128,128,31,self.loopClick,"Loop clip or play once (Key:L)")
+        self.loop = self.newIcon(0,0,128,128,32,self.loopClick,"Loop clip or play once (Key:L)")
         self.loop.colour = (0.5,0.5,0.5,0.5)
         self.loop.setScale(0.5)
-        self.outformat = self.newIcon(0,0,128,128,20,self.outfmtClick,"Export format - MOV or DNG (Key:D)")
+        self.outformat = self.newIcon(0,0,128,128,20,self.outfmtClick,"Export format - MKV (Huffyuv), MOV (ProRes) or DNG (Key:D)")
         self.outformat.colour = (0.5,0.5,0.5,0.5)
         self.outformat.setScale(0.5)
-        self.addencode = self.newIcon(0,0,128,128,33,self.addEncodeClick,"Add clip to export queue (Key:E)")
+        self.addencode = self.newIcon(0,0,128,128,34,self.addEncodeClick,"Add clip to export queue (Key:E)")
         self.addencode.colour = (0.5,0.5,0.5,0.5)
         self.addencode.setScale(0.5)
+        self.rotate = self.newIcon(0,0,128,128,35,self.rotateClick,"Set rotate export (MKV, MOV only) - (Key:R)")
+        self.rotate.colour = (0.5,0.5,0.5,0.5)
+        self.rotate.setScale(0.5)
 
-        self.cidropper = self.newIcon(0,0,128,128,24,self.ciDropperClick,"Choose white balance from neutral object")
+        self.cidropper = self.newIcon(0,0,128,128,25,self.ciDropperClick,"Choose white balance from neutral object")
         self.cidropper.colour = (0.5,0.5,0.5,0.5)
         self.cidropper.setScale(0.25)
-        self.cievzero = self.newIcon(0,0,128,128,25,self.ciEvzeroClick,"Reset exposure to zero EV")
+        self.cievzero = self.newIcon(0,0,128,128,26,self.ciEvzeroClick,"Reset exposure to zero EV")
         self.cievzero.colour = (0.5,0.5,0.5,0.5)
         self.cievzero.setScale(0.25)
-        self.ciundo = self.newIcon(0,0,128,128,26,self.ciUndoClick,"Undo colour/exposure change")
+        self.ciundo = self.newIcon(0,0,128,128,27,self.ciUndoClick,"Undo colour/exposure change")
         self.ciundo.colour = (0.5,0.5,0.5,0.5)
         self.ciundo.setScale(0.25)
-        self.ciredo = self.newIcon(0,0,128,128,27,self.ciRedoClick,"Redo colour/exposure change")
+        self.ciredo = self.newIcon(0,0,128,128,28,self.ciRedoClick,"Redo colour/exposure change")
         self.ciredo.colour = (0.5,0.5,0.5,0.5)
         self.ciredo.setScale(0.25)
-        self.cistore = self.newIcon(0,0,128,128,28,self.ciStoreClick,"Store current colour/exposure (Key:H)")
+        self.cistore = self.newIcon(0,0,128,128,29,self.ciStoreClick,"Store current colour/exposure (Key:H)")
         self.cistore.colour = (0.5,0.5,0.5,0.5)
         self.cistore.setScale(0.25)
-        self.cirecall = self.newIcon(0,0,128,128,29,self.ciRecallClick,"Recall current colour/exposure (Key:G)")
+        self.cirecall = self.newIcon(0,0,128,128,30,self.ciRecallClick,"Recall current colour/exposure (Key:G)")
         self.cirecall.colour = (0.5,0.5,0.5,0.5)
         self.cirecall.setScale(0.25)
         self.ciItems = [self.cievzero,self.cidropper,self.ciundo,self.ciredo,self.cistore,self.cirecall]
@@ -206,7 +209,7 @@ class DisplayScene(ui.Scene):
         self.exportq.children.append(self.exportqlist)
         self.timestamp = ui.Geometry(svbo=frames.svbo)
         self.histogram = Graph(width=128,height=128,onclick=self.histogramClick,svbo=self.frames.svbo)
-        self.iconItems = [self.fullscreen,self.mapping,self.drop,self.quality,self.stripes,self.loop,self.outformat,self.addencode,self.play]
+        self.iconItems = [self.fullscreen,self.mapping,self.drop,self.quality,self.stripes,self.loop,self.outformat,self.rotate,self.addencode,self.play]
         self.overlay = [self.iconBackground,self.progressBackground,self.progress,self.timestamp,self.update,self.balance,self.balanceHandle,self.brightness,self.brightnessHandle,self.mark,self.mdbg,self.metadata,self.exportq,self.coldata,self.ttbg,self.tooltip,self.histogram]
         self.overlay.extend(self.iconItems)
         self.overlay.extend(self.ciItems)
@@ -319,6 +322,9 @@ class DisplayScene(ui.Scene):
     def encodeClick(self,x,y):
         self.frames.toggleEncoding()
 
+    def rotateClick(self,x,y):
+        self.frames.toggleRotate()
+        
     def addEncodeClick(self,x,y):
         self.frames.addEncoding()
 
@@ -341,7 +347,7 @@ class DisplayScene(ui.Scene):
         # Make sure we show correct icon for current state
         # Model is to show icon representing CURRENT state
         f = self.frames
-        states = [not f._isFull,f.tonemap(),not f.dropframes(),f.setting_highQuality,f.setting_preprocess,not f.setting_loop,f.setting_encodeType[0],False,False,f.paused]
+        states = [not f._isFull,f.tonemap(),not f.dropframes(),f.setting_highQuality,f.setting_preprocess,not f.setting_loop,f.setting_encodeType[0], not f.setting_rotate,False,f.paused]
         for i in range(len(self.iconItems)):
             itm = self.iconItems[i]
             state = states[i]
@@ -543,6 +549,10 @@ class DisplayScene(ui.Scene):
                 targ = os.path.split(job[3])[1]
                 start,end = job[5:7]
             elif jobtype == ExportQueue.ExportQueue.JOB_MOV:
+                rfile = os.path.split(job[2])[1]
+                targ = os.path.split(job[3])[1]
+                start,end = job[5:7]
+            elif jobtype == ExportQueue.ExportQueue.JOB_MKV:
                 rfile = os.path.split(job[2])[1]
                 targ = os.path.split(job[3])[1]
                 start,end = job[5:7]

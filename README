@@ -1,3 +1,17 @@
+About this fork
+-----
+
+This is a fork from the original MlRawViewer (https://bitbucket.org/baldand/mlrawviewer/).
+
+Our goal is not to make another MlRawViewer, but to contribute to the original application based on our specific needs.
+
+You can test our version of MlRawViewer and give us your feedback.
+
+Currently added features are :
+
+- Free format export : Lossless MKV (Huffyuv)
+- Rotate the export.
+
 About
 -----
 
@@ -154,7 +168,9 @@ S - Toggle anamorphic aspect to take into account anamorphic lenses (1.33x, 1.4x
 
 W - File dialog to choose the export directory
 
-D - Choose export type, MOV or DNG
+D - Choose export type, MKV (Huffyuv), MOV (ProRes) or DNG
+
+R - Set rotate export to 180º (MKV & MOV only)
 
 E - Start exporting from the start of the marked range to the export directory. Will use the source name with ".MOV" or "_DNG" appended.
 
@@ -176,7 +192,7 @@ I/O - Set IN/OUT marks. IN mark must be before the OUT mark. OUT mark must be af
 
 U/P - Jump to the previous/next marks
 
-R - Reset the marks to start/end of the file
+Shift-R - Reset the marks to start/end of the file
 
 L - Toggle looping or play-once mode
 

@@ -67,6 +67,7 @@ class ExportQueue(threading.Thread):
     COMMAND_END = 5
     JOB_DNG = 0
     JOB_MOV = 1
+    JOB_MKV = 2
     PREPROCESS_NONE = 0
     PREPROCESS_ALL = 1
     def __init__(self,config,**kwds):
@@ -182,6 +183,8 @@ class ExportQueue(threading.Thread):
         return self.submitJob(self.JOB_DNG,rawfile,dngdir,wavfile,startFrame,endFrame,audioOffset,bits,rgbl,preprocess)
     def exportMov(self,rawfile,movfile,wavfile,startFrame=0,endFrame=None,audioOffset=0.0,rgbl=None,tm=None,matrix=None,preprocess=0):
         return self.submitJob(self.JOB_MOV,rawfile,movfile,wavfile,startFrame,endFrame,audioOffset,rgbl,tm,matrix,preprocess)
+    def exportMkv(self,rawfile,movfile,wavfile,startFrame=0,endFrame=None,audioOffset=0.0,rgbl=None,tm=None,matrix=None,preprocess=0):
+        return self.submitJob(self.JOB_MKV,rawfile,movfile,wavfile,startFrame,endFrame,audioOffset,rgbl,tm,matrix,preprocess)
     def submitJob(self,*args):
         ix = self.jobindex
         self.jobindex += 1
@@ -226,6 +229,8 @@ class ExportQueue(threading.Thread):
             self.doExportDng(job[0],jobArgs)
         elif jobType == self.JOB_MOV:
             self.doExportMov(job[0],jobArgs)
+        elif jobType == self.JOB_MKV:
+            self.doExportMkv(job[0],jobArgs)
         else:
             pass
 
@@ -581,7 +586,46 @@ class ExportQueue(threading.Thread):
         self.needBgDraw = True
         filename,movfile,wavfile,startFrame,endFrame,audioOffset,rgbl,tm,matrix,preprocess = args
         try:
-            self.processExportMov(jobindex,filename,movfile,wavfile,startFrame,endFrame,audioOffset,rgbl,tm,matrix,preprocess)
+            rotateConfig = "-vf vflip " 
+            
+            # Raw picture is upside down. Only rotate if rotate is not required
+            if self.config.getState("rotate"):
+                rotateConfig = "-vf hflip "
+                
+            videoConfig = rotateConfig + "-f mov -vcodec prores_ks -profile:v 4 -alpha_bits 0 -vendor ap4h -q:v 0"
+            audioConfig = "-acodec copy"
+            extension = "MOV"
+            self.processExportFFMpeg(jobindex,extension,videoConfig,audioConfig,filename,movfile,wavfile,startFrame,endFrame,audioOffset,rgbl,tm,matrix,preprocess)
+        except:
+            import traceback
+            traceback.print_exc()
+            pass
+        # Clean up
+        self.needBgDraw = False
+        if self.encoderProcess:
+            self.encoderProcess.stdin.close()
+            self.encoderProcess.wait()
+            self.encoderProcess = None
+        tempwavfile = movfile[:-4] + ".WAV"
+        if os.path.exists(tempwavfile):
+            os.remove(tempwavfile)
+        self.encoderOutput = None  
+        self.stdoutReader = None
+        
+    def doExportMkv(self,jobindex,args):
+        self.needBgDraw = True
+        filename,movfile,wavfile,startFrame,endFrame,audioOffset,rgbl,tm,matrix,preprocess = args
+        try:
+            rotateConfig = "-vf vflip " 
+            
+            # Raw picture is upside down. Only rotate if rotate is not required
+            if self.config.getState("rotate"):
+                rotateConfig = "-vf hflip "
+                
+            videoConfig = rotateConfig + "-vcodec huffyuv"
+            audioConfig = "-acodec flac"
+            extension = "mkv"
+            self.processExportFFMpeg(jobindex,extension,videoConfig,audioConfig,filename,movfile,wavfile,startFrame,endFrame,audioOffset,rgbl,tm,matrix,preprocess)
         except:
             import traceback
             traceback.print_exc()
@@ -598,11 +642,11 @@ class ExportQueue(threading.Thread):
         self.encoderOutput = None
         self.stdoutReader = None
 
-    def processExportMov(self,jobindex,filename,movfile,wavfile,startFrame,endFrame,audioOffset,rgbl,tm,matrix,preprocess):
+    def processExportFFMpeg(self,jobindex,extension,videoConfig,audioConfig,filename,movfile,wavfile,startFrame,endFrame,audioOffset,rgbl,tm,matrix,preprocess):
         import codecs
         toUtf8 = codecs.getencoder('UTF8')
         target = movfile
-        print "MOV export to",repr(movfile),"started"
+        print extension,"export to",repr(movfile),"started"
         tempwavname = None
         r = MlRaw.loadRAWorMLV(filename)
         if endFrame == None:
@@ -661,14 +705,10 @@ class ExportQueue(threading.Thread):
             su.dwFlags |= subprocess.STARTF_USESHOWWINDOW
             su.wShowWindow = subprocess.SW_HIDE
             kwargs["startupinfo"] = su
-        ffmpegWithAudioConfig = self.config.getState("ffmpegWithAudioConfig",raw=True)
-        ffmpegNoAudioConfig = self.config.getState("ffmpegNoAudioConfig", raw=True)
-        if ffmpegWithAudioConfig == None:
-            ffmpegWithAudioConfig = "-f mov -vf vflip -vcodec prores_ks -profile:v 4 -alpha_bits 0 -vendor ap4h -q:v 0 -acodec copy %s.MOV"
-            self.config.setState("ffmpegWithAudioConfig",ffmpegWithAudioConfig,raw=True)
-        if ffmpegNoAudioConfig == None:
-            ffmpegNoAudioConfig = "-f mov -vf vflip -vcodec prores_ks -profile:v 4 -alpha_bits 0 -vendor ap4h -q:v 0 %s.MOV"
-            self.config.setState("ffmpegNoAudioConfig",ffmpegNoAudioConfig,raw=True)
+            
+        ffmpegWithAudioConfig = videoConfig + audioConfig + " %s."+extension
+        ffmpegNoAudioConfig = videoConfig + " %s."+extension
+
 	outname = movfile.encode(sys.getfilesystemencoding())
         if tempwavname != None: # Includes Audio
             print "ffmpeg config (audio):",ffmpegWithAudioConfig
@@ -757,7 +797,7 @@ class ExportQueue(threading.Thread):
         self.dq.join()
         self.writer.join()
         self.jobstatus[jobindex] = 1.0
-        print "MOV export to",repr(movfile),"finished"
+        print extension,"export to",repr(movfile),"finished"
         r.close()
 
     def stdoutReaderLoop(self):
