@@ -709,7 +709,7 @@ class ExportQueue(threading.Thread):
         ffmpegWithAudioConfig = videoConfig + audioConfig + " %s."+extension
         ffmpegNoAudioConfig = videoConfig + " %s."+extension
 
-	outname = movfile.encode(sys.getfilesystemencoding())
+        outname = movfile.encode(sys.getfilesystemencoding())
         if tempwavname != None: # Includes Audio
             print "ffmpeg config (audio):",ffmpegWithAudioConfig
             extraArgs = ffmpegWithAudioConfig.strip().split()
@@ -744,6 +744,7 @@ class ExportQueue(threading.Thread):
         self.writtenFrame = 0
         r.preloadFrame(startFrame)
         r.preloadFrame(startFrame+1) # Preload one ahead
+        print "Processing", endFrame, "frames, it may take a while."
         for i in range(endFrame-startFrame+1):
             self.processCommands(block=False)
             f = r.frame(startFrame+i)
@@ -775,11 +776,11 @@ class ExportQueue(threading.Thread):
                 if self.endflag or self.cancel:
                     break
                 time.sleep(0.1)
-            if frame != None:
+            if frame is not None:
                 if frame < (self.writtenFrame-10):
                     time.sleep(0.1) # Give encoder some time to empty buffers
             st = float(self.writtenFrame+1)/float(todo)
-            #print "%.02f%%"%(st*100.0)
+            print "%.02f%%         \r"%(st*100.0),
             self.jobstatus[jobindex] = st
             if self.endflag or self.cancel:
                 break
@@ -790,13 +791,14 @@ class ExportQueue(threading.Thread):
         while (self.writtenFrame+1)<todo:
             time.sleep(0.5)
             st = float(self.writtenFrame+1)/float(todo)
-            #print "%.02f%%"%(st*100.0)
+            "%.02f%%         \r"%(st*100.0),
             self.jobstatus[jobindex] = st
             if self.endflag or self.cancel:
                 break
         self.dq.join()
         self.writer.join()
         self.jobstatus[jobindex] = 1.0
+        print ""
         print extension,"export to",repr(movfile),"finished"
         r.close()
 

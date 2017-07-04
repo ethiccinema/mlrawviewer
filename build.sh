@@ -9,6 +9,6 @@ cd tools
 cd ..
 
 # build & run
-python setup.py build
+python2 setup.py build
 cp build/lib.linux-x86_64-2.7/bitunpack.so bitunpack.so
 ./mlrawviewer.py

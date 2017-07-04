@@ -569,9 +569,9 @@ class DialogScene(ui.Scene):
                         t[:,:,0] += np.linspace(0,65535,90*160).reshape(90,160)
                         t[:,:,1] += np.linspace(0,65535*90,90*160).reshape(90,160)
                         t[:,:,2] += 32768
-                    if t != None and scantype==SCAN_VIDEOS:
+                    if t is not None and scantype==SCAN_VIDEOS:
                         self.thumbcache[fullpath] = t
-                if t != None:
+                if t is not None:
                     self.scanResults.append((False,fullpath,t,None))
                     self.frames.refresh()
                 if self.scanJobCancel:
